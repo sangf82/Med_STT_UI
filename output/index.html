@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedScribe — Mobile Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+/* ═══════════════════════════ THEME VARIABLES ═══════════════════════════ */
+:root {
+  --bg-page: #F5F5F5; --bg-surface: #F9FAFB; --bg-card: #FFFFFF; --bg-input: #F5F5F5;
+  --bg-sidebar: #FFFFFF; --bg-overlay: rgba(0,0,0,0.4);
+  --accent-blue: #219EBC; --accent-orange: #FB8A0A; --danger: #E63946;
+  --text-primary: #1A1A1A; --text-secondary: #555555; --text-muted: #999999;
+  --text-hint: #AAAAAA; --border: #E5E7EB; --border-input: transparent;
+  --badge-success-bg: #DCFCE7; --badge-success: #16A34A;
+  --badge-warn-bg: #FEF3C7; --badge-warn: #D97706;
+  --badge-progress-bg: #FFF7ED; --badge-progress: #FB8A0A;
+  --waveform-bg: #2E2E2E; --waveform-bar: #FFFFFF; --waveform-dim: #666666;
+  --section-head-bg: #EBF5F8; --section-head-border: #219EBC;
+  --highlight-bg: #EBF5F8; --card-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --profile-bg: #219EBC; --toggle-bg: #D1D5DB; --toggle-active: #219EBC;
+  --tab-bg: #FFFFFF; --tab-border: #E5E7EB; --error-bg: #FEF2F2; --error-border: #FECACA; --error-text: #DC2626;
+  --strength-track: #E5E7EB; --divider: #EEEEEE;
+  --ctrl-btn-bg: #EEEEEE; --ctrl-btn-icon: #1A1A1A;
+  --save-card-bg: #FFFFFF; --format-card-bg: #FFFFFF; --format-card-border: #E5E7EB;
+  --textarea-bg: #FFFFFF; --soap-section-bg: #F9FAFB;
+}
+[data-theme="dark"] {
+  --bg-page: #0A0A0A; --bg-surface: #0A0A0A; --bg-card: #1A1A1A; --bg-input: #1E1E1E;
+  --bg-sidebar: #1A1A1A; --bg-overlay: rgba(0,0,0,0.6);
+  --text-primary: #F0F0F0; --text-secondary: #AAAAAA; --text-muted: #666666;
+  --text-hint: #555555; --border: #2A2A2A; --border-input: #333333;
+  --badge-success-bg: #14532D; --badge-success: #4ADE80;
+  --badge-warn-bg: #422006; --badge-warn: #FBBF24;
+  --badge-progress-bg: #422006; --badge-progress: #FB8A0A;
+  --section-head-bg: #1A3A44; --section-head-border: #219EBC;
+  --highlight-bg: #1A3A44; --card-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  --profile-bg: #219EBC; --toggle-bg: #333333; --toggle-active: #219EBC;
+  --tab-bg: #121212; --tab-border: #2A2A2A; --error-bg: #3B1111; --error-border: #7F1D1D; --error-text: #FCA5A5;
+  --strength-track: #333333; --divider: #2A2A2A;
+  --ctrl-btn-bg: #2A2A2A; --ctrl-btn-icon: #F0F0F0;
+  --save-card-bg: #2A2A2A; --format-card-bg: #1A1A1A; --format-card-border: #333333;
+  --textarea-bg: #1A1A1A; --soap-section-bg: #121212;
+}
+
+/* ═══════════════════════════ RESET & BASE ═══════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#111;color:#ccc;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:20px 10px;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,textarea{font-family:inherit;outline:none;border:none}
+.material-symbols-rounded{font-variation-settings:'FILL'1,'wght'400,'GRAD'0,'opsz'24}
+
+/* ═══════════════════════════ PROTOTYPE SHELL ═══════════════════════════ */
+.proto-title{font-size:24px;font-weight:700;color:#fff;margin-bottom:16px;text-align:center}
+.proto-title span{color:#219EBC}
+.controls-bar{display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap;justify-content:center}
+.flow-tab{padding:8px 18px;border-radius:20px;font-size:13px;font-weight:600;color:#888;background:#1A1A1A;border:1px solid #333;transition:all .2s}
+.flow-tab:hover{color:#ccc;border-color:#555}
+.flow-tab.active{background:#219EBC;color:#fff;border-color:#219EBC}
+.theme-toggle{width:40px;height:40px;border-radius:50%;background:#1A1A1A;border:1px solid #333;display:flex;align-items:center;justify-content:center;color:#FB8A0A;margin-left:12px;transition:all .2s;font-size:18px}
+.theme-toggle:hover{border-color:#FB8A0A}
+
+.phone-wrapper{position:relative;width:406px;height:876px;background:#222;border-radius:40px;padding:8px;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+.phone-notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:24px;background:#222;border-radius:0 0 16px 16px;z-index:100}
+.phone-frame{position:relative;width:390px;height:844px;border-radius:32px;overflow:hidden;background:var(--bg-surface)}
+
+.screen{position:absolute;inset:0;display:none;flex-direction:column;overflow-y:auto;overflow-x:hidden;background:var(--bg-surface);scrollbar-width:none}
+.screen::-webkit-scrollbar{display:none}
+.screen.active{display:flex}
+
+.nav-bar{display:flex;gap:6px;margin-top:12px;justify-content:center;align-items:center}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:#444;cursor:pointer;transition:all .2s}
+.nav-dot.active{background:#219EBC;width:24px;border-radius:4px}
+.screen-label{margin-top:8px;font-size:12px;color:#888;text-align:center;min-height:18px}
+.nav-arrows{display:flex;gap:12px;margin-top:10px}
+.nav-arrow{width:36px;height:36px;border-radius:50%;background:#1A1A1A;border:1px solid #333;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:16px;transition:all .2s}
+.nav-arrow:hover{border-color:#219EBC;color:#219EBC}
+
+/* ═══════════════════════════ COMMON COMPONENTS ═══════════════════════════ */
+.s-header{display:flex;align-items:center;justify-content:space-between;padding:4px 16px;height:48px;flex-shrink:0}
+.s-header-title{font-size:17px;font-weight:600;color:var(--text-primary)}
+.s-header-back{width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--text-primary)}
+.s-header-action{width:40px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--text-muted)}
+
+.icon-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:50%;color:var(--text-secondary)}
+.icon-btn svg,.icon-btn i{width:22px;height:22px}
+
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-label{font-size:13px;font-weight:600;color:var(--text-secondary)}
+.input{height:52px;border-radius:12px;padding:0 16px;font-size:15px;background:var(--bg-input);border:1px solid var(--border-input);color:var(--text-primary);width:100%;transition:border-color .2s}
+.input::placeholder{color:var(--text-hint)}
+.input.error{border-color:var(--danger) !important;background:var(--error-bg)}
+.error-msg{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--error-text);padding:8px 12px;background:var(--error-bg);border:1px solid var(--error-border);border-radius:8px;margin-top:4px}
+.error-msg i{width:14px;height:14px;flex-shrink:0}
+
+.btn{height:52px;border-radius:12px;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;transition:transform .1s,opacity .1s}
+.btn:active{transform:scale(0.98);opacity:0.9}
+.btn-blue{background:var(--accent-blue);color:#FFFFFF}
+.btn-orange{background:var(--accent-orange);color:#FFFFFF}
+
+.card{background:var(--bg-card);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:var(--card-shadow)}
+.card-title{font-size:15px;font-weight:600;color:var(--text-primary)}
+.card-meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);flex-wrap:wrap}
+.card-meta-dot{width:3px;height:3px;border-radius:50%;background:var(--text-hint);flex-shrink:0}
+
+.badge{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-success{background:var(--badge-success-bg);color:var(--badge-success)}
+.badge-warn{background:var(--badge-warn-bg);color:var(--badge-warn)}
+.badge-progress{background:var(--badge-progress-bg);color:var(--badge-progress)}
+
+.fab{width:64px;height:64px;border-radius:32px;background:var(--danger);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(230,57,70,0.35);transition:transform .15s}
+.fab:hover{transform:scale(1.05)}
+.fab i{color:#fff;width:28px;height:28px}
+
+.tab-bar{display:flex;background:var(--tab-bg);border-bottom:1px solid var(--tab-border);flex-shrink:0}
+.tab-item{flex:1;padding:12px 0;text-align:center;font-size:13px;font-weight:600;color:var(--text-muted);border-bottom:2.5px solid transparent;transition:all .2s;cursor:pointer}
+.tab-item.active{color:var(--accent-blue);border-bottom-color:var(--accent-blue)}
+
+.audio-player{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg-card)}
+.play-btn{width:36px;height:36px;border-radius:50%;background:var(--accent-blue);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.play-btn i{color:#fff;width:16px;height:16px}
+.progress-wrap{flex:1;display:flex;flex-direction:column;gap:4px}
+.progress-track{height:4px;background:var(--border);border-radius:2px;position:relative;overflow:hidden}
+.progress-fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent-blue);border-radius:2px;width:60%}
+.progress-times{display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted)}
+
+.bottom-bar{display:flex;align-items:center;justify-content:space-around;padding:10px 20px;border-top:1px solid var(--border);background:var(--bg-card);flex-shrink:0}
+.bottom-action{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);padding:4px 12px}
+.bottom-action i{width:20px;height:20px}
+
+.waveform-box{background:var(--waveform-bg);display:flex;align-items:center;justify-content:center;padding:0 20px;flex-shrink:0;position:relative;overflow:hidden}
+.wf-bars{display:flex;align-items:center;gap:2px;height:100%}
+.wf-bar{width:3px;border-radius:1.5px;transition:height .15s}
+.wf-playhead{width:2px;height:80%;background:var(--danger);flex-shrink:0;border-radius:1px}
+
+.recording-ctrl{display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:100px;flex-shrink:0}
+.ctrl-btn{display:flex;align-items:center;justify-content:center;border-radius:50%}
+.ctrl-sm{width:52px;height:52px;background:var(--ctrl-btn-bg)}
+.ctrl-sm i,.ctrl-sm .material-symbols-rounded{color:var(--ctrl-btn-icon);font-size:24px}
+.ctrl-lg{width:72px;height:72px;background:#FFFFFF;border:3px solid var(--danger)}
+[data-theme="dark"] .ctrl-lg{background:#FFFFFF}
+.ctrl-lg-inner{width:52px;height:52px;border-radius:50%;background:var(--danger);display:flex;align-items:center;justify-content:center}
+
+.timer{text-align:center;font-size:52px;font-weight:300;color:var(--text-primary);flex-shrink:0}
+.timer.dimmed{color:var(--text-hint)}
+
+.compliance{display:flex;align-items:center;justify-content:center;gap:6px;color:var(--text-muted);font-size:11px}
+.compliance i{width:14px;height:14px}
+
+/* Recording dot pulse */
+.rec-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+/* Waveform animation */
+.wf-bar.animate{animation:wave-bounce 0.7s ease-in-out infinite alternate}
+@keyframes wave-bounce{0%{transform:scaleY(0.6)}100%{transform:scaleY(1.2)}}
+
+/* Sidebar slide */
+.sidebar-panel{position:absolute;left:0;top:0;bottom:0;width:300px;background:var(--bg-sidebar);z-index:10;display:flex;flex-direction:column}
+.sidebar-overlay{position:absolute;inset:0;background:var(--bg-overlay);z-index:5}
+
+/* Modal overlay */
+.modal-bg{position:absolute;inset:0;background:rgba(0,0,0,0.4);z-index:5;display:flex;align-items:center;justify-content:center}
+.modal-card{width:340px;background:var(--save-card-bg);border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:16px;z-index:6}
+
+/* Strength bar */
+.strength-bar{height:4px;border-radius:2px;background:var(--strength-track);overflow:hidden;margin-top:4px}
+.strength-fill{height:100%;border-radius:2px;transition:width .3s,background .3s}
+.strength-weak{width:33%;background:var(--danger)}
+.strength-medium{width:66%;background:var(--accent-orange)}
+.strength-strong{width:100%;background:var(--badge-success)}
+.strength-label{font-size:11px;margin-top:2px}
+
+/* Format selection cards */
+.format-card{background:var(--format-card-bg);border:2px solid var(--format-card-border);border-radius:16px;padding:16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .2s}
+.format-card.selected{border-color:var(--accent-orange);background:var(--highlight-bg)}
+.format-radio{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.format-card.selected .format-radio{border-color:var(--accent-orange)}
+.format-radio-dot{width:10px;height:10px;border-radius:50%;background:var(--accent-orange);display:none}
+.format-card.selected .format-radio-dot{display:block}
+.format-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* Nav items */
+.nav-row{display:flex;align-items:center;gap:14px;padding:14px 24px;border-radius:0;cursor:pointer;transition:background .15s}
+.nav-row:hover{background:var(--highlight-bg)}
+.nav-row.active{background:var(--highlight-bg)}
+.nav-row i{width:22px;height:22px;color:var(--text-secondary)}
+.nav-row.active i{color:var(--accent-blue)}
+.nav-row-label{font-size:15px;color:var(--text-secondary)}
+.nav-row.active .nav-row-label{color:var(--accent-blue);font-weight:600}
+
+/* Toggle switch */
+.toggle{width:44px;height:24px;border-radius:12px;background:var(--toggle-bg);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--toggle-active)}
+.toggle-thumb{width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+.toggle.on .toggle-thumb{left:22px}
+
+/* SOAP sections */
+.soap-section{display:flex;flex-direction:column;gap:6px}
+.soap-label{font-size:14px;font-weight:700;color:var(--accent-blue)}
+.soap-text{font-size:14px;color:var(--text-secondary);line-height:1.6}
+.soap-edit-area{width:100%;min-height:80px;padding:10px;border-radius:8px;background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);font-size:14px;line-height:1.6;resize:vertical}
+
+/* Settings */
+.settings-section{display:flex;flex-direction:column;gap:2px}
+.settings-title{font-size:12px;font-weight:700;color:var(--accent-orange);text-transform:uppercase;letter-spacing:0.5px;padding:16px 20px 8px}
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;gap:12px}
+.settings-row-left{display:flex;align-items:center;gap:12px}
+.settings-row-left i{width:20px;height:20px;color:var(--text-secondary)}
+.settings-row-label{font-size:14px;color:var(--text-primary)}
+.settings-row-value{font-size:13px;color:var(--text-muted)}
+.settings-row-chevron{color:var(--text-hint)}
+.settings-row-chevron i{width:16px;height:16px}
+
+/* Scrollable content area */
+.scroll-content{flex:1;overflow-y:auto;scrollbar-width:none}
+.scroll-content::-webkit-scrollbar{display:none}
+
+/* Misc */
+.flex-1{flex:1}.w-full{width:100%}.text-center{text-align:center}
+.gap-4{gap:4px}.gap-6{gap:6px}.gap-8{gap:8px}.gap-10{gap:10px}.gap-12{gap:12px}.gap-16{gap:16px}.gap-18{gap:18px}.gap-20{gap:20px}.gap-24{gap:24px}.gap-36{gap:36px}
+.p-16{padding:16px}.p-20{padding:20px}.p-32{padding:0 32px}.px-16{padding-left:16px;padding-right:16px}.px-20{padding-left:20px;padding-right:20px}
+.py-8{padding-top:8px;padding-bottom:8px}
+.mt-auto{margin-top:auto}.mb-8{margin-bottom:8px}.mt-12{margin-top:12px}.mt-24{margin-top:24px}
+.flex-col{display:flex;flex-direction:column}.flex-row{display:flex;flex-direction:row}.items-center{align-items:center}.justify-center{justify-content:center}.justify-between{justify-content:space-between}
+.shrink-0{flex-shrink:0}
+.avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff}
+.divider{height:1px;background:var(--divider);margin:4px 0}
+.link{color:var(--accent-blue);font-weight:600;font-size:13px;cursor:pointer}
+.logo-icon{color:var(--accent-blue)}
+.logo-name{color:var(--accent-blue);font-weight:700}
+
+/* Progress bar for transcribing */
+.prog-bar{height:4px;border-radius:2px;background:var(--strength-track);overflow:hidden;margin-top:6px}
+.prog-bar-fill{height:100%;background:var(--accent-orange);border-radius:2px}
+
+/* Shake animation */
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.shake{animation:shake 0.4s ease-in-out}
+</style>
+</head>
+<body>
+
+<div class="proto-title"><span>MedScribe</span> · Mobile Prototype</div>
+
+<!-- ═══════ CONTROLS BAR ═══════ -->
+<div class="controls-bar">
+  <button class="flow-tab active" data-flow="a" onclick="switchFlow('a')">Login</button>
+  <button class="flow-tab" data-flow="b" onclick="switchFlow('b')">Dashboard</button>
+  <button class="flow-tab" data-flow="c" onclick="switchFlow('c')">Recording</button>
+  <button class="flow-tab" data-flow="d" onclick="switchFlow('d')">Review</button>
+  <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">☀</button>
+</div>
+
+<!-- ═══════ PHONE FRAME ═══════ -->
+<div class="phone-wrapper">
+  <div class="phone-notch"></div>
+  <div class="phone-frame">
+
+<!-- ╔═══════════════════════════════════════════════════════════════╗
+     ║  FLOW A — LOGIN / SIGN-IN  (5 screens)                      ║
+     ╚═══════════════════════════════════════════════════════════════╝ -->
+
+<!-- A1: Login -->
+<div class="screen active" id="a1">
+  <div class="flex-col items-center justify-center flex-1 gap-36 p-32" style="padding-top:60px;padding-bottom:40px">
+    <!-- Logo -->
+    <div class="flex-col items-center gap-8">
+      <span class="material-symbols-rounded logo-icon" style="font-size:56px">stethoscope</span>
+      <div class="logo-name" style="font-size:30px">MedScribe</div>
+      <div style="font-size:14px;color:var(--text-muted)">Medical Speech-to-Text</div>
+    </div>
+    <!-- Form -->
+    <div class="flex-col gap-18 w-full">
+      <div class="form-group">
+        <label class="form-label">NPI Number / Email</label>
+        <input class="input" placeholder="Enter your NPI or email" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="input" type="password" placeholder="Enter your password" readonly>
+      </div>
+      <div class="flex-row items-center justify-between">
+        <div class="flex-row items-center gap-8">
+          <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid var(--text-hint)"></div>
+          <span style="font-size:13px;color:var(--text-muted)">Remember Me</span>
+        </div>
+        <span class="link">Forgot Password?</span>
+      </div>
+      <button class="btn btn-blue"><i data-lucide="shield" style="width:18px;height:18px"></i> Secure Login</button>
+      <div class="compliance"><i data-lucide="lock"></i> HIPAA Compliant · 256-bit Encrypted</div>
+    </div>
+    <!-- Sign up link -->
+    <div style="font-size:13px;color:var(--text-muted)">Don't have an account? <span class="link" onclick="showScreen('a',3)">Sign Up</span></div>
+  </div>
+</div>
+
+<!-- A2: Login Error – Wrong Password -->
+<div class="screen" id="a2">
+  <div class="flex-col items-center justify-center flex-1 gap-36 p-32" style="padding-top:60px;padding-bottom:40px">
+    <div class="flex-col items-center gap-8">
+      <span class="material-symbols-rounded logo-icon" style="font-size:56px">stethoscope</span>
+      <div class="logo-name" style="font-size:30px">MedScribe</div>
+      <div style="font-size:14px;color:var(--text-muted)">Medical Speech-to-Text</div>
+    </div>
+    <div class="flex-col gap-18 w-full">
+      <div class="form-group">
+        <label class="form-label">NPI Number / Email</label>
+        <input class="input" value="dr.chen@memorial.org" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="input error shake" type="password" value="••••••••" readonly>
+        <div class="error-msg"><i data-lucide="alert-circle"></i> Incorrect password. Please try again.</div>
+      </div>
+      <div class="flex-row items-center justify-between">
+        <div class="flex-row items-center gap-8">
+          <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid var(--text-hint)"></div>
+          <span style="font-size:13px;color:var(--text-muted)">Remember Me</span>
+        </div>
+        <span class="link">Forgot Password?</span>
+      </div>
+      <button class="btn btn-blue"><i data-lucide="shield" style="width:18px;height:18px"></i> Secure Login</button>
+      <div class="compliance"><i data-lucide="lock"></i> HIPAA Compliant · 256-bit Encrypted</div>
+    </div>
+    <div style="font-size:13px;color:var(--text-muted)">Don't have an account? <span class="link">Sign Up</span></div>
+  </div>
+</div>
+
+<!-- A3: Login Error – Wrong Username -->
+<div class="screen" id="a3">
+  <div class="flex-col items-center justify-center flex-1 gap-36 p-32" style="padding-top:60px;padding-bottom:40px">
+    <div class="flex-col items-center gap-8">
+      <span class="material-symbols-rounded logo-icon" style="font-size:56px">stethoscope</span>
+      <div class="logo-name" style="font-size:30px">MedScribe</div>
+      <div style="font-size:14px;color:var(--text-muted)">Medical Speech-to-Text</div>
+    </div>
+    <div class="flex-col gap-18 w-full">
+      <div class="form-group">
+        <label class="form-label">NPI Number / Email</label>
+        <input class="input error shake" value="unknown@email.com" readonly>
+        <div class="error-msg"><i data-lucide="alert-circle"></i> Account not found. Check your NPI or email.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="input" type="password" placeholder="Enter your password" readonly>
+      </div>
+      <div class="flex-row items-center justify-between">
+        <div class="flex-row items-center gap-8">
+          <div style="width:18px;height:18px;border-radius:4px;border:1.5px solid var(--text-hint)"></div>
+          <span style="font-size:13px;color:var(--text-muted)">Remember Me</span>
+        </div>
+        <span class="link">Forgot Password?</span>
+      </div>
+      <button class="btn btn-blue"><i data-lucide="shield" style="width:18px;height:18px"></i> Secure Login</button>
+      <div class="compliance"><i data-lucide="lock"></i> HIPAA Compliant · 256-bit Encrypted</div>
+    </div>
+    <div style="font-size:13px;color:var(--text-muted)">Don't have an account? <span class="link">Sign Up</span></div>
+  </div>
+</div>
+
+<!-- A4: Sign Up -->
+<div class="screen" id="a4">
+  <div class="flex-col items-center flex-1 gap-24 p-32" style="padding-top:40px;padding-bottom:30px;overflow-y:auto">
+    <div class="flex-col items-center gap-6">
+      <span class="material-symbols-rounded logo-icon" style="font-size:44px">stethoscope</span>
+      <div class="logo-name" style="font-size:24px">Create Account</div>
+      <div style="font-size:13px;color:var(--text-muted)">Join MedScribe today</div>
+    </div>
+    <div class="flex-col gap-16 w-full">
+      <div class="form-group">
+        <label class="form-label">NPI Number</label>
+        <input class="input" placeholder="10-digit NPI number" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input class="input" placeholder="Dr. First Last" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="input" placeholder="you@hospital.org" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="input" type="password" placeholder="Create a strong password" readonly>
+        <div class="strength-bar"><div class="strength-fill strength-strong"></div></div>
+        <div class="strength-label" style="color:var(--badge-success);font-weight:500">Strong password</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm Password</label>
+        <input class="input" type="password" placeholder="Repeat your password" readonly>
+      </div>
+      <button class="btn btn-blue" style="margin-top:8px">Create Account</button>
+      <div class="compliance"><i data-lucide="lock"></i> HIPAA Compliant · 256-bit Encrypted</div>
+    </div>
+    <div style="font-size:13px;color:var(--text-muted)">Already have an account? <span class="link" onclick="showScreen('a',0)">Sign In</span></div>
+  </div>
+</div>
+
+<!-- A5: Sign Up Error – Bad Password -->
+<div class="screen" id="a5">
+  <div class="flex-col items-center flex-1 gap-24 p-32" style="padding-top:40px;padding-bottom:30px;overflow-y:auto">
+    <div class="flex-col items-center gap-6">
+      <span class="material-symbols-rounded logo-icon" style="font-size:44px">stethoscope</span>
+      <div class="logo-name" style="font-size:24px">Create Account</div>
+      <div style="font-size:13px;color:var(--text-muted)">Join MedScribe today</div>
+    </div>
+    <div class="flex-col gap-16 w-full">
+      <div class="form-group">
+        <label class="form-label">NPI Number</label>
+        <input class="input" value="1234567890" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input class="input" value="Dr. Sarah Chen" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="input" value="s.chen@memorial.org" readonly>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="input error shake" type="password" value="abc" readonly>
+        <div class="strength-bar"><div class="strength-fill strength-weak"></div></div>
+        <div class="error-msg"><i data-lucide="alert-circle"></i> Password must be 8+ chars with uppercase, number &amp; special character.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm Password</label>
+        <input class="input" type="password" placeholder="Repeat your password" readonly>
+      </div>
+      <button class="btn btn-blue" style="margin-top:8px;opacity:0.6">Create Account</button>
+      <div class="compliance"><i data-lucide="lock"></i> HIPAA Compliant · 256-bit Encrypted</div>
+    </div>
+    <div style="font-size:13px;color:var(--text-muted)">Already have an account? <span class="link">Sign In</span></div>
+  </div>
+</div>
+
+
+<!-- ╔═══════════════════════════════════════════════════════════════╗
+     ║  FLOW B — DASHBOARD  (4 screens)                             ║
+     ╚═══════════════════════════════════════════════════════════════╝ -->
+
+<!-- B1: Dashboard Expanded -->
+<div class="screen" id="b1" style="background:var(--bg-page)">
+  <!-- Top bar -->
+  <div class="flex-row items-center justify-between" style="padding:8px 20px">
+    <button class="icon-btn" onclick="showScreen('b',2)"><i data-lucide="menu"></i></button>
+    <div class="flex-row items-center gap-16">
+      <button class="icon-btn"><i data-lucide="search"></i></button>
+      <div class="avatar" style="width:32px;height:32px;background:var(--accent-blue);font-size:12px">SC</div>
+    </div>
+  </div>
+  <!-- Hero branding -->
+  <div class="flex-col items-center gap-8" style="padding:32px 0 24px">
+    <span class="material-symbols-rounded logo-icon" style="font-size:48px">stethoscope</span>
+    <div class="logo-name" style="font-size:28px">MedScribe</div>
+    <div style="font-size:14px;color:var(--text-muted)">Medical Speech-to-Text</div>
+  </div>
+  <!-- Recording list -->
+  <div class="flex-col gap-10" style="padding:0 16px 100px">
+    <div style="font-size:13px;font-weight:600;color:var(--text-muted);padding-left:4px">Recent Recordings</div>
+
+    <div class="card">
+      <div class="flex-row items-center justify-between">
+        <div class="card-title">Encounter #102</div>
+        <span class="badge badge-success">Synced</span>
+      </div>
+      <div class="card-meta"><span>M. Johnson</span><span class="card-meta-dot"></span><span>04:23</span><span class="card-meta-dot"></span><span>Oct 12, 2025</span></div>
+    </div>
+
+    <div class="card">
+      <div class="flex-row items-center justify-between">
+        <div class="card-title">Clinical Note – Heart Exam</div>
+        <span class="badge badge-success">Synced</span>
+      </div>
+      <div class="card-meta"><span>R. Williams</span><span class="card-meta-dot"></span><span>12:07</span><span class="card-meta-dot"></span><span>Oct 11, 2025</span></div>
+    </div>
+
+    <div class="card">
+      <div class="flex-row items-center justify-between">
+        <div class="card-title">Morning Rounds Summary</div>
+        <span class="badge badge-progress"><i data-lucide="loader" style="width:12px;height:12px"></i> Transcribing</span>
+      </div>
+      <div class="card-meta"><span>A. Patel</span><span class="card-meta-dot"></span><span>08:15</span><span class="card-meta-dot"></span><span>Oct 10, 2025</span></div>
+      <div class="prog-bar"><div class="prog-bar-fill" style="width:65%"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="flex-row items-center justify-between">
+        <div class="card-title">Patient Intake – J. Smith</div>
+        <span class="badge badge-success">Synced</span>
+      </div>
+      <div class="card-meta"><span>J. Smith</span><span class="card-meta-dot"></span><span>08:45</span><span class="card-meta-dot"></span><span>Oct 9, 2025</span></div>
+    </div>
+  </div>
+  <!-- FAB -->
+  <div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%)">
+    <button class="fab" onclick="switchFlow('c')"><i data-lucide="mic"></i></button>
+  </div>
+</div>
+
+<!-- B2: Dashboard Collapsed (scrolled) -->
+<div class="screen" id="b2" style="background:var(--bg-page)">
+  <!-- Compact header -->
+  <div class="flex-row items-center justify-between" style="padding:0 20px;height:48px;background:var(--bg-card);border-bottom:1px solid var(--border);box-shadow:0 1px 4px rgba(0,0,0,0.04)">
+    <div class="flex-row items-center gap-8">
+      <span class="material-symbols-rounded logo-icon" style="font-size:22px">stethoscope</span>
+      <span class="logo-name" style="font-size:18px">MedScribe</span>
+    </div>
+    <div class="flex-row items-center" style="gap:14px">
+      <button class="icon-btn" style="width:32px;height:32px"><i data-lucide="search" style="width:20px;height:20px"></i></button>
+      <div class="avatar" style="width:28px;height:28px;background:var(--accent-blue);font-size:10px">SC</div>
+    </div>
+  </div>
+  <!-- Recording list -->
+  <div class="flex-col gap-10 scroll-content" style="padding:8px 16px 100px">
+    <div style="font-size:13px;font-weight:600;color:var(--text-muted);padding-left:4px">My Recordings</div>
+
+    <div class="card">
+      <div class="flex-row items-center justify-between"><div class="card-title">Encounter #102</div><span class="badge badge-success">Synced</span></div>
+      <div class="card-meta"><span>M. Johnson</span><span class="card-meta-dot"></span><span>04:23</span><span class="card-meta-dot"></span><span>Oct 12, 2025</span></div>
+    </div>
+    <div class="card">
+      <div class="flex-row items-center justify-between"><div class="card-title">Clinical Note – Heart Exam</div><span class="badge badge-success">Synced</span></div>
+      <div class="card-meta"><span>R. Williams</span><span class="card-meta-dot"></span><span>12:07</span><span class="card-meta-dot"></span><span>Oct 11, 2025</span></div>
+    </div>
+    <div class="card">
+      <div class="flex-row items-center justify-between"><div class="card-title">Morning Rounds Summary</div><span class="badge badge-progress"><i data-lucide="loader" style="width:12px;height:12px"></i> Transcribing</span></div>
+      <div class="card-meta"><span>A. Patel</span><span class="card-meta-dot"></span><span>08:15</span><span class="card-meta-dot"></span><span>Oct 10, 2025</span></div>
+      <div class="prog-bar"><div class="prog-bar-fill" style="width:65%"></div></div>
+    </div>
+    <div class="card">
+      <div class="flex-row items-center justify-between"><div class="card-title">Patient Intake – J. Smith</div><span class="badge badge-success">Synced</span></div>
+      <div class="card-meta"><span>J. Smith</span><span class="card-meta-dot"></span><span>08:45</span><span class="card-meta-dot"></span><span>Oct 9, 2025</span></div>
+    </div>
+    <div class="card">
+      <div class="flex-row items-center justify-between"><div class="card-title">Follow-up – Diabetes Mgmt</div><span class="badge badge-warn">Pending</span></div>
+      <div class="card-meta"><span>L. Garcia</span><span class="card-meta-dot"></span><span>15:32</span><span class="card-meta-dot"></span><span>Oct 8, 2025</span></div>
+    </div>
+  </div>
+  <div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%)">
+    <button class="fab" onclick="switchFlow('c')"><i data-lucide="mic"></i></button>
+  </div>
+</div>
+
+<!-- B3: Sidebar -->
+<div class="screen" id="b3" style="background:var(--bg-page)">
+  <!-- Dimmed background content -->
+  <div class="sidebar-overlay" onclick="showScreen('b',0)"></div>
+  <!-- Sidebar Panel -->
+  <div class="sidebar-panel">
+    <!-- Profile header -->
+    <div class="flex-col gap-12" style="padding:48px 24px 20px;background:var(--profile-bg)">
+      <div class="avatar" style="width:52px;height:52px;background:#fff;color:var(--accent-blue);font-size:18px">SC</div>
+      <div>
+        <div style="font-size:17px;font-weight:700;color:#fff">Dr. Sarah Chen</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px">Cardiology · Memorial Hospital</div>
+      </div>
+    </div>
+    <!-- Nav items -->
+    <div class="flex-col" style="padding:12px 0;flex:1">
+      <div class="nav-row active"><i data-lucide="home"></i><span class="nav-row-label">Dashboard</span></div>
+      <div class="nav-row"><i data-lucide="mic"></i><span class="nav-row-label">Recordings</span></div>
+      <div class="nav-row"><i data-lucide="users"></i><span class="nav-row-label">Patients</span></div>
+      <div class="nav-row"><i data-lucide="bookmark"></i><span class="nav-row-label">Bookmarks</span></div>
+      <div class="divider" style="margin:8px 24px"></div>
+      <div class="nav-row"><i data-lucide="sliders-horizontal"></i><span class="nav-row-label">Recording Quality</span></div>
+      <div class="nav-row justify-between">
+        <div class="flex-row items-center gap-12" style="gap:14px"><i data-lucide="wand-2"></i><span class="nav-row-label">Auto-transcribe</span></div>
+        <div class="toggle on"><div class="toggle-thumb"></div></div>
+      </div>
+      <div class="divider" style="margin:8px 24px"></div>
+      <div class="nav-row" onclick="showScreen('b',3)"><i data-lucide="settings"></i><span class="nav-row-label">Settings</span></div>
+      <div class="nav-row"><i data-lucide="help-circle"></i><span class="nav-row-label">Help &amp; Support</span></div>
+    </div>
+    <!-- HIPAA badge -->
+    <div style="padding:16px 24px;border-top:1px solid var(--divider)">
+      <div class="flex-row items-center gap-6" style="color:var(--text-muted);font-size:11px;font-weight:600"><i data-lucide="shield" style="width:16px;height:16px;color:var(--accent-blue)"></i> HIPAA Compliant</div>
+    </div>
+  </div>
+</div>
+
+<!-- B4: Settings -->
+<div class="screen" id="b4" style="background:var(--bg-page)">
+  <div class="s-header">
+    <button class="s-header-back" onclick="showScreen('b',2)"><i data-lucide="chevron-left"></i></button>
+    <span class="s-header-title">Settings</span>
+    <div style="width:40px"></div>
+  </div>
+  <div class="scroll-content">
+    <div class="settings-section">
+      <div class="settings-title">Account</div>
+      <div class="settings-row" style="background:var(--bg-card)">
+        <div class="settings-row-left"><i data-lucide="user"></i><span class="settings-row-label">Profile</span></div>
+        <div class="settings-row-chevron"><i data-lucide="chevron-right"></i></div>
+      </div>
+      <div class="settings-row" style="background:var(--bg-card)">
+        <div class="settings-row-left"><i data-lucide="key"></i><span class="settings-row-label">Change Password</span></div>
+        <div class="settings-row-chevron"><i data-lucide="chevron-right"></i></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-title">Recording</div>
+      <div class="settings-row" style="background:var(--bg-card)">
+        <div class="settings-row-left"><i data-lucide="file-audio"></i><span class="settings-row-label">Default Format</span></div>
+        <span class="settings-row-value">WAV</span>
+      </div>
+      <div class="settings-row" style="background:var(--bg-card)">
+        <div class="settings-row-left"><i data-lucide="volume-2"></i><span class="settings-row-label">Audio Quality</span></div>
+        <span class="settings-row-value">High (44.1kHz)</span>
+      </div>
+      <div class="settings-row" style="background:var(--bg-card)">
+        <div class="settings-row-left"><i data-lucide="wand-2"></i><span class="settings-row-label">Auto-transcribe</span></div>
+        <div class="toggle on"><div class="toggle-thumb"></div></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-title">Output</div>
+      <div class="settings-row" style="background:var(--bg-card)">
+        <div class="settings-row-left"><i data-lucide="file-text"></i><span class="settings-row-label">Default Template</span></div>
+        <span class="settings-row-value">SOAP Note</span>
+      </div>
+      <div class="settings-row" style="background:var(--bg-card)">
+        <div class="settings-row-left"><i data-lucide="save"></i><span class="settings-row-label">Auto-save</span></div>
+        <div class="toggle on"><div class="toggle-thumb"></div></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-title">About</div>
+      <div class="settings-row" style="background:var(--bg-card)">
+        <div class="settings-row-left"><i data-lucide="info"></i><span class="settings-row-label">Version</span></div>
+        <span class="settings-row-value">1.2.0</span>
+      </div>
+      <div class="settings-row" style="background:var(--bg-card)">
+        <div class="settings-row-left"><i data-lucide="shield"></i><span class="settings-row-label">Privacy Policy</span></div>
+        <div class="settings-row-chevron"><i data-lucide="chevron-right"></i></div>
+      </div>
+      <div class="settings-row" style="background:var(--bg-card)">
+        <div class="settings-row-left"><i data-lucide="file-check"></i><span class="settings-row-label">Terms of Service</span></div>
+        <div class="settings-row-chevron"><i data-lucide="chevron-right"></i></div>
+      </div>
+    </div>
+    <div style="height:24px"></div>
+  </div>
+</div>
+
+
+<!-- ╔═══════════════════════════════════════════════════════════════╗
+     ║  FLOW C — RECORDING  (5 screens)                             ║
+     ╚═══════════════════════════════════════════════════════════════╝ -->
+
+<!-- C1: Recording Active -->
+<div class="screen" id="c1" style="background:var(--bg-surface);align-items:center">
+  <div class="s-header w-full">
+    <button class="s-header-back" onclick="switchFlow('b')"><i data-lucide="chevron-left"></i></button>
+    <div class="flex-row items-center gap-8"><div class="rec-dot"></div><span class="s-header-title">New Recording</span></div>
+    <button class="s-header-action"><i data-lucide="more-vertical" style="width:20px;height:20px"></i></button>
+  </div>
+  <div style="height:24px" class="shrink-0"></div>
+  <div class="timer">00:01.2</div>
+  <div style="height:12px" class="shrink-0"></div>
+  <!-- Waveform -->
+  <div class="waveform-box w-full" style="height:280px">
+    <div class="wf-bars" id="wf-c1"></div>
+  </div>
+  <div class="flex-1"></div>
+  <!-- Controls -->
+  <div class="recording-ctrl w-full">
+    <button class="ctrl-btn ctrl-sm"><span class="material-symbols-rounded">pause</span></button>
+    <button class="ctrl-btn ctrl-lg"><div class="ctrl-lg-inner"><div style="width:22px;height:22px;border-radius:4px;background:#fff"></div></div></button>
+    <button class="ctrl-btn ctrl-sm"><span class="material-symbols-rounded">stop</span></button>
+  </div>
+  <div style="height:34px" class="shrink-0"></div>
+</div>
+
+<!-- C2: Recording Paused / Replay -->
+<div class="screen" id="c2" style="background:var(--bg-surface);align-items:center">
+  <div class="s-header w-full">
+    <button class="s-header-back" onclick="switchFlow('b')"><i data-lucide="chevron-left"></i></button>
+    <span class="s-header-title">New Recording</span>
+    <button class="s-header-action"><i data-lucide="more-vertical" style="width:20px;height:20px"></i></button>
+  </div>
+  <div style="height:24px" class="shrink-0"></div>
+  <div class="timer">00:09.4</div>
+  <div style="height:8px" class="shrink-0"></div>
+  <!-- Paused label -->
+  <div class="flex-row items-center gap-6" style="padding:6px 14px;border-radius:20px;background:var(--accent-orange);color:#fff;font-size:12px;font-weight:600">
+    <span style="width:6px;height:6px;border-radius:50%;background:#fff"></span> PAUSED
+  </div>
+  <div style="height:12px" class="shrink-0"></div>
+  <!-- Waveform (static) -->
+  <div class="waveform-box w-full" style="height:260px">
+    <div class="wf-bars" id="wf-c2"></div>
+  </div>
+  <!-- Playback scrubber -->
+  <div class="flex-row items-center w-full" style="padding:8px 20px;gap:10px">
+    <span style="font-size:10px;color:var(--text-muted)">00:04.2</span>
+    <div class="progress-track flex-1"><div class="progress-fill" style="width:45%"></div></div>
+    <span style="font-size:10px;color:var(--text-muted)">00:09.4</span>
+  </div>
+  <div class="flex-1"></div>
+  <!-- Controls: Play / Resume Record / Stop -->
+  <div class="recording-ctrl w-full">
+    <button class="ctrl-btn ctrl-sm" style="background:var(--accent-blue)"><i data-lucide="play" style="color:#fff;width:22px;height:22px"></i></button>
+    <button class="ctrl-btn ctrl-lg"><div class="ctrl-lg-inner"></div></button>
+    <button class="ctrl-btn ctrl-sm"><span class="material-symbols-rounded" style="color:var(--ctrl-btn-icon)">stop</span></button>
+  </div>
+  <div style="height:34px" class="shrink-0"></div>
+</div>
+
+<!-- C3: Continue Recording -->
+<div class="screen" id="c3" style="background:var(--bg-surface);align-items:center">
+  <div class="s-header w-full">
+    <button class="s-header-back" onclick="switchFlow('b')"><i data-lucide="chevron-left"></i></button>
+    <div class="flex-row items-center gap-8"><div class="rec-dot"></div><span class="s-header-title">New Recording</span></div>
+    <button class="s-header-action"><i data-lucide="more-vertical" style="width:20px;height:20px"></i></button>
+  </div>
+  <div style="height:24px" class="shrink-0"></div>
+  <div class="timer">00:12.7</div>
+  <div style="height:12px" class="shrink-0"></div>
+  <!-- Waveform: white (past) + red (new) -->
+  <div class="waveform-box w-full" style="height:280px">
+    <div class="wf-bars" id="wf-c3"></div>
+  </div>
+  <div class="flex-1"></div>
+  <!-- Controls -->
+  <div class="recording-ctrl w-full">
+    <button class="ctrl-btn ctrl-sm"><i data-lucide="play" style="color:var(--ctrl-btn-icon);width:22px;height:22px"></i></button>
+    <button class="ctrl-btn ctrl-lg"><div class="ctrl-lg-inner"></div></button>
+    <button class="ctrl-btn ctrl-sm"><span class="material-symbols-rounded">stop</span></button>
+  </div>
+  <div style="height:34px" class="shrink-0"></div>
+</div>
+
+<!-- C4: Save Recording Panel -->
+<div class="screen" id="c4" style="background:var(--bg-surface);align-items:center">
+  <!-- Dimmed recording bg -->
+  <div class="s-header w-full" style="opacity:0.3">
+    <button class="s-header-back"><i data-lucide="chevron-left"></i></button>
+    <span class="s-header-title" style="color:var(--text-hint)">New Recording</span>
+    <div style="width:40px"></div>
+  </div>
+  <div style="height:24px" class="shrink-0"></div>
+  <div class="timer dimmed">00:09.4</div>
+  <div style="height:32px" class="shrink-0"></div>
+  <!-- Save modal card -->
+  <div class="modal-card" style="position:relative;z-index:2">
+    <div style="font-size:20px;font-weight:700;color:var(--text-primary)">Save Recording</div>
+    <div class="form-group">
+      <div style="padding:6px;background:var(--highlight-bg);border-radius:4px;display:inline-block">
+        <span style="font-size:15px;color:var(--text-primary)">Consult 260304_010408</span>
+      </div>
+      <div style="height:1.5px;background:var(--text-hint);border-radius:1px;margin-top:2px"></div>
+    </div>
+    <div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:4px">Category</div>
+      <div class="flex-row items-center gap-6">
+        <span style="font-size:16px;font-weight:700;color:var(--text-primary)">Uncategorized</span>
+        <i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--text-muted)"></i>
+      </div>
+    </div>
+    <div style="height:1px;background:var(--divider)"></div>
+    <div class="flex-row items-center" style="height:48px">
+      <button style="flex:1;font-size:16px;font-weight:600;color:var(--text-muted);text-align:center">Cancel</button>
+      <div style="width:1px;height:20px;background:var(--divider)"></div>
+      <button style="flex:1;font-size:16px;font-weight:700;color:var(--accent-blue);text-align:center">Save</button>
+    </div>
+  </div>
+  <div class="flex-1"></div>
+  <!-- Disabled controls -->
+  <div class="recording-ctrl w-full" style="opacity:0.2">
+    <div style="width:44px;height:44px;border-radius:22px;background:var(--ctrl-btn-bg)"></div>
+    <div style="width:60px;height:60px;border-radius:30px;background:var(--ctrl-btn-bg)"></div>
+    <div style="width:44px;height:44px;border-radius:22px;background:var(--ctrl-btn-bg)"></div>
+  </div>
+  <div style="height:34px" class="shrink-0"></div>
+</div>
+
+<!-- C5: Choose Output Format -->
+<div class="screen" id="c5" style="background:var(--bg-surface)">
+  <div class="s-header">
+    <button class="s-header-back" onclick="showScreen('c',3)"><i data-lucide="chevron-left"></i></button>
+    <span class="s-header-title">Transcribe Recording</span>
+    <div style="width:40px"></div>
+  </div>
+  <div class="flex-col gap-20 flex-1" style="padding:24px 20px">
+    <div>
+      <div style="font-size:18px;font-weight:700;color:var(--text-primary)">Choose Output Format</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:4px">Select how you'd like the transcription formatted</div>
+    </div>
+
+    <div class="format-card selected" onclick="selectFormat(this)">
+      <div class="format-radio"><div class="format-radio-dot"></div></div>
+      <div class="format-icon" style="background:var(--section-head-bg)"><i data-lucide="clipboard-list" style="width:22px;height:22px;color:var(--accent-blue)"></i></div>
+      <div class="flex-col gap-4 flex-1">
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary)">SOAP Note</div>
+        <div style="font-size:12px;color:var(--text-muted)">Structured Subjective, Objective, Assessment, Plan format</div>
+      </div>
+    </div>
+
+    <div class="format-card" onclick="selectFormat(this)">
+      <div class="format-radio"><div class="format-radio-dot"></div></div>
+      <div class="format-icon" style="background:var(--badge-progress-bg)"><i data-lucide="file-heart" style="width:22px;height:22px;color:var(--accent-orange)"></i></div>
+      <div class="flex-col gap-4 flex-1">
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary)">EHR Summary</div>
+        <div style="font-size:12px;color:var(--text-muted)">Electronic Health Record formatted summary with structured fields</div>
+      </div>
+    </div>
+
+    <div class="format-card" onclick="selectFormat(this)">
+      <div class="format-radio"><div class="format-radio-dot"></div></div>
+      <div class="format-icon" style="background:var(--bg-input)"><i data-lucide="align-left" style="width:22px;height:22px;color:var(--text-secondary)"></i></div>
+      <div class="flex-col gap-4 flex-1">
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary)">Free Text</div>
+        <div style="font-size:12px;color:var(--text-muted)">Raw unformatted transcription text</div>
+      </div>
+    </div>
+
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:12px">
+      <button class="btn btn-blue" onclick="switchFlow('d')"><i data-lucide="sparkles" style="width:18px;height:18px"></i> Start Transcribe</button>
+      <button style="font-size:14px;color:var(--text-muted);text-align:center;padding:8px">Skip for Now</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ╔═══════════════════════════════════════════════════════════════╗
+     ║  FLOW D — EDIT & REVIEW TRANSCRIPTION  (4 screens)          ║
+     ╚═══════════════════════════════════════════════════════════════╝ -->
+
+<!-- D1: SOAP Note Tab (read-only) -->
+<div class="screen" id="d1" style="background:var(--bg-surface)">
+  <!-- Header -->
+  <div class="flex-row items-center" style="padding:4px 16px;gap:10px;flex-shrink:0">
+    <button class="s-header-back" onclick="switchFlow('b')"><i data-lucide="chevron-left" style="width:22px;height:22px"></i></button>
+    <div class="flex-col flex-1" style="gap:1px">
+      <div style="font-size:16px;font-weight:600;color:var(--text-primary)">Patient Consultation</div>
+      <div style="font-size:11px;color:var(--text-muted)">Dec 15, 2024 · 02:34</div>
+    </div>
+    <span class="badge badge-success"><i data-lucide="upload-cloud" style="width:14px;height:14px"></i> Saved</span>
+  </div>
+  <!-- Audio player -->
+  <div class="audio-player">
+    <button class="play-btn"><i data-lucide="play"></i></button>
+    <div class="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" style="width:60%"></div></div>
+      <div class="progress-times"><span>01:33</span><span>02:34</span></div>
+    </div>
+  </div>
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <div class="tab-item active" onclick="showScreen('d',0)">SOAP Note</div>
+    <div class="tab-item" onclick="showScreen('d',1)">EHR Summary</div>
+    <div class="tab-item" onclick="showScreen('d',2)">Free Text</div>
+  </div>
+  <!-- SOAP Content -->
+  <div class="scroll-content" style="padding:16px 20px">
+    <div class="flex-row items-center justify-between" style="margin-bottom:16px">
+      <div style="font-size:18px;font-weight:700;color:var(--text-primary)">SOAP Note</div>
+      <button class="flex-row items-center gap-6" style="color:var(--accent-blue);font-size:13px;font-weight:600" onclick="showScreen('d',3)"><i data-lucide="pencil" style="width:14px;height:14px"></i> Edit</button>
+    </div>
+    <div class="flex-col gap-20">
+      <div class="soap-section">
+        <div class="soap-label">Subjective</div>
+        <div class="soap-text">Patient reports recurring episodes of chest tightness, primarily during physical exertion for the past 3 weeks. Describes the sensation as a squeezing pressure lasting 5-10 minutes. Denies radiation to arms or jaw. Reports mild dyspnea on exertion.</div>
+      </div>
+      <div class="soap-section">
+        <div class="soap-label">Objective</div>
+        <div class="soap-text">BP: 145/92 mmHg. HR: 82 bpm, regular. Chest auscultation reveals normal S1, S2. No murmurs or gallops. Lungs clear bilateral. ECG: normal sinus rhythm, no <span style="background:var(--highlight-bg);padding:1px 4px;border-radius:3px">ST changes</span>.</div>
+      </div>
+      <div class="soap-section">
+        <div class="soap-label">Assessment</div>
+        <div class="soap-text">Exertional chest tightness with elevated blood pressure. Differential includes stable angina, hypertension-related symptoms. Low risk for acute coronary syndrome.</div>
+      </div>
+      <div class="soap-section">
+        <div class="soap-label">Plan</div>
+        <div class="soap-text">1. Start amlodipine 5mg daily<br>2. Order stress echocardiogram<br>3. Lipid panel, BMP labs<br>4. Follow-up in 2 weeks<br>5. Advise moderate exercise with monitoring</div>
+      </div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+  <!-- Bottom bar -->
+  <div class="bottom-bar">
+    <button class="bottom-action"><i data-lucide="share-2"></i><span>Share</span></button>
+    <button class="bottom-action"><i data-lucide="download"></i><span>Export</span></button>
+    <button class="bottom-action"><i data-lucide="copy"></i><span>Copy</span></button>
+  </div>
+</div>
+
+<!-- D2: EHR Summary Tab -->
+<div class="screen" id="d2" style="background:var(--bg-surface)">
+  <div class="flex-row items-center" style="padding:4px 16px;gap:10px;flex-shrink:0">
+    <button class="s-header-back" onclick="switchFlow('b')"><i data-lucide="chevron-left" style="width:22px;height:22px"></i></button>
+    <div class="flex-col flex-1" style="gap:1px">
+      <div style="font-size:16px;font-weight:600;color:var(--text-primary)">Patient Consultation</div>
+      <div style="font-size:11px;color:var(--text-muted)">Dec 15, 2024 · 02:34</div>
+    </div>
+    <span class="badge badge-success"><i data-lucide="upload-cloud" style="width:14px;height:14px"></i> Saved</span>
+  </div>
+  <div class="audio-player">
+    <button class="play-btn"><i data-lucide="play"></i></button>
+    <div class="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" style="width:60%"></div></div>
+      <div class="progress-times"><span>01:33</span><span>02:34</span></div>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <div class="tab-item" onclick="showScreen('d',0)">SOAP Note</div>
+    <div class="tab-item active" onclick="showScreen('d',1)">EHR Summary</div>
+    <div class="tab-item" onclick="showScreen('d',2)">Free Text</div>
+  </div>
+  <div class="scroll-content" style="padding:16px 20px">
+    <div style="font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:16px">EHR Summary</div>
+    <div class="flex-col gap-12">
+      <div class="card" style="gap:8px">
+        <div style="font-size:12px;font-weight:700;color:var(--accent-orange);text-transform:uppercase;letter-spacing:0.3px">Patient Info</div>
+        <div class="flex-row justify-between"><span style="font-size:13px;color:var(--text-muted)">Name</span><span style="font-size:13px;color:var(--text-primary);font-weight:500">John Doe</span></div>
+        <div class="flex-row justify-between"><span style="font-size:13px;color:var(--text-muted)">MRN</span><span style="font-size:13px;color:var(--text-primary);font-weight:500">MRN-2024-0815</span></div>
+        <div class="flex-row justify-between"><span style="font-size:13px;color:var(--text-muted)">Visit Date</span><span style="font-size:13px;color:var(--text-primary);font-weight:500">Dec 15, 2024</span></div>
+      </div>
+      <div class="card" style="gap:8px">
+        <div style="font-size:12px;font-weight:700;color:var(--accent-orange);text-transform:uppercase;letter-spacing:0.3px">Chief Complaint</div>
+        <div style="font-size:14px;color:var(--text-secondary);line-height:1.5">Recurring chest tightness with exertion for 3 weeks</div>
+      </div>
+      <div class="card" style="gap:8px">
+        <div style="font-size:12px;font-weight:700;color:var(--accent-orange);text-transform:uppercase;letter-spacing:0.3px">Vitals</div>
+        <div class="flex-row justify-between"><span style="font-size:13px;color:var(--text-muted)">BP</span><span style="font-size:13px;color:var(--text-primary);font-weight:500">145/92 mmHg</span></div>
+        <div class="flex-row justify-between"><span style="font-size:13px;color:var(--text-muted)">HR</span><span style="font-size:13px;color:var(--text-primary);font-weight:500">82 bpm</span></div>
+        <div class="flex-row justify-between"><span style="font-size:13px;color:var(--text-muted)">ECG</span><span style="font-size:13px;color:var(--text-primary);font-weight:500">Normal sinus rhythm</span></div>
+      </div>
+      <div class="card" style="gap:8px">
+        <div style="font-size:12px;font-weight:700;color:var(--accent-orange);text-transform:uppercase;letter-spacing:0.3px">Assessment &amp; Plan</div>
+        <div style="font-size:14px;color:var(--text-secondary);line-height:1.5">
+          <strong>Dx:</strong> Exertional chest tightness, hypertension<br>
+          <strong>Rx:</strong> Amlodipine 5mg daily<br>
+          <strong>Orders:</strong> Stress echo, lipid panel, BMP<br>
+          <strong>F/U:</strong> 2 weeks
+        </div>
+      </div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+  <div class="bottom-bar">
+    <button class="bottom-action"><i data-lucide="share-2"></i><span>Share</span></button>
+    <button class="bottom-action"><i data-lucide="download"></i><span>Export</span></button>
+    <button class="bottom-action"><i data-lucide="copy"></i><span>Copy</span></button>
+  </div>
+</div>
+
+<!-- D3: Free Text Tab -->
+<div class="screen" id="d3" style="background:var(--bg-surface)">
+  <div class="flex-row items-center" style="padding:4px 16px;gap:10px;flex-shrink:0">
+    <button class="s-header-back" onclick="switchFlow('b')"><i data-lucide="chevron-left" style="width:22px;height:22px"></i></button>
+    <div class="flex-col flex-1" style="gap:1px">
+      <div style="font-size:16px;font-weight:600;color:var(--text-primary)">Patient Consultation</div>
+      <div style="font-size:11px;color:var(--text-muted)">Dec 15, 2024 · 02:34</div>
+    </div>
+    <span class="badge badge-success"><i data-lucide="upload-cloud" style="width:14px;height:14px"></i> Saved</span>
+  </div>
+  <div class="audio-player">
+    <button class="play-btn"><i data-lucide="play"></i></button>
+    <div class="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" style="width:60%"></div></div>
+      <div class="progress-times"><span>01:33</span><span>02:34</span></div>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <div class="tab-item" onclick="showScreen('d',0)">SOAP Note</div>
+    <div class="tab-item" onclick="showScreen('d',1)">EHR Summary</div>
+    <div class="tab-item active" onclick="showScreen('d',2)">Free Text</div>
+  </div>
+  <div class="flex-col flex-1" style="padding:16px 20px">
+    <div class="flex-row items-center justify-between" style="margin-bottom:12px">
+      <div style="font-size:18px;font-weight:700;color:var(--text-primary)">Raw Transcript</div>
+    </div>
+    <textarea class="soap-edit-area flex-1" style="font-family:'Inter',monospace;font-size:13px;line-height:1.8;min-height:400px" readonly>So the patient comes in today reporting that they've been experiencing chest tightness, um, primarily when they're doing physical activity over the past three weeks. They describe it as a squeezing pressure that lasts about five to ten minutes. They deny any radiation to arms or jaw. They do report some mild shortness of breath on exertion.
+
+On examination, blood pressure is one forty-five over ninety-two. Heart rate is eighty-two, regular. Chest auscultation reveals normal S1 and S2. No murmurs, no gallops detected. Lungs are clear bilaterally. ECG shows normal sinus rhythm with no ST elevation or depression.
+
+My assessment is exertional chest tightness with elevated blood pressure. The differential would include stable angina and hypertension-related symptoms. I think the risk for acute coronary syndrome is low at this point.
+
+For the plan, I'm going to start them on amlodipine five milligrams daily for the blood pressure. I want to order a stress echocardiogram, get a lipid panel and basic metabolic panel. We'll follow up in two weeks and I'm advising moderate exercise with symptom monitoring in the meantime.</textarea>
+    <div style="font-size:11px;color:var(--text-muted);text-align:right;margin-top:6px">Word count: 187</div>
+  </div>
+  <div class="bottom-bar">
+    <button class="bottom-action"><i data-lucide="share-2"></i><span>Share</span></button>
+    <button class="bottom-action"><i data-lucide="download"></i><span>Export</span></button>
+    <button class="bottom-action"><i data-lucide="copy"></i><span>Copy</span></button>
+  </div>
+</div>
+
+<!-- D4: SOAP Note Edit Mode -->
+<div class="screen" id="d4" style="background:var(--bg-surface)">
+  <div class="flex-row items-center" style="padding:4px 16px;gap:10px;flex-shrink:0">
+    <button class="s-header-back" onclick="showScreen('d',0)"><i data-lucide="chevron-left" style="width:22px;height:22px"></i></button>
+    <div class="flex-col flex-1" style="gap:1px">
+      <div style="font-size:16px;font-weight:600;color:var(--text-primary)">Edit SOAP Note</div>
+      <div style="font-size:11px;color:var(--text-muted)">Editing · Patient Consultation</div>
+    </div>
+    <button class="flex-row items-center gap-6" style="background:var(--accent-blue);color:#fff;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600"><i data-lucide="check" style="width:14px;height:14px"></i> Save</button>
+  </div>
+  <div class="audio-player">
+    <button class="play-btn"><i data-lucide="play"></i></button>
+    <div class="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" style="width:60%"></div></div>
+      <div class="progress-times"><span>01:33</span><span>02:34</span></div>
+    </div>
+  </div>
+  <div class="scroll-content" style="padding:16px 20px">
+    <div style="font-size:14px;color:var(--accent-orange);font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:6px"><i data-lucide="pencil" style="width:14px;height:14px"></i> Edit mode — tap sections to modify</div>
+    <div class="flex-col gap-16">
+      <div class="soap-section">
+        <div class="soap-label">Subjective</div>
+        <textarea class="soap-edit-area" rows="4">Patient reports recurring episodes of chest tightness, primarily during physical exertion for the past 3 weeks. Describes the sensation as a squeezing pressure lasting 5-10 minutes. Denies radiation to arms or jaw. Reports mild dyspnea on exertion.</textarea>
+      </div>
+      <div class="soap-section">
+        <div class="soap-label">Objective</div>
+        <textarea class="soap-edit-area" rows="3">BP: 145/92 mmHg. HR: 82 bpm, regular. Chest auscultation reveals normal S1, S2. No murmurs or gallops. Lungs clear bilateral. ECG: normal sinus rhythm, no ST changes.</textarea>
+      </div>
+      <div class="soap-section">
+        <div class="soap-label">Assessment</div>
+        <textarea class="soap-edit-area" rows="3">Exertional chest tightness with elevated blood pressure. Differential includes stable angina, hypertension-related symptoms. Low risk for acute coronary syndrome.</textarea>
+      </div>
+      <div class="soap-section">
+        <div class="soap-label">Plan</div>
+        <textarea class="soap-edit-area" rows="4">1. Start amlodipine 5mg daily
+2. Order stress echocardiogram
+3. Lipid panel, BMP labs
+4. Follow-up in 2 weeks
+5. Advise moderate exercise with monitoring</textarea>
+      </div>
+    </div>
+    <div style="height:20px"></div>
+  </div>
+  <div class="bottom-bar">
+    <button class="bottom-action" onclick="showScreen('d',0)" style="color:var(--text-muted)"><i data-lucide="x"></i><span>Cancel</span></button>
+    <button class="bottom-action" style="color:var(--accent-blue)"><i data-lucide="check"></i><span>Save</span></button>
+    <button class="bottom-action"><i data-lucide="rotate-ccw"></i><span>Reset</span></button>
+  </div>
+</div>
+
+
+  </div><!-- /phone-frame -->
+</div><!-- /phone-wrapper -->
+
+<!-- ═══════ NAVIGATION ═══════ -->
+<div class="nav-bar" id="navDots"></div>
+<div class="screen-label" id="screenLabel"></div>
+<div class="nav-arrows">
+  <button class="nav-arrow" onclick="prevScreen()">←</button>
+  <button class="nav-arrow" onclick="nextScreen()">→</button>
+</div>
+
+<!-- ═══════════════════════════ JAVASCRIPT ═══════════════════════════ -->
+<script>
+// Flow definitions
+const flows = {
+  a: { name:'Login', screens:['a1','a2','a3','a4','a5'], labels:['Login','Wrong Password','Wrong Username','Sign Up','Bad Password'] },
+  b: { name:'Dashboard', screens:['b1','b2','b3','b4'], labels:['Expanded','Collapsed (Scrolled)','Sidebar','Settings'] },
+  c: { name:'Recording', screens:['c1','c2','c3','c4','c5'], labels:['Active Recording','Paused / Replay','Continue Recording','Save Panel','Choose Format'] },
+  d: { name:'Review', screens:['d1','d2','d3','d4'], labels:['SOAP Note','EHR Summary','Free Text','Edit SOAP'] }
+};
+let curFlow = 'a', curIdx = 0;
+
+function showScreen(flow, idx) {
+  curFlow = flow; curIdx = idx;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const sid = flows[flow].screens[idx];
+  document.getElementById(sid).classList.add('active');
+  // Update flow tabs
+  document.querySelectorAll('.flow-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.flow === flow);
+  });
+  updateNav();
+  lucide.createIcons();
+}
+
+function switchFlow(flow) {
+  showScreen(flow, 0);
+}
+
+function nextScreen() {
+  const f = flows[curFlow];
+  if (curIdx < f.screens.length - 1) showScreen(curFlow, curIdx + 1);
+}
+function prevScreen() {
+  if (curIdx > 0) showScreen(curFlow, curIdx - 1);
+}
+
+function updateNav() {
+  const f = flows[curFlow];
+  const dots = document.getElementById('navDots');
+  dots.innerHTML = '';
+  f.screens.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'nav-dot' + (i === curIdx ? ' active' : '');
+    d.onclick = () => showScreen(curFlow, i);
+    dots.appendChild(d);
+  });
+  document.getElementById('screenLabel').textContent = f.labels[curIdx];
+}
+
+// Theme toggle
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.dataset.theme === 'dark';
+  html.dataset.theme = isDark ? 'light' : 'dark';
+  document.querySelector('.theme-toggle').textContent = isDark ? '☀' : '☾';
+  // Re-render waveforms with proper visibility
+  buildWaveforms();
+}
+
+// Format card selection
+function selectFormat(el) {
+  document.querySelectorAll('.format-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') nextScreen();
+  if (e.key === 'ArrowLeft') prevScreen();
+});
+
+// Generate waveform bars
+function buildWaveforms() {
+  // C1: Active recording with animation
+  buildWF('wf-c1', genBars(60, true), true);
+  // C2: Paused/static
+  buildWF('wf-c2', genBars(55, false), false);
+  // C3: Continue (white past + red new)
+  buildWF('wf-c3', genContinueBars(), false);
+}
+
+function genBars(count, animated) {
+  const bars = [];
+  for (let i = 0; i < count; i++) {
+    const h = 15 + Math.sin(i * 0.3) * 30 + Math.random() * 40;
+    bars.push({ h: Math.min(h, 120), color: '#FFFFFF', animated });
+  }
+  return bars;
+}
+
+function genContinueBars() {
+  const bars = [];
+  // Past bars (white)
+  for (let i = 0; i < 30; i++) {
+    bars.push({ h: 15 + Math.sin(i * 0.4) * 25 + Math.random() * 30, color: '#FFFFFF', animated: false });
+  }
+  // Playhead
+  bars.push({ h: 180, color: '#E63946', animated: false, w: 2 });
+  // New bars (red, animated)
+  for (let i = 0; i < 25; i++) {
+    bars.push({ h: 15 + Math.sin(i * 0.5) * 20 + Math.random() * 25, color: '#E63946', animated: true });
+  }
+  return bars;
+}
+
+function buildWF(id, bars, hasPlayhead) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '';
+  bars.forEach((b, i) => {
+    const bar = document.createElement('div');
+    bar.className = 'wf-bar' + (b.animated ? ' animate' : '');
+    bar.style.height = b.h + 'px';
+    bar.style.background = b.color;
+    if (b.w) bar.style.width = b.w + 'px';
+    if (b.animated) bar.style.animationDelay = (i * 0.05) + 's';
+    el.appendChild(bar);
+  });
+  if (hasPlayhead) {
+    // Insert playhead at 70% position
+    const phIdx = Math.floor(bars.length * 0.7);
+    const ph = document.createElement('div');
+    ph.className = 'wf-playhead';
+    ph.style.height = '180px';
+    el.insertBefore(ph, el.children[phIdx]);
+  }
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  updateNav();
+  buildWaveforms();
+});
+</script>
+</body>
+</html>
