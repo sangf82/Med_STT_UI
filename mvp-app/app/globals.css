@@ -1,0 +1,256 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-page: #F5F5F5;
+    --bg-surface: #F9FAFB;
+    --bg-card: #FFFFFF;
+    --bg-input: #F5F5F5;
+    --bg-sidebar: #FFFFFF;
+    --bg-overlay: rgba(0, 0, 0, 0.4);
+    --accent-blue: #219EBC;
+    --accent-orange: #FB8A0A;
+    --danger: #E63946;
+    --text-primary: #1A1A1A;
+    --text-secondary: #555555;
+    --text-muted: #999999;
+    --text-hint: #AAAAAA;
+    --border: #E5E7EB;
+    --border-input: transparent;
+    --badge-success-bg: #DCFCE7;
+    --badge-success: #16A34A;
+    --badge-warn-bg: #FEF3C7;
+    --badge-warn: #D97706;
+    --badge-progress-bg: #FFF7ED;
+    --badge-progress: #FB8A0A;
+    --waveform-bg: #2E2E2E;
+    --waveform-bar: #FFFFFF;
+    --waveform-dim: #666666;
+    --section-head-bg: #EBF5F8;
+    --section-head-border: #219EBC;
+    --highlight-bg: #EBF5F8;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    --profile-bg: #219EBC;
+    --toggle-bg: #D1D5DB;
+    --toggle-active: #219EBC;
+    --tab-bg: #FFFFFF;
+    --tab-border: #E5E7EB;
+    --error-bg: #FEF2F2;
+    --error-border: #FECACA;
+    --error-text: #DC2626;
+    --strength-track: #E5E7EB;
+    --divider: #EEEEEE;
+    --ctrl-btn-bg: #EEEEEE;
+    --ctrl-btn-icon: #1A1A1A;
+    --save-card-bg: #FFFFFF;
+    --format-card-bg: #FFFFFF;
+    --format-card-border: #E5E7EB;
+    --textarea-bg: #FFFFFF;
+    --soap-section-bg: #F9FAFB;
+  }
+
+  [data-theme="dark"] {
+    --bg-page: #0A0A0A;
+    --bg-surface: #0A0A0A;
+    --bg-card: #1A1A1A;
+    --bg-input: #1E1E1E;
+    --bg-sidebar: #1A1A1A;
+    --bg-overlay: rgba(0, 0, 0, 0.6);
+    --text-primary: #F0F0F0;
+    --text-secondary: #AAAAAA;
+    --text-muted: #666666;
+    --text-hint: #555555;
+    --border: #2A2A2A;
+    --border-input: #333333;
+    --badge-success-bg: #14532D;
+    --badge-success: #4ADE80;
+    --badge-warn-bg: #422006;
+    --badge-warn: #FBBF24;
+    --badge-progress-bg: #422006;
+    --badge-progress: #FB8A0A;
+    --section-head-bg: #1A3A44;
+    --section-head-border: #219EBC;
+    --highlight-bg: #1A3A44;
+    --card-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    --profile-bg: #219EBC;
+    --toggle-bg: #333333;
+    --toggle-active: #219EBC;
+    --tab-bg: #121212;
+    --tab-border: #2A2A2A;
+    --error-bg: #3B1111;
+    --error-border: #7F1D1D;
+    --error-text: #FCA5A5;
+    --strength-track: #333333;
+    --divider: #2A2A2A;
+    --ctrl-btn-bg: #2A2A2A;
+    --ctrl-btn-icon: #F0F0F0;
+    --save-card-bg: #2A2A2A;
+    --format-card-bg: #1A1A1A;
+    --format-card-border: #333333;
+    --textarea-bg: #1A1A1A;
+    --soap-section-bg: #121212;
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+  }
+}
+
+@theme {
+  --color-brand-blue: #219EBC;
+  --color-brand-orange: #FB8A0A;
+  --color-brand-danger: #E63946;
+  --color-brand-success: #16A34A;
+
+  --color-bg-page: var(--bg-page);
+  --color-bg-surface: var(--bg-surface);
+  --color-bg-card: var(--bg-card);
+  --color-bg-input: var(--bg-input);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-bg-overlay: var(--bg-overlay);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-orange: var(--accent-orange);
+  --color-danger: var(--danger);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-hint: var(--text-hint);
+  --color-border: var(--border);
+  --color-border-input: var(--border-input);
+  --color-badge-success-bg: var(--badge-success-bg);
+  --color-badge-success: var(--badge-success);
+  --color-badge-warn-bg: var(--badge-warn-bg);
+  --color-badge-warn: var(--badge-warn);
+  --color-badge-progress-bg: var(--badge-progress-bg);
+  --color-badge-progress: var(--badge-progress);
+  --color-waveform-bg: var(--waveform-bg);
+  --color-waveform-bar: var(--waveform-bar);
+  --color-waveform-dim: var(--waveform-dim);
+  --color-section-head-bg: var(--section-head-bg);
+  --color-section-head-border: var(--section-head-border);
+  --color-highlight-bg: var(--highlight-bg);
+  --color-profile-bg: var(--profile-bg);
+  --color-toggle-bg: var(--toggle-bg);
+  --color-toggle-active: var(--toggle-active);
+  --color-tab-bg: var(--tab-bg);
+  --color-tab-border: var(--tab-border);
+  --color-error-bg: var(--error-bg);
+  --color-error-border: var(--error-border);
+  --color-error-text: var(--error-text);
+  --color-strength-track: var(--strength-track);
+  --color-divider: var(--divider);
+  --color-ctrl-btn-bg: var(--ctrl-btn-bg);
+  --color-ctrl-btn-icon: var(--ctrl-btn-icon);
+  --color-save-card-bg: var(--save-card-bg);
+  --color-format-card-bg: var(--format-card-bg);
+  --color-format-card-border: var(--format-card-border);
+  --color-textarea-bg: var(--textarea-bg);
+  --color-soap-section-bg: var(--soap-section-bg);
+
+  --shadow-card: var(--card-shadow);
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Animations */
+@layer utilities {
+  .animate-pulse-fast {
+    animation: pulse-op 1s infinite;
+  }
+
+  @keyframes pulse-op {
+    0% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.3;
+    }
+
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .animate-waveform {
+    animation: bounce 0.7s infinite alternate;
+  }
+
+  @keyframes bounce {
+    0% {
+      transform: scaleY(0.6);
+    }
+
+    100% {
+      transform: scaleY(1.2);
+    }
+  }
+
+  .animate-shake {
+    animation: shake 0.4s ease-in-out;
+  }
+
+  @keyframes shake {
+
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+
+    16.6% {
+      transform: translateX(-6px);
+    }
+
+    33.3% {
+      transform: translateX(6px);
+    }
+
+    50% {
+      transform: translateX(-6px);
+    }
+
+    66.6% {
+      transform: translateX(6px);
+    }
+
+    83.3% {
+      transform: translateX(-6px);
+    }
+  }
+
+  .slide-in-left {
+    animation: slide-in 0.2s ease forwards;
+  }
+
+  @keyframes slide-in {
+    0% {
+      transform: translateX(-100%);
+    }
+
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  .fade-in {
+    animation: fade 0.2s forwards;
+  }
+
+  @keyframes fade {
+    0% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 1;
+    }
+  }
+
+  /* Transition for theme changes */
+  .theme-transition {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+  }
+}

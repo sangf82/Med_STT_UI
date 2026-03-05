@@ -36240,11 +36240,5 @@
         }
       ]
     }
-  ],
-  "themes": {
-    "Theme": [
-      "Default",
-      "Variant-1"
-    ]
-  }
+  ]
 }

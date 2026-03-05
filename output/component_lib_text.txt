@@ -1,0 +1,418 @@
+SCREEN: ? (nQmcV)
+- nQmcV: "📦 Component Library"
+
+SCREEN: ? (MhtXN)
+- MhtXN: "Reusable components for MedMate app.
+All components follow the design system tokens below."
+
+SCREEN: sp (KJDXZ)
+- KJDXZ: "SPACING TOKENS
+4px — micro (icon-badge gap, password strength)
+6px — xs (label→input, SOAP heading→body, badge icon→text)
+8px — sm (header title→left, brand gap, card meta)
+10px — md (card list gap, card-group padding)
+12px — base (card internal gap, type scale gap)
+16px — lg (form field gap, section gaps, sidebar nav)
+20px — xl (content side padding, settings rows)
+24px — 2xl (signup content gap, dialog spacer)
+32px — 3xl (login form side padding)
+36px — 4xl (login content section gap)
+40px — 5xl (library padding, control bar padding)"
+
+SCREEN: ? (xC4ju)
+- xC4ju: "HEADERS — Light Mode"
+
+SCREEN: ? (I5PB9)
+- I5PB9: "Screen Title"
+
+SCREEN: ? (1WSqg)
+- 1WSqg: "Screen Title"
+
+SCREEN: ? (oS3H4)
+- oS3H4: "BUTTONS"
+
+SCREEN: ? (t53w4)
+- t53w4: "Sign In"
+
+SCREEN: ? (cy7Dx)
+- cy7Dx: "Sign In"
+
+SCREEN: ? (HEyWy)
+- HEyWy: "Danger Action"
+
+SCREEN: ? (h9nrT)
+- h9nrT: "Secondary"
+
+SCREEN: ? (BpAws)
+- BpAws: "Secondary"
+
+SCREEN: ? (4QQJe)
+- 4QQJe: "Text Link"
+
+SCREEN: ? (godNd)
+- godNd: "LANGUAGE DROPDOWN"
+
+SCREEN: ? (85uJY)
+- 85uJY: "English"
+
+SCREEN: ? (EKSqG)
+- EKSqG: "English"
+
+SCREEN: ? (Nw0Kr)
+- Nw0Kr: "TAB BAR"
+
+SCREEN: ? (1xatk)
+- 1xatk: "Active Tab"
+
+SCREEN: ? (eF69Z)
+- eF69Z: "Inactive Tab"
+
+SCREEN: ? (xtI4W)
+- xtI4W: "Active Tab"
+
+SCREEN: ? (ZExVm)
+- ZExVm: "Inactive Tab"
+
+SCREEN: ? (Dt8Re)
+- Dt8Re: "INPUT FIELDS"
+
+SCREEN: ? (RrY1K)
+- RrY1K: "Label"
+
+SCREEN: ? (p1YjJ)
+- p1YjJ: "Placeholder text"
+
+SCREEN: ? (q2K5n)
+- q2K5n: "Label"
+
+SCREEN: ? (MOKTb)
+- MOKTb: "Invalid value"
+
+SCREEN: ? (CpCBx)
+- CpCBx: "Error message here"
+
+SCREEN: ? (pPoxM)
+- pPoxM: "Label"
+
+SCREEN: ? (pfkXN)
+- pfkXN: "Placeholder text"
+
+SCREEN: ? (WwjuG)
+- WwjuG: "CARDS & CONTAINERS"
+
+SCREEN: ? (vuvGg)
+- vuvGg: "SECTION LABEL"
+
+SCREEN: ? (NNWH9)
+- NNWH9: "Card content goes here.
+Supports multi-line text."
+
+SCREEN: ? (8HMek)
+- 8HMek: "SECTION LABEL"
+
+SCREEN: ? (dFqtQ)
+- dFqtQ: "Card content goes here.
+Supports multi-line text."
+
+SCREEN: ? (rqH4r)
+- rqH4r: "Setting Name"
+
+SCREEN: ? (Py85K)
+- Py85K: "Value"
+
+SCREEN: ? (xmWZz)
+- xmWZz: "Setting Name"
+
+SCREEN: ? (EB0xA)
+- EB0xA: "Value"
+
+SCREEN: ? (pnopR)
+- pnopR: "BADGES & STATUS"
+
+SCREEN: ? (0yUGE)
+- 0yUGE: "Saved"
+
+SCREEN: ? (XQb0Z)
+- XQb0Z: "PAUSED"
+
+SCREEN: ? (hT0Fd)
+- hT0Fd: "RECORDING"
+
+SCREEN: ? (SeXKC)
+- SeXKC: "38:14"
+
+SCREEN: ? (xgUng)
+- xgUng: "145/92 mmHg"
+
+SCREEN: ? (0jmkj)
+- 0jmkj: "HEADERS — Dark Mode"
+
+SCREEN: ? (oIKzq)
+- oIKzq: "Screen Title"
+
+SCREEN: ? (0iXPs)
+- 0iXPs: "Screen Title"
+
+SCREEN: ? (X0Fxy)
+- X0Fxy: "RECORDING CONTROLS"
+
+SCREEN: ? (t1t1H)
+- t1t1H: "BOTTOM ACTION BARS"
+
+SCREEN: ? (2B8K1)
+- 2B8K1: "Share"
+
+SCREEN: ? (SehCv)
+- SehCv: "Export"
+
+SCREEN: ? (P2R7c)
+- P2R7c: "Copy"
+
+SCREEN: ? (dH2gv)
+- dH2gv: "Share"
+
+SCREEN: ? (ExRHy)
+- ExRHy: "Export"
+
+SCREEN: ? (4d9yC)
+- 4d9yC: "Copy"
+
+SCREEN: ? (3D0UT)
+- 3D0UT: "LOGO & BRANDING"
+
+SCREEN: ? (lsQq8)
+- lsQq8: "Med"
+
+SCREEN: ? (c0Vfj)
+- c0Vfj: "Mate"
+
+SCREEN: ? (iKwax)
+- iKwax: "Medical Speech-to-Text"
+
+SCREEN: ? (qtckH)
+- qtckH: "Med"
+
+SCREEN: ? (Lhuu3)
+- Lhuu3: "Mate"
+
+SCREEN: ? (PRHFo)
+- PRHFo: "Medical Speech-to-Text"
+
+SCREEN: ? (MCa3N)
+- MCa3N: "TYPOGRAPHY SCALE"
+
+SCREEN: ? (vu7e1)
+- vu7e1: "52"
+
+SCREEN: ? (JeFmo)
+- JeFmo: "00:38:14"
+
+SCREEN: ? (Oll8x)
+- Oll8x: "32"
+
+SCREEN: ? (nffmg)
+- nffmg: "MedMate"
+
+SCREEN: ? (sfMhB)
+- sfMhB: "17"
+
+SCREEN: ? (8ApmK)
+- 8ApmK: "Header Title"
+
+SCREEN: ? (G7eG9)
+- G7eG9: "16"
+
+SCREEN: ? (Jqadx)
+- Jqadx: "Button Label / Body Large"
+
+SCREEN: ? (5tjjy)
+- 5tjjy: "15"
+
+SCREEN: ? (PfHPH)
+- PfHPH: "Input text / Field value"
+
+SCREEN: ? (hoQ3r)
+- hoQ3r: "14"
+
+SCREEN: ? (m8vSJ)
+- m8vSJ: "Body text and descriptions used across screens"
+
+SCREEN: ? (222s2)
+- 222s2: "13"
+
+SCREEN: ? (P3x56)
+- P3x56: "Card body / Secondary content"
+
+SCREEN: ? (KdFgH)
+- KdFgH: "12"
+
+SCREEN: ? (zOmWH)
+- zOmWH: "SECTION LABEL"
+
+SCREEN: ? (fWLl9)
+- fWLl9: "11"
+
+SCREEN: ? (aS3vo)
+- aS3vo: "Caption / Small text"
+
+SCREEN: ? (2uFiP)
+- 2uFiP: "10"
+
+SCREEN: ? (nvOux)
+- nvOux: "Scrubber / Tiny label"
+
+SCREEN: ? (0Oqng)
+- 0Oqng: "COLOR PALETTE"
+
+SCREEN: ? (KU8Zl)
+- KU8Zl: "Blue Primary"
+
+SCREEN: ? (yalKX)
+- yalKX: "#219EBC"
+
+SCREEN: ? (uaoVS)
+- uaoVS: "Orange Accent"
+
+SCREEN: ? (uX37I)
+- uX37I: "#FB8A0A"
+
+SCREEN: ? (Skgvk)
+- Skgvk: "Red / Danger"
+
+SCREEN: ? (l8zWc)
+- l8zWc: "#E63946"
+
+SCREEN: ? (anQ5l)
+- anQ5l: "Green Success"
+
+SCREEN: ? (kEG1Q)
+- kEG1Q: "#16A34A"
+
+SCREEN: ? (HJcoo)
+- HJcoo: "Badge Text Dark"
+
+SCREEN: ? (5b7vd)
+- 5b7vd: "#22C55E"
+
+SCREEN: ? (fVklr)
+- fVklr: "BG Light"
+
+SCREEN: ? (LclQL)
+- LclQL: "#F9FAFB"
+
+SCREEN: ? (EVVGW)
+- EVVGW: "Card Light"
+
+SCREEN: ? (YINJ4)
+- YINJ4: "#FFFFFF"
+
+SCREEN: ? (Tr9Gx)
+- Tr9Gx: "Text Primary"
+
+SCREEN: ? (MB3Ve)
+- MB3Ve: "#1A1A1A"
+
+SCREEN: ? (Suaaz)
+- Suaaz: "Text Secondary"
+
+SCREEN: ? (HV1oo)
+- HV1oo: "#888888"
+
+SCREEN: ? (dxtOe)
+- dxtOe: "Border Light"
+
+SCREEN: ? (oLp9M)
+- oLp9M: "#E5E7EB"
+
+SCREEN: ? (Y9lUY)
+- Y9lUY: "Placeholder"
+
+SCREEN: ? (eBUdZ)
+- eBUdZ: "#AAAAAA"
+
+SCREEN: ? (XEEd6)
+- XEEd6: "Input BG"
+
+SCREEN: ? (tmS2H)
+- tmS2H: "#F5F5F5"
+
+SCREEN: ? (eNInq)
+- eNInq: "BG Dark"
+
+SCREEN: ? (QuZvl)
+- QuZvl: "#0A0A0A"
+
+SCREEN: ? (NbOtp)
+- NbOtp: "Card Dark"
+
+SCREEN: ? (KChKF)
+- KChKF: "#1A1A1A"
+
+SCREEN: ? (ED0gI)
+- ED0gI: "Text Primary"
+
+SCREEN: ? (rfTv2)
+- rfTv2: "#F0F0F0"
+
+SCREEN: ? (wzIxG)
+- wzIxG: "Text Muted"
+
+SCREEN: ? (BzYec)
+- BzYec: "#666666"
+
+SCREEN: ? (RUNK5)
+- RUNK5: "Border Dark"
+
+SCREEN: ? (5MFfq)
+- 5MFfq: "#2A2A2A"
+
+SCREEN: ? (YLdjd)
+- YLdjd: "Input Dark"
+
+SCREEN: ? (j87pL)
+- j87pL: "#1E1E1E"
+
+SCREEN: ? (a2WOI)
+- a2WOI: "Placeholder"
+
+SCREEN: ? (PpaPq)
+- PpaPq: "#555555"
+
+SCREEN: ? (ozv5q)
+- ozv5q: "Input Border"
+
+SCREEN: ? (J0tRh)
+- J0tRh: "#333333"
+
+SCREEN: ? (ACHSC)
+- ACHSC: "FLOATING ACTION BUTTON"
+
+SCREEN: ? (PfqI8)
+- PfqI8: "DIALOG CARDS"
+
+SCREEN: ? (DoNpT)
+- DoNpT: "Dialog Title"
+
+SCREEN: ? (KSQjs)
+- KSQjs: "Dialog body content goes here.
+Multi-line supported."
+
+SCREEN: ? (nABA9)
+- nABA9: "Cancel"
+
+SCREEN: ? (hH9Fp)
+- hH9Fp: "Confirm"
+
+SCREEN: ? (o8get)
+- o8get: "Dialog Title"
+
+SCREEN: ? (k8dke)
+- k8dke: "Dialog body content goes here.
+Multi-line supported."
+
+SCREEN: ? (zSubf)
+- zSubf: "Cancel"
+
+SCREEN: ? (CC4vR)
+- CC4vR: "Confirm"
+
