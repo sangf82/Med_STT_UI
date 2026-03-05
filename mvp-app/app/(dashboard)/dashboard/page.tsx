@@ -52,13 +52,13 @@ export default function DashboardPage() {
             {/* Expanded Hero (B1) */}
             <div className={`px-5 pt-2 pb-6 flex flex-col items-center justify-center text-center transition-all duration-300 ${isScrolled ? 'opacity-0 h-0 overflow-hidden py-0' : 'opacity-100'}`}>
                 <Stethoscope className="w-[48px] h-[48px] text-accent-blue mb-2" />
-                <h1 className="text-[28px] font-bold text-text-primary leading-tight">MedMate</h1>
+                <h1 className="text-[28px] font-bold leading-tight"><span className="text-accent-blue">Med</span><span className="text-accent-orange">Mate</span></h1>
                 <p className="text-[14px] text-text-muted mt-[2px]">{a('subtitle')}</p>
             </div>
 
             {/* Recording List */}
             <div className="px-4 flex flex-col gap-[10px]">
-                <h2 className="text-[13px] font-semibold text-text-muted mb-1 px-1">{t('recent')}</h2>
+                <h2 className={`text-[13px] font-semibold text-text-muted mb-1 px-1 transition-all duration-300 ${isScrolled ? 'opacity-100 h-auto' : 'opacity-0 h-0 overflow-hidden'}`}>{t('myRecordings')}</h2>
 
                 {recordings.map(rec => (
                     <Card
@@ -69,7 +69,7 @@ export default function DashboardPage() {
                         <div className="flex justify-between items-start">
                             <div className="flex flex-col">
                                 <h3 className="text-[15px] font-bold text-text-primary leading-tight">{rec.title}</h3>
-                                <p className="text-[13px] text-text-muted mt-1">
+                                <p className="text-[12px] text-text-muted mt-1">
                                     {rec.format ?? 'None'} &middot; {rec.duration} &middot; {rec.date}
                                 </p>
                             </div>

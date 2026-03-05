@@ -7,8 +7,7 @@ import LocaleSwitcher from '@/components/LocaleSwitcher';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { PasswordStrength } from '@/components/PasswordStrength';
-import { ComplianceFooter } from '@/components/ComplianceFooter';
-import { Stethoscope } from 'lucide-react';
+import { Stethoscope, ChevronLeft } from 'lucide-react';
 
 function SignUpContent() {
     const t = useTranslations('Auth');
@@ -57,66 +56,82 @@ function SignUpContent() {
     };
 
     return (
-        <div className="flex flex-col min-h-screen bg-bg-card text-text-primary px-[32px] pt-[40px] pb-[30px] relative fade-in overflow-y-auto max-w-md mx-auto w-full">
-            {/* Top right language switcher */}
-            <div className="absolute top-[24px] right-[32px]">
+        <div className="flex flex-col min-h-screen bg-bg-card text-text-primary relative fade-in overflow-y-auto max-w-md mx-auto w-full">
+            {/* Header bar: back + language (48px) */}
+            <div className="flex items-center justify-between h-[48px] px-4 shrink-0">
+                <button
+                    type="button"
+                    onClick={() => router.push('/login')}
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 transition-all text-text-primary"
+                    aria-label="Back"
+                >
+                    <ChevronLeft className="w-6 h-6" />
+                </button>
                 <LocaleSwitcher />
             </div>
 
-            <div className="flex flex-col items-center gap-2 mb-8 mt-4">
-                <Stethoscope className="w-[44px] h-[44px] text-accent-blue" />
-                <h1 className="text-[24px] font-bold text-accent-blue leading-tight">{t('createAccount')}</h1>
-                <p className="text-[13px] text-text-muted mt-1">{t('join')}</p>
-            </div>
-
-            <form className="flex flex-col gap-[16px]" onSubmit={handleSignUp}>
-                <Input
-                    label={t('phone')}
-                    placeholder={t('phonePlaceholder')}
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                />
-                <Input
-                    label={t('fullName')}
-                    placeholder="Dr. First Last"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                />
-                <Input
-                    label={t('email')}
-                    placeholder="you@hospital.org"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                />
-
-                <div className="flex flex-col gap-2">
-                    <Input
-                        label={t('createStrong')}
-                        type="password"
-                        placeholder={t('passwordPlaceholder')}
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        error={passwordError}
-                    />
-                    <PasswordStrength score={score} label={score === 3 ? t('strongPassword') : undefined} />
+            {/* Content: logo + form */}
+            <div className="flex flex-col items-center flex-1 px-[32px] pb-[30px] gap-[24px]">
+                <div className="flex flex-col items-center gap-[6px]">
+                    <Stethoscope className="w-[44px] h-[44px] text-accent-blue" />
+                    <h1 className="text-[24px] font-bold text-accent-blue leading-tight">{t('createAccount')}</h1>
+                    <p className="text-[13px] text-text-muted">{t('join')}</p>
                 </div>
 
-                <Input
-                    label={t('confirmPassword')}
-                    type="password"
-                    placeholder={t('repeatPassword')}
-                    value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
-                    error={confirmPasswordError}
-                />
+                <form className="flex flex-col gap-[16px] w-full" onSubmit={handleSignUp}>
+                    <Input
+                        label={t('phone')}
+                        placeholder={t('phonePlaceholder')}
+                        value={phone}
+                        onChange={e => setPhone(e.target.value)}
+                    />
+                    <Input
+                        label={t('fullName')}
+                        placeholder="Dr. First Last"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                    />
+                    <Input
+                        label={t('email')}
+                        placeholder="you@hospital.org"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                    />
 
-                <Button type="submit" className="mt-4" disabled={isDisabled}>{t('createAccount')}</Button>
+                    <div className="flex flex-col gap-1">
+                        <Input
+                            label={t('password')}
+                            type="password"
+                            placeholder={t('createStrong')}
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            error={passwordError}
+                        />
+                        <PasswordStrength
+                            score={score}
+                            label={
+                                score === 1 ? t('weakPassword') :
+                                score === 2 ? t('mediumPassword') :
+                                score === 3 ? t('strongPassword') : undefined
+                            }
+                        />
+                    </div>
 
-                <ComplianceFooter />
-            </form>
+                    <Input
+                        label={t('confirmPassword')}
+                        type="password"
+                        placeholder={t('repeatPassword')}
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        error={confirmPasswordError}
+                    />
 
-            <div className="mt-8 text-center text-[13px] text-text-muted whitespace-nowrap">
-                {t('alreadyHave')}{' '}<button type="button" onClick={() => router.push('/login')} className="text-accent-blue font-semibold hover:underline underline-offset-4">{t('signIn')}</button>
+                    <Button type="submit" disabled={isDisabled}>{t('createAccount')}</Button>
+
+                    <div className="text-center text-[13px] whitespace-nowrap">
+                        <span className="text-text-muted">{t('alreadyHave')}</span>{' '}<button type="button" onClick={() => router.push('/login')} className="text-accent-blue font-semibold hover:underline underline-offset-4">{t('signIn')}</button>
+                    </div>
+                </form>
             </div>
         </div>
     );

@@ -21,6 +21,8 @@
         "repeatPassword": "Repeat your password",
         "alreadyHave": "Already have an account?",
         "strongPassword": "Strong password",
+        "weakPassword": "Weak — use uppercase, number & special character",
+        "mediumPassword": "Medium — add more characters for better security",
         "hipaa": "HIPAA Compliant · 256-bit Encrypted",
         "errAccountNotFound": "Account not found. Check your phone or email.",
         "errWrongPassword": "Incorrect password. Please try again.",

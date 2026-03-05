@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import { Lock, AudioWaveform, Globe, Settings } from 'lucide-react'
+import { Shield, AudioLines, Wand2, Globe, Settings } from 'lucide-react'
 import { Toggle } from "./Toggle"
 import { useRouter } from 'next/navigation'
 import { useTranslations } from "next-intl"
@@ -14,6 +14,7 @@ export interface SidebarProps {
     profile: {
         initials: string;
         name: string;
+        subtitle: string;
     };
 }
 
@@ -50,65 +51,73 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
 
             <div className="relative w-[300px] h-full bg-bg-sidebar flex flex-col slide-in-left shadow-2xl">
                 {/* Profile Header */}
-                <div className="bg-accent-blue p-6 pb-8 text-white relative flex flex-col gap-4">
+                <div className="bg-accent-blue pt-[48px] px-[24px] pb-[20px] text-white relative flex flex-col gap-3">
                     <div className="w-[52px] h-[52px] rounded-full bg-white text-accent-blue flex items-center justify-center font-bold text-[18px]">
                         {profile.initials}
                     </div>
-                    <h2 className="text-[17px] font-bold">{profile.name}</h2>
+                    <div className="flex flex-col gap-1">
+                        <h2 className="text-[17px] font-bold">{profile.name}</h2>
+                        <p className="text-[12px] text-white/80">{profile.subtitle}</p>
+                    </div>
                 </div>
 
                 {/* Navigation */}
-                <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-1">
+                <div className="flex-1 overflow-y-auto py-3 flex flex-col">
                     {/* All Records */}
                     <button
                         onClick={() => { router.push('/dashboard'); onClose() }}
-                        className="flex items-center gap-4 px-6 py-[14px] w-full text-left text-accent-blue bg-accent-blue/5 focus-visible:outline-none"
+                        className="flex items-center gap-4 px-6 h-[52px] w-full text-left bg-[#FFF7ED] border-l-[3px] border-accent-orange focus-visible:outline-none shrink-0"
                     >
-                        <AudioWaveform className="w-5 h-5 text-accent-blue" />
-                        <span className="text-[15px] font-bold text-accent-blue">{t('allRecords')}</span>
+                        <AudioLines className="w-[22px] h-[22px] text-accent-orange" />
+                        <span className="text-[15px] font-semibold text-accent-orange">{t('allRecords')}</span>
                     </button>
 
                     {/* Auto-transcribe */}
-                    <div className="flex items-center justify-between px-6 py-[14px]">
+                    <div className="flex items-center justify-between px-6 h-[52px] shrink-0">
                         <div className="flex items-center gap-4">
-                            <AudioWaveform className="w-5 h-5 text-text-muted opacity-0" />
-                            <span className="text-[15px] font-medium text-text-primary">{t('autoTranscribe')}</span>
+                            <Wand2 className="w-[22px] h-[22px] text-text-secondary" />
+                            <span className="text-[15px] text-text-primary">{t('autoTranscribe')}</span>
                         </div>
                         <Toggle checked={autoTranscribe} onCheckedChange={setAutoTranscribe} />
                     </div>
 
+                    {/* Separator */}
+                    <div className="h-px bg-divider w-full" />
+
                     {/* Language */}
-                    <div className="flex items-center justify-between px-6 py-[14px]">
+                    <div className="flex items-center justify-between px-6 h-[52px] shrink-0">
                         <div className="flex items-center gap-4">
-                            <Globe className="w-5 h-5 text-text-muted" />
-                            <span className="text-[15px] font-medium text-text-primary">{t('language')}</span>
+                            <Globe className="w-[22px] h-[22px] text-text-secondary" />
+                            <span className="text-[15px] text-text-primary">{t('language')}</span>
                         </div>
-                        <select
-                            defaultValue={locale}
-                            onChange={handleLocaleChange}
-                            className="bg-accent-blue/10 text-[13px] font-semibold text-accent-blue py-1 px-2.5 rounded-full appearance-none pr-5 cursor-pointer border-none focus-visible:outline-none"
-                            style={{ backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23219ebc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center', backgroundSize: '10px' }}
-                        >
-                            <option value="en">English</option>
-                            <option value="vi">Tiếng Việt</option>
-                        </select>
+                        <div className="relative">
+                            <select
+                                defaultValue={locale}
+                                onChange={handleLocaleChange}
+                                className="bg-[#EBF5F8] text-[13px] font-semibold text-accent-blue py-1 px-3 pr-6 rounded-[8px] appearance-none cursor-pointer border-none focus-visible:outline-none"
+                                style={{ backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23219ebc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '12px' }}
+                            >
+                                <option value="en">English</option>
+                                <option value="vi">Tiếng Việt</option>
+                            </select>
+                        </div>
                     </div>
 
                     {/* Settings */}
                     <button
                         onClick={() => { router.push('/settings'); onClose() }}
-                        className="flex items-center gap-4 px-6 py-[14px] w-full text-left text-text-secondary hover:bg-bg-surface hover:text-text-primary transition-colors focus-visible:outline-none"
+                        className="flex items-center gap-4 px-6 h-[52px] w-full text-left text-text-secondary hover:bg-bg-surface hover:text-text-primary transition-colors focus-visible:outline-none shrink-0"
                     >
-                        <Settings className="w-5 h-5 text-text-muted" />
-                        <span className="text-[15px] font-medium">{t('settings')}</span>
+                        <Settings className="w-[22px] h-[22px] text-text-secondary" />
+                        <span className="text-[15px]">{t('settings')}</span>
                     </button>
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 pb-8 bg-bg-sidebar">
-                    <div className="flex items-center justify-center gap-[6px] text-text-muted">
-                        <Lock className="w-[14px] h-[14px]" />
-                        <span className="text-[11px] font-medium">HIPAA Compliant</span>
+                <div className="px-6 py-4 border-t border-divider">
+                    <div className="flex items-center gap-2 text-text-muted">
+                        <Shield className="w-4 h-4 text-accent-blue" />
+                        <span className="text-[11px] font-semibold">HIPAA Compliant</span>
                     </div>
                 </div>
             </div>

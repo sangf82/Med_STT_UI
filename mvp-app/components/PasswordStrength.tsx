@@ -7,6 +7,8 @@ export interface PasswordStrengthProps extends React.HTMLAttributes<HTMLDivEleme
 }
 
 export function PasswordStrength({ score, label, className, ...props }: PasswordStrengthProps) {
+    if (score === 0) return null;
+
     let width = "0%";
     let color = "transparent";
 
@@ -23,13 +25,13 @@ export function PasswordStrength({ score, label, className, ...props }: Password
 
     return (
         <div className={cn("flex flex-col gap-1 w-full", className)} {...props}>
-            <div className="h-[4px] w-full bg-strength-track rounded-full overflow-hidden">
+            <div className="h-[4px] w-full bg-strength-track rounded-[2px] overflow-hidden">
                 <div
-                    className="h-full transition-all duration-300 ease-out rounded-full"
+                    className="h-full transition-all duration-300 ease-out rounded-[2px]"
                     style={{ width, backgroundColor: color }}
                 />
             </div>
-            {label && score > 0 && (
+            {label && (
                 <span className="text-[11px] font-medium" style={{ color }}>
                     {label}
                 </span>

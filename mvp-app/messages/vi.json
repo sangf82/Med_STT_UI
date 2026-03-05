@@ -21,6 +21,8 @@
         "repeatPassword": "Nhập lại mật khẩu",
         "alreadyHave": "Đã có tài khoản?",
         "strongPassword": "Mật khẩu mạnh",
+        "weakPassword": "Yếu — cần chữ hoa, số & ký tự đặc biệt",
+        "mediumPassword": "Trung bình — thêm ký tự để bảo mật hơn",
         "hipaa": "Tuân thủ HIPAA · Mã hóa 256-bit",
         "errAccountNotFound": "Không tìm thấy tài khoản. Kiểm tra số điện thoại hoặc email.",
         "errWrongPassword": "Mật khẩu không đúng. Vui lòng thử lại.",

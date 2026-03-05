@@ -56,7 +56,7 @@ function LoginContent() {
 
             <div className="flex flex-col items-center mt-[-40px] gap-2 mb-10">
                 <Stethoscope className="w-[56px] h-[56px] text-accent-blue" />
-                <h1 className="text-[30px] font-bold text-accent-blue leading-tight">MedMate</h1>
+                <h1 className="text-[30px] font-bold leading-tight"><span className="text-accent-blue">Med</span><span className="text-accent-orange">Mate</span></h1>
                 <p className="text-[14px] text-text-muted mt-1">{t('subtitle')}</p>
             </div>
 

@@ -13,7 +13,7 @@ export interface HeaderProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 
 
 export function Header({ title, subtitle, onBack, rightNode, centerNode, leftNode, className, ...props }: HeaderProps) {
     return (
-        <header className={cn("sticky top-0 z-40 flex items-center h-[56px] px-4 w-full bg-bg-page text-text-primary", className)} {...props}>
+        <header className={cn("sticky top-0 z-40 flex items-center h-[48px] px-4 w-full bg-bg-page text-text-primary", className)} {...props}>
             <div className="flex-1 flex items-center justify-start min-w-[40px]">
                 {leftNode || (
                     onBack && (

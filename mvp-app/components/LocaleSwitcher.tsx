@@ -3,7 +3,7 @@
 import { useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect, useTransition, useCallback } from 'react';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check, Globe } from 'lucide-react';
 
 const LOCALES = [
     { value: 'en', label: 'English' },
@@ -43,10 +43,11 @@ export default function LocaleSwitcher() {
                 type="button"
                 onClick={() => setOpen(o => !o)}
                 disabled={isPending}
-                className="flex items-center gap-1.5 bg-bg-surface text-[13px] font-semibold text-accent-blue py-1.5 pl-3 pr-2 rounded-full cursor-pointer border border-border focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 transition-colors hover:bg-bg-page"
+                className="flex items-center gap-1.5 bg-transparent text-[13px] font-medium text-text-primary py-1.5 pl-3 pr-2.5 rounded-[8px] cursor-pointer border border-border focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 transition-colors hover:bg-bg-surface"
             >
+                <Globe className="w-4 h-4 text-text-secondary" />
                 <span>{current.label}</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3.5 h-3.5 text-text-secondary transition-transform ${open ? 'rotate-180' : ''}`} />
             </button>
 
             {open && (
