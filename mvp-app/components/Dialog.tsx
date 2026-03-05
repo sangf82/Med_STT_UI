@@ -26,7 +26,7 @@ export function Dialog({ open, onOpenChange, title, children, className }: Dialo
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-bg-overlay fade-in">
+        <div className="fixed inset-0 z-50 flex items-end justify-center px-4 pb-6 sm:items-center bg-bg-overlay fade-in">
             <div
                 className="absolute inset-0"
                 onClick={() => onOpenChange(false)}
@@ -34,14 +34,14 @@ export function Dialog({ open, onOpenChange, title, children, className }: Dialo
             />
             <div
                 className={cn(
-                    "relative w-full max-w-[340px] bg-save-card-bg rounded-[20px] p-6 shadow-xl flex flex-col gap-4 animate-in zoom-in-95 duration-200",
+                    "relative w-full max-w-[340px] bg-save-card-bg rounded-[24px] p-5 pb-4 shadow-xl flex flex-col gap-3 animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-200 mb-[env(safe-area-inset-bottom)]",
                     className
                 )}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="dialog-title"
             >
-                <h2 id="dialog-title" className="text-[20px] font-bold text-text-primary">
+                <h2 id="dialog-title" className="text-[18px] font-bold text-text-primary">
                     {title}
                 </h2>
                 {children}

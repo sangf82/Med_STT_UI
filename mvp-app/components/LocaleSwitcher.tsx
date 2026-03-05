@@ -4,13 +4,18 @@ import { useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect, useTransition, useCallback } from 'react';
 import { ChevronDown, Check, Globe } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const LOCALES = [
     { value: 'en', label: 'English' },
     { value: 'vi', label: 'Tiếng Việt' },
 ] as const;
 
-export default function LocaleSwitcher() {
+export interface LocaleSwitcherProps {
+    variant?: 'outline' | 'filled';
+}
+
+export default function LocaleSwitcher({ variant = 'outline' }: LocaleSwitcherProps) {
     const [isPending, startTransition] = useTransition();
     const router = useRouter();
     const locale = useLocale();
@@ -43,11 +48,20 @@ export default function LocaleSwitcher() {
                 type="button"
                 onClick={() => setOpen(o => !o)}
                 disabled={isPending}
-                className="flex items-center gap-1.5 bg-transparent text-[13px] font-medium text-text-primary py-1.5 pl-3 pr-2.5 rounded-[8px] cursor-pointer border border-border focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 transition-colors hover:bg-bg-surface"
+                className={cn(
+                    "flex items-center rounded-[8px] cursor-pointer focus-visible:outline-none disabled:opacity-50 transition-colors",
+                    variant === 'outline'
+                        ? "gap-1.5 bg-transparent text-[13px] font-medium text-text-primary py-1.5 pl-3 pr-2.5 border border-border hover:bg-bg-surface"
+                        : "gap-1 bg-highlight-bg text-[13px] font-semibold text-accent-blue py-1 pl-3 pr-2 border-none hover:opacity-90"
+                )}
             >
-                <Globe className="w-4 h-4 text-text-secondary" />
+                {variant === 'outline' && <Globe className="w-4 h-4 text-text-secondary" />}
                 <span>{current.label}</span>
-                <ChevronDown className={`w-3.5 h-3.5 text-text-secondary transition-transform ${open ? 'rotate-180' : ''}`} />
+                <ChevronDown className={cn(
+                    "transition-transform",
+                    open ? 'rotate-180' : '',
+                    variant === 'outline' ? "w-3.5 h-3.5 text-text-secondary" : "w-4 h-4 text-accent-blue"
+                )} />
             </button>
 
             {open && (
@@ -57,11 +71,10 @@ export default function LocaleSwitcher() {
                             key={l.value}
                             type="button"
                             onClick={() => handleSelect(l.value)}
-                            className={`w-full flex items-center justify-between px-4 py-2.5 text-[13px] font-medium transition-colors ${
-                                l.value === locale
-                                    ? 'text-accent-blue bg-accent-blue/8'
+                            className={`w-full flex items-center justify-between px-4 py-2.5 text-[13px] font-medium transition-colors ${l.value === locale
+                                    ? 'text-accent-blue bg-accent-blue/10 dark:bg-accent-blue/20'
                                     : 'text-text-primary hover:bg-bg-surface'
-                            }`}
+                                }`}
                         >
                             <span>{l.label}</span>
                             {l.value === locale && <Check className="w-4 h-4 text-accent-blue" />}

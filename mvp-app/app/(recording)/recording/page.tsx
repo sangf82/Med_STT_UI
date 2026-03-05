@@ -4,108 +4,205 @@ import { useTranslations } from 'next-intl';
 import { Header } from '@/components/Header';
 import { Waveform } from '@/components/Waveform';
 import { RecordingControls } from '@/components/RecordingControls';
-import { Badge } from '@/components/Badge';
+import type { ControlState } from '@/components/RecordingControls';
+import { SaveDialog } from '@/components/SaveDialog';
 import { formatTimeMs } from '@/lib/utils';
-import { Info } from 'lucide-react';
+import { MoreVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 
-// C1: Active
+// C1: Active Recording
 // C2: Paused
-// C3: Resume (Active again with past state)
+// C3: Continue Recording (resume)
+// C4: Save Dialog
 
 export default function RecordingPage() {
     const t = useTranslations('Recording');
     const router = useRouter();
 
-    const [state, setState] = useState<'active' | 'paused' | 'resume'>('active');
-    const [timeMs, setTimeMs] = useState(0);
+    const recorder = useAudioRecorder();
+    const [showSave, setShowSave] = useState(false);
+    const [replaying, setReplaying] = useState(false);
+    const [hasReplayed, setHasReplayed] = useState(false);
+    const [seekPosition, setSeekPosition] = useState(1);
+    const audioElRef = useRef<HTMLAudioElement | null>(null);
+    const hasStarted = useRef(false);
+    // Known duration in seconds — reliable unlike audio.duration which is Infinity for WebM
+    const knownDurationSec = recorder.timeMs / 1000;
 
+    // Auto-start recording on mount
     useEffect(() => {
-        let interval: NodeJS.Timeout;
-        if (state === 'active' || state === 'resume') {
-            interval = setInterval(() => {
-                setTimeMs(prev => prev + 100);
-            }, 100);
+        if (!hasStarted.current) {
+            hasStarted.current = true;
+            recorder.start();
         }
-        return () => clearInterval(interval);
-    }, [state]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    const handlePause = () => setState('paused');
-    const handleResume = () => setState('resume');
-    const handleStop = () => router.push('/save');
-    const handleBack = () => router.push('/dashboard');
+    // Determine control state
+    let controlState: ControlState = 'recording';
+    if (recorder.state === 'paused') controlState = 'paused';
+    if (replaying) controlState = 'replaying';
 
-    let titleIndicator = null;
-    if (state === 'active' || state === 'resume') {
-        titleIndicator = (
-            <div className="flex items-center gap-2">
+    // Replay logic — Waveform handles animation via audioRef, no setState per frame
+    const startReplay = useCallback(() => {
+        if (!recorder.audioUrl) return;
+        setHasReplayed(true);
+
+        // Clean up any previous audio
+        if (audioElRef.current) {
+            audioElRef.current.pause();
+            audioElRef.current.onended = null;
+            audioElRef.current.oncanplay = null;
+        }
+
+        const audio = new Audio(recorder.audioUrl);
+        audioElRef.current = audio;
+
+        const startFrom = seekPosition < 1 ? seekPosition : 0;
+        setReplaying(true);
+
+        audio.onended = () => {
+            setReplaying(false);
+            setSeekPosition(1);
+        };
+
+        // oncanplay can fire multiple times — use a flag to only act once
+        let didStart = false;
+        audio.oncanplay = () => {
+            if (didStart) return;
+            didStart = true;
+            // Use known duration from recorder (audio.duration is often Infinity for WebM)
+            const dur = knownDurationSec > 0 ? knownDurationSec : (Number.isFinite(audio.duration) ? audio.duration : 0);
+            if (startFrom > 0 && dur > 0) {
+                audio.currentTime = startFrom * dur;
+            }
+            audio.play().catch(() => {
+                setReplaying(false);
+            });
+        };
+
+        audio.load();
+    }, [recorder.audioUrl, seekPosition, knownDurationSec]);
+
+    const pauseReplay = useCallback(() => {
+        if (audioElRef.current) {
+            const dur = knownDurationSec > 0 ? knownDurationSec : (Number.isFinite(audioElRef.current.duration) ? audioElRef.current.duration : 0);
+            if (dur > 0) {
+                setSeekPosition(audioElRef.current.currentTime / dur);
+            }
+            audioElRef.current.pause();
+        }
+        setReplaying(false);
+    }, [knownDurationSec]);
+
+    const handleSeek = useCallback((pos: number) => {
+        setSeekPosition(pos);
+        if (audioElRef.current) {
+            const dur = knownDurationSec > 0 ? knownDurationSec : (Number.isFinite(audioElRef.current.duration) ? audioElRef.current.duration : 0);
+            if (dur > 0) {
+                audioElRef.current.currentTime = pos * dur;
+            }
+        }
+    }, [knownDurationSec]);
+
+    // Cleanup replay on unmount
+    useEffect(() => {
+        return () => {
+            audioElRef.current?.pause();
+        };
+    }, []);
+
+    const handlePause = () => {
+        recorder.pause();
+        setSeekPosition(1); // show end of recording (current position)
+    };
+    const handleResume = () => {
+        recorder.resume();
+        setSeekPosition(1); // reset for next pause
+    };
+    const handleBack = () => {
+        recorder.stop();
+        router.push('/dashboard');
+    };
+    const handleSave = () => {
+        recorder.pause();
+        setShowSave(true);
+    };
+    const handleCancelSave = () => setShowSave(false);
+    const handleConfirmSave = () => {
+        recorder.stop();
+        router.push('/format');
+    };
+
+    // Header center: recording indicator + title
+    const isRecording = recorder.state === 'recording';
+    const titleIndicator = (
+        <div className="flex items-center gap-2">
+            {isRecording && (
                 <div className="w-2.5 h-2.5 rounded-full bg-danger animate-pulse-fast" />
-                <span className="text-[17px] font-bold">{t('newRecording')}</span>
-            </div>
-        );
-    } else {
-        titleIndicator = <span className="text-[17px] font-bold">{t('newRecording')}</span>;
-    }
+            )}
+            <span className="text-[17px] font-semibold">{t('newRecording')}</span>
+        </div>
+    );
 
     return (
-        <div className="flex flex-col min-h-screen fade-in">
+        <div className="flex flex-col min-h-screen fade-in relative">
             <Header
                 centerNode={titleIndicator}
                 onBack={handleBack}
                 rightNode={
                     <button className="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 text-text-primary transition-colors hover:bg-bg-surface">
-                        <Info className="w-6 h-6" />
+                        <MoreVertical className="w-6 h-6" />
                     </button>
                 }
             />
 
-            <div className="flex-1 flex flex-col items-center justify-between pt-12 pb-16">
+            <div className="flex-1 flex flex-col items-center pt-6 pb-[34px]">
 
-                {/* Timer Area */}
-                <div className="flex flex-col items-center gap-4">
-                    <div className="text-[52px] font-light font-mono leading-none tracking-tight">
-                        {formatTimeMs(timeMs)}
-                    </div>
-                    <div className="h-[24px]">
-                        {state === 'paused' && (
-                            <Badge variant="warn" className="bg-accent-orange text-white shadow-sm flex items-center gap-1.5 px-3">
-                                <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                                {t('paused')}
-                            </Badge>
-                        )}
-                    </div>
+                {/* Timer */}
+                <div className="text-[52px] font-light leading-none tracking-tight text-center">
+                    {formatTimeMs(recorder.timeMs)}
                 </div>
 
-                {/* Waveform Area */}
-                <div className="w-full flex flex-col items-center gap-6 mt-8">
-                    <Waveform
-                        active={state === 'active' || state === 'resume'}
-                        paused={state === 'paused'}
-                        barCount={60}
-                        pastBars={state === 'resume' || state === 'paused' ? 30 : 0}
-                        newBars={state === 'resume' ? 25 : 0}
-                    />
+                {/* Spacer */}
+                <div className="h-3" />
 
-                    {/* Optional scrubber when paused - visual only for demo */}
-                    {state === 'paused' && (
-                        <div className="w-[80%] max-w-[300px] h-[4px] bg-border rounded-full relative overflow-hidden">
-                            <div className="absolute top-0 left-0 bottom-0 bg-accent-blue w-[45%]" />
-                        </div>
-                    )}
-                </div>
+                {/* Waveform */}
+                <Waveform
+                    levels={recorder.levels}
+                    active={recorder.state === 'recording'}
+                    paused={recorder.state === 'paused'}
+                    prePauseLevels={hasReplayed ? recorder.prePauseLevels : 0}
+                    replaying={replaying}
+                    seekPosition={seekPosition}
+                    audioRef={audioElRef}
+                    durationSec={knownDurationSec}
+                    onSeek={handleSeek}
+                />
 
-                {/* Controls Area */}
-                <div className="w-full mt-12">
-                    <RecordingControls
-                        state={state}
-                        onPause={handlePause}
-                        onResume={handleResume}
-                        onStop={handleStop}
-                    />
-                </div>
+                {/* Flex spacer pushes controls to bottom */}
+                <div className="flex-1" />
 
+                {/* Controls */}
+                <RecordingControls
+                    state={controlState}
+                    onPause={handlePause}
+                    onResume={handleResume}
+                    onReplay={startReplay}
+                    onPauseReplay={pauseReplay}
+                    onSave={handleSave}
+                />
             </div>
+
+            {/* Save Dialog Overlay (C4) */}
+            {showSave && (
+                <SaveDialog
+                    onCancel={handleCancelSave}
+                    onSave={handleConfirmSave}
+                />
+            )}
         </div>
     );
 }

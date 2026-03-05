@@ -64,14 +64,18 @@
         "startTranscribe": "Start Transcribe",
         "skip": "Skip for Now",
         "paused": "PAUSED",
-        "name": "Name"
+        "name": "Name",
+        "formatSoap": "SOAP Note",
+        "formatClinical": "Clinical Summary",
+        "formatNone": "None"
     },
     "Review": {
         "consultation": "Patient Consultation",
         "soapNote": "SOAP Note",
-        "ehrSummary": "EHR Summary",
+        "ehrSummary": "Clinical Summary",
         "freeText": "Free Text",
-        "raw": "Raw",
+        "raw": "Original text",
+        "copySuccess": "Copied",
         "rawTranscript": "Raw Transcript",
         "edit": "Edit",
         "editSoap": "Edit SOAP Note",
@@ -87,9 +91,17 @@
         "plan": "Plan",
         "rename": "Rename",
         "delete": "Delete",
-        "renameRecording": "Rename Recording",
+        "renameRecording": "Rename this recording?",
+        "deleteRecording": "Delete this recording?",
+        "confirmDelete": "Deleted records cannot be recovered",
+        "deleteAction": "Delete",
+        "exit": "Exit",
         "wordCount": "Word count",
         "words": "words",
+        "transcribingDetail": "Transcribing record...",
+        "errorDetail": "There was an error transcribing. Please try again.",
+        "retry": "Retry",
+        "recordNotFound": "Record not found",
         "save": "Save",
         "cancel": "Cancel",
         "patientInfo": "Patient Info",
@@ -112,11 +124,11 @@
         "problemList": "Problem List"
     },
     "Badge": {
-        "synced": "Synced",
+        "transcribed": "Transcribed",
+        "transcribing": "Transcribing",
+        "error": "Error",
         "saved": "Saved",
         "saving": "Saving...",
-        "offline": "Offline",
-        "transcribing": "Transcribing...",
-        "pending": "Pending"
+        "offline": "Offline"
     }
 }

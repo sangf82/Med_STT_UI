@@ -48,19 +48,20 @@ function LoginContent() {
     };
 
     return (
-        <div className="flex flex-col min-h-screen bg-bg-card text-text-primary px-[32px] justify-center relative fade-in max-w-md mx-auto w-full">
-            {/* Top right language switcher */}
-            <div className="absolute top-[24px] right-[32px]">
+        <div className="flex flex-col min-h-screen bg-bg-card text-text-primary fade-in max-w-md mx-auto w-full">
+            {/* Language bar (48px) matching design langBar */}
+            <div className="flex items-center justify-end h-[48px] px-4 shrink-0">
                 <LocaleSwitcher />
             </div>
 
-            <div className="flex flex-col items-center mt-[-40px] gap-2 mb-10">
+            {/* Logo area with generous spacing like design */}
+            <div className="flex flex-col items-center gap-2 mt-[40px] mb-[48px]">
                 <Stethoscope className="w-[56px] h-[56px] text-accent-blue" />
                 <h1 className="text-[30px] font-bold leading-tight"><span className="text-accent-blue">Med</span><span className="text-accent-orange">Mate</span></h1>
                 <p className="text-[14px] text-text-muted mt-1">{t('subtitle')}</p>
             </div>
 
-            <form className="flex flex-col gap-[18px]" onSubmit={handleLogin}>
+            <form className="flex flex-col gap-[18px] px-[32px]" onSubmit={handleLogin}>
                 <Input
                     label={t('phoneEmail')}
                     placeholder={t('phoneEmailPlaceholder')}
@@ -87,7 +88,7 @@ function LoginContent() {
                 <ComplianceFooter />
             </form>
 
-            <div className="mt-10 text-center text-[13px] text-text-muted whitespace-nowrap">
+            <div className="mt-auto mb-[32px] text-center text-[13px] text-text-muted whitespace-nowrap">
                 {t('noAccount')}{' '}<button type="button" onClick={() => router.push('/signup')} className="text-accent-blue font-semibold hover:underline underline-offset-4">{t('signUp')}</button>
             </div>
         </div>

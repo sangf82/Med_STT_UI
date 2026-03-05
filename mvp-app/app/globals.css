@@ -2,7 +2,7 @@
 
 @layer base {
   :root {
-    --bg-page: #F5F5F5;
+    --bg-page: #F9FAFB;
     --bg-surface: #F9FAFB;
     --bg-card: #FFFFFF;
     --bg-input: #F5F5F5;
@@ -23,9 +23,11 @@
     --badge-warn: #D97706;
     --badge-progress-bg: #FFF7ED;
     --badge-progress: #FB8A0A;
-    --waveform-bg: #2E2E2E;
-    --waveform-bar: #FFFFFF;
-    --waveform-dim: #666666;
+    --waveform-bg: #E8E8E8;
+    --waveform-bar: #219EBC;
+    --waveform-dim: #CCCCCC;
+    --waveform-new: #FB8A0A;
+    --waveform-center: #E63946;
     --section-head-bg: #EBF5F8;
     --section-head-border: #219EBC;
     --highlight-bg: #EBF5F8;
@@ -89,6 +91,11 @@
     --format-card-border: #333333;
     --textarea-bg: #1A1A1A;
     --soap-section-bg: #121212;
+    --waveform-bg: #1A1A1A;
+    --waveform-bar: #219EBC;
+    --waveform-dim: #444444;
+    --waveform-new: #FB8A0A;
+    --waveform-center: #E63946;
   }
 
   body {
@@ -127,6 +134,8 @@
   --color-waveform-bg: var(--waveform-bg);
   --color-waveform-bar: var(--waveform-bar);
   --color-waveform-dim: var(--waveform-dim);
+  --color-waveform-new: var(--waveform-new);
+  --color-waveform-center: var(--waveform-center);
   --color-section-head-bg: var(--section-head-bg);
   --color-section-head-border: var(--section-head-border);
   --color-highlight-bg: var(--highlight-bg);

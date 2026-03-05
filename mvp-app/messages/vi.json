@@ -64,14 +64,18 @@
         "startTranscribe": "Bắt đầu chuyển văn bản",
         "skip": "Bỏ qua",
         "paused": "TẠM DỪNG",
-        "name": "Tên"
+        "name": "Tên",
+        "formatSoap": "SOAP Note",
+        "formatClinical": "Tóm tắt lâm sàng",
+        "formatNone": "Không"
     },
     "Review": {
         "consultation": "Tư vấn bệnh nhân",
         "soapNote": "Ghi chú SOAP",
-        "ehrSummary": "Tóm tắt EHR",
+        "ehrSummary": "Tóm tắt lâm sàng",
         "freeText": "Văn bản tự do",
-        "raw": "Thô",
+        "raw": "Bản chữ gốc",
+        "copySuccess": "Đã sao chép",
         "rawTranscript": "Bản ghi thô",
         "edit": "Chỉnh sửa",
         "editSoap": "Chỉnh sửa ghi chú SOAP",
@@ -87,9 +91,17 @@
         "plan": "Kế hoạch",
         "rename": "Đổi tên",
         "delete": "Xóa",
-        "renameRecording": "Đổi tên bản ghi",
+        "renameRecording": "Đổi tên bản ghi này?",
+        "deleteRecording": "Xóa bản ghi này?",
+        "confirmDelete": "Bản ghi đã xóa sẽ không thể khôi phục",
+        "deleteAction": "Xóa bản ghi",
+        "exit": "Thoát",
         "wordCount": "Số từ",
         "words": "từ",
+        "transcribingDetail": "Đang chuyển đổi văn bản...",
+        "errorDetail": "Đã xảy ra lỗi khi chuyển đổi. Vui lòng thử lại.",
+        "retry": "Thử lại",
+        "recordNotFound": "Không tìm thấy bản ghi",
         "save": "Lưu",
         "cancel": "Hủy",
         "patientInfo": "Thông tin bệnh nhân",
@@ -112,11 +124,11 @@
         "problemList": "Danh sách vấn đề"
     },
     "Badge": {
-        "synced": "Đã đồng bộ",
+        "transcribed": "Đã chuyển đổi",
+        "transcribing": "Đang chuyển đổi",
+        "error": "Lỗi chuyển đổi",
         "saved": "Đã lưu",
         "saving": "Đang lưu...",
-        "offline": "Ngoại tuyến",
-        "transcribing": "Đang chuyển...",
-        "pending": "Chờ xử lý"
+        "offline": "Ngoại tuyến"
     }
 }

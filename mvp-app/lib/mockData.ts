@@ -18,7 +18,7 @@ export const doctorProfile: Profile = {
     npi: "1234567890"
 };
 
-export type RecordingStatus = "synced" | "transcribing" | "pending" | "saving" | "offline";
+export type RecordingStatus = "transcribed" | "transcribing" | "error";
 
 export interface Recording {
     id: string;
@@ -39,7 +39,7 @@ export const initialRecordings: Recording[] = [
         format: "SOAP Note",
         duration: "04:23",
         date: "Oct 12, 2025",
-        status: "synced"
+        status: "transcribed"
     },
     {
         id: "rec-002",
@@ -55,10 +55,10 @@ export const initialRecordings: Recording[] = [
         id: "rec-003",
         title: "Clinical Note – Heart Exam",
         patient: "R. Williams",
-        format: "EHR Summary",
+        format: "Clinical Summary",
         duration: "12:07",
         date: "Oct 11, 2025",
-        status: "synced"
+        status: "transcribed"
     },
     {
         id: "rec-004",
@@ -67,64 +67,95 @@ export const initialRecordings: Recording[] = [
         format: null,
         duration: "08:45",
         date: "Oct 9, 2025",
-        status: "synced"
+        status: "transcribed"
+    },
+    {
+        id: "rec-005",
+        title: "Diabetes Review – A. Patel",
+        patient: "A. Patel",
+        format: "SOAP Note",
+        duration: "06:12",
+        date: "Oct 8, 2025",
+        status: "transcribed"
+    },
+    {
+        id: "rec-006",
+        title: "Pre-Op Assessment #78",
+        patient: "L. Garcia",
+        format: "Clinical Summary",
+        duration: "03:50",
+        date: "Oct 7, 2025",
+        status: "transcribed"
+    },
+    {
+        id: "rec-007",
+        title: "Neuro Consult – T. Brown",
+        patient: "T. Brown",
+        format: "SOAP Note",
+        duration: "15:22",
+        date: "Oct 5, 2025",
+        status: "transcribed"
+    },
+    {
+        id: "rec-008",
+        title: "Cardiology Follow-up #33",
+        patient: "M. Davis",
+        format: "SOAP Note",
+        duration: "07:18",
+        date: "Oct 4, 2025",
+        status: "error"
+    },
+    {
+        id: "rec-009",
+        title: "Pediatrics Wellness Check",
+        patient: "S. Wilson",
+        format: null,
+        duration: "04:05",
+        date: "Oct 3, 2025",
+        status: "transcribed"
+    },
+    {
+        id: "rec-010",
+        title: "Emergency Intake – R. Taylor",
+        patient: "R. Taylor",
+        format: "Clinical Summary",
+        duration: "09:30",
+        date: "Oct 2, 2025",
+        status: "error"
     }
 ];
 
-export const soapNoteMockEN = `Subjective:
-Patient reports recurring episodes of chest tightness, primarily during physical exertion for the past 3 weeks. Describes the sensation as a squeezing pressure lasting 5-10 minutes. Denies radiation to arms or jaw. Reports mild dyspnea on exertion.
+export const soapNoteMockEN = `One-liner: 58-year-old male with a history of HTN and type 2 DM presents with severe left chest pain, currently diagnosed with acute anterior ST-elevation myocardial infarction (STEMI), day 1 post percutaneous coronary intervention (PCI).
 
-Objective:
-BP: 145/92 mmHg. HR: 82 bpm, regular. Chest auscultation reveals normal S1, S2. No murmurs or gallops. Lungs clear bilateral. ECG: normal sinus rhythm, no ST changes.
+S (Subjective): Patient reports mild residual chest tightness in the epigastric region, non-radiating. No shortness of breath, no diaphoresis.
 
-Assessment:
-Exertional chest tightness with elevated blood pressure. Differential includes stable angina, hypertension-related symptoms. Low risk for acute coronary syndrome.
+O (Objective): HR 82 bpm, BP 130/80 mmHg. Radial artery puncture site is dry, no hematoma. Heart sounds regular, lungs clear. ECG check: ST segment elevation decreased by > 50%.
 
-Plan:
-1. Start amlodipine 5mg daily
-2. Order stress echocardiogram
-3. Lipid panel, BMP labs
-4. Follow-up in 2 weeks
-5. Advise moderate exercise with monitoring`;
+A (Assessment): Day 1 STEMI post PCI hour 6 - Hemodynamically stable - Killip I.
 
-export const soapNoteMockVI = `Subjective (Chủ quan):
-Bệnh nhân còn đau tức ngực nhẹ tại vùng thượng vị, không lan. Không khó thở, không vã mồ hôi.
+P (Plan): Continue dual antiplatelet therapy (DAPT), high-dose Statin, glycemic control, and closely monitor for arrhythmic complications.`;
 
-Objective (Khách quan):
-Mạch 82 l/p, HA 130/80 mmHg. Vết chọc động mạch quay khô, không tụ máu. Tim đều, phổi trong. ECG kiểm tra: ST đã giảm chênh xuống > 50%.
+export const soapNoteMockVI = `One-liner: Bệnh nhân Nam 58 tuổi, tiền sử THA và ĐTĐ tuýp 2, vào viện vì đau ngực trái dữ dội, chẩn đoán hiện tại là Nhồi máu cơ tim cấp (STEMI) vùng trước rộng, điều trị ngày 1 bằng can thiệp mạch vành (PCI).
 
-Assessment (Đánh giá):
-STEMI ngày 1 sau PCI giờ thứ 6 - Huyết động ổn định - Killip I.
+S (Subjective): Bệnh nhân còn đau tức ngực nhẹ tại vùng thượng vị, không lan. Không khó thở, không vã mồ hôi.
 
-Plan (Kế hoạch):
-Tiếp tục thuốc kháng kết tập tiểu cầu kép (DAPT), Statin liều cao, kiểm soát đường huyết và theo dõi sát biến chứng loạn nhịp.`;
+O (Objective): Mạch 82 l/p, HA 130/80 mmHg. Vết chọc động mạch quay khô, không tụ máu. Tim đều, phổi trong. ECG kiểm tra: ST đã giảm chênh xuống > 50%.
 
-export const ehrSummaryMockEN = {
-    patientInfo: {
-        name: "John Doe",
-        mrn: "MRN-2024-0815",
-        visitDate: "Dec 15, 2024"
-    },
-    chiefComplaint: "Recurring chest tightness with exertion for 3 weeks",
-    vitals: {
-        bp: "145/92 mmHg",
-        hr: "82 bpm",
-        ecg: "Normal sinus rhythm"
-    },
-    assessmentPlan: {
-        dx: "Exertional chest tightness, hypertension",
-        rx: "Amlodipine 5mg daily",
-        orders: "Stress echo, lipid panel, BMP",
-        followUp: "2 weeks"
-    }
-};
+A (Assessment): STEMI ngày 1 sau PCI giờ thứ 6 - Huyết động ổn định - Killip I.
 
-export const ehrSummaryMockVI = {
-    oneLiner: "Bệnh nhân Nam 58 tuổi, tiền sử THA và ĐTĐ tuýp 2, vào viện vì đau thắt ngực điển hình giờ thứ 2.",
-    pertinentPositives: "Đau ngực kiểu mạch vành điểm 8/10; ECG có ST chênh lên > 2 mm ở các chuyển đạo trước tim; Troponin I (+) nhanh.",
-    pertinentNegatives: "Không đau lan sau lưng (loại trừ bóc tách ĐMC); Phổi không rale (loại trừ suy tim cấp); Bụng mềm (loại trừ bệnh lý ngoại khoa bụng).",
-    problemList: "1. Nhồi máu cơ tim cấp (STEMI) vùng trước rộng giờ thứ 2.\\n2. Tăng huyết áp.\\n3. Đái tháo đường tuýp 2."
-};
+P (Plan): Tiếp tục thuốc kháng kết tập tiểu cầu kép (DAPT), Statin liều cao, kiểm soát đường huyết và theo dõi sát biến chứng loạn nhịp.`;
+
+export const ehrSummaryMockEN = `One-liner: 58-year-old male with a history of HTN and type 2 DM presents with typical angina, 2 hours of onset.
+
+Recorded Syndromes:
+Acute Coronary Syndrome: Crushing chest pain radiating to the left arm, diaphoresis, ECG shows ST elevation in V1-V4, Troponin I positive.
+Risk Factor Synthesis: Poorly controlled HTN, type 2 DM, long-term smoking history.`;
+
+export const ehrSummaryMockVI = `One-liner: Bệnh nhân Nam 58 tuổi, tiền sử THA và ĐTĐ tuýp 2, vào viện vì đau thắt ngực điển hình giờ thứ 2.
+
+Các hội chứng ghi nhận:
+Hội chứng vành cấp: Đau ngực kiểu đè ép, lan tay trái, vã mồ hôi, ECG có ST chênh lên V1-V4, Troponin I dương tính.
+Nhóm triệu chứng yếu tố nguy cơ: Tiền sử THA kiểm soát kém, ĐTĐ tuýp 2, hút thuốc lá lâu năm.`;
 
 export const freeTextMockEN = `So the patient comes in today reporting that they've been experiencing chest tightness, um, primarily when they're doing physical activity over the past three weeks. They describe it as a squeezing pressure that lasts about five to ten minutes. They deny any radiation to arms or jaw. They do report some mild shortness of breath on exertion.
 

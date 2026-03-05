@@ -25,7 +25,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     const showFAB = pathname === '/dashboard';
 
     return (
-        <div className="relative min-h-screen bg-bg-page text-text-primary max-w-md mx-auto w-full shadow-lg overflow-hidden">
+        <div className="relative min-h-screen bg-bg-page text-text-primary max-w-md mx-auto w-full shadow-lg overflow-x-hidden">
             {children}
             <Sidebar open={isOpen} onClose={close} profile={{ ...profile, subtitle: `${profile.specialty} · ${profile.hospital}` }} />
             {showFAB && <FAB />}

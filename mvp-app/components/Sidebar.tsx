@@ -6,7 +6,7 @@ import { Shield, AudioLines, Wand2, Globe, Settings } from 'lucide-react'
 import { Toggle } from "./Toggle"
 import { useRouter } from 'next/navigation'
 import { useTranslations } from "next-intl"
-import { useLocale } from "next-intl"
+import LocaleSwitcher from './LocaleSwitcher'
 
 export interface SidebarProps {
     open: boolean;
@@ -21,14 +21,8 @@ export interface SidebarProps {
 export function Sidebar({ open, onClose, profile }: SidebarProps) {
     const router = useRouter()
     const t = useTranslations('Dashboard')
-    const locale = useLocale()
 
     const [autoTranscribe, setAutoTranscribe] = React.useState(true)
-
-    const handleLocaleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        document.cookie = `NEXT_LOCALE=${e.target.value}; path=/; max-age=31536000`;
-        router.refresh();
-    };
 
     // Block scroll on body
     React.useEffect(() => {
@@ -62,54 +56,48 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                 </div>
 
                 {/* Navigation */}
-                <div className="flex-1 overflow-y-auto py-3 flex flex-col">
+                <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-1 px-3 mt-1">
                     {/* All Records */}
                     <button
                         onClick={() => { router.push('/dashboard'); onClose() }}
-                        className="flex items-center gap-4 px-6 h-[52px] w-full text-left bg-[#FFF7ED] border-l-[3px] border-accent-orange focus-visible:outline-none shrink-0"
+                        className="flex items-center gap-3.5 px-4 h-[50px] w-full text-left bg-accent-orange/15 hover:bg-accent-orange/20 rounded-xl transition-colors focus-visible:outline-none shrink-0"
                     >
-                        <AudioLines className="w-[22px] h-[22px] text-accent-orange" />
+                        <AudioLines className="w-[20px] h-[20px] text-accent-orange" />
                         <span className="text-[15px] font-semibold text-accent-orange">{t('allRecords')}</span>
                     </button>
 
                     {/* Auto-transcribe */}
-                    <div className="flex items-center justify-between px-6 h-[52px] shrink-0">
-                        <div className="flex items-center gap-4">
-                            <Wand2 className="w-[22px] h-[22px] text-text-secondary" />
-                            <span className="text-[15px] text-text-primary">{t('autoTranscribe')}</span>
+                    <div
+                        className="flex items-center justify-between px-4 h-[50px] w-full rounded-xl hover:bg-bg-surface transition-colors shrink-0 cursor-pointer"
+                        onClick={() => setAutoTranscribe(!autoTranscribe)}
+                    >
+                        <div className="flex items-center gap-3.5">
+                            <Wand2 className="w-[20px] h-[20px] text-text-secondary" />
+                            <span className="text-[15px] font-medium text-text-primary">{t('autoTranscribe')}</span>
                         </div>
-                        <Toggle checked={autoTranscribe} onCheckedChange={setAutoTranscribe} />
+                        <div onClick={e => e.stopPropagation()}>
+                            <Toggle checked={autoTranscribe} onCheckedChange={setAutoTranscribe} />
+                        </div>
                     </div>
 
-                    {/* Separator */}
-                    <div className="h-px bg-divider w-full" />
-
                     {/* Language */}
-                    <div className="flex items-center justify-between px-6 h-[52px] shrink-0">
-                        <div className="flex items-center gap-4">
-                            <Globe className="w-[22px] h-[22px] text-text-secondary" />
-                            <span className="text-[15px] text-text-primary">{t('language')}</span>
+                    <div className="flex items-center justify-between px-4 h-[50px] w-full rounded-xl hover:bg-bg-surface transition-colors shrink-0">
+                        <div className="flex items-center gap-3.5">
+                            <Globe className="w-[20px] h-[20px] text-text-secondary" />
+                            <span className="text-[15px] font-medium text-text-primary">{t('language')}</span>
                         </div>
                         <div className="relative">
-                            <select
-                                defaultValue={locale}
-                                onChange={handleLocaleChange}
-                                className="bg-[#EBF5F8] text-[13px] font-semibold text-accent-blue py-1 px-3 pr-6 rounded-[8px] appearance-none cursor-pointer border-none focus-visible:outline-none"
-                                style={{ backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23219ebc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '12px' }}
-                            >
-                                <option value="en">English</option>
-                                <option value="vi">Tiếng Việt</option>
-                            </select>
+                            <LocaleSwitcher variant="filled" />
                         </div>
                     </div>
 
                     {/* Settings */}
                     <button
                         onClick={() => { router.push('/settings'); onClose() }}
-                        className="flex items-center gap-4 px-6 h-[52px] w-full text-left text-text-secondary hover:bg-bg-surface hover:text-text-primary transition-colors focus-visible:outline-none shrink-0"
+                        className="flex items-center gap-3.5 px-4 h-[50px] w-full text-left rounded-xl hover:bg-bg-surface transition-colors focus-visible:outline-none shrink-0"
                     >
-                        <Settings className="w-[22px] h-[22px] text-text-secondary" />
-                        <span className="text-[15px]">{t('settings')}</span>
+                        <Settings className="w-[20px] h-[20px] text-text-secondary" />
+                        <span className="text-[15px] font-medium text-text-primary">{t('settings')}</span>
                     </button>
                 </div>
 
