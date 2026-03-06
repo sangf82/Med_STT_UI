@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useState, useEffect, useMemo } from 'react';
-import { Menu, Search, Stethoscope } from 'lucide-react';
+import { Menu, Search, Stethoscope, Loader2 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useSidebar } from '@/context/SidebarContext';
 import { Badge } from '@/components/Badge';
@@ -10,6 +10,9 @@ import { Card } from '@/components/Card';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { SurveyDialog } from '@/components/SurveyDialog';
+import { getMyRecords, getMyUsage } from '@/lib/api/sttMetrics';
+import type { Recording } from '@/lib/mockData';
+
 
 export default function DashboardPage() {
     const t = useTranslations('Dashboard');
@@ -18,13 +21,65 @@ export default function DashboardPage() {
     const r = useTranslations('Review');
     const router = useRouter();
     const { open: openSidebar } = useSidebar();
-    const { recordings, filter, showSurvey, setShowSurvey, showNotificationDot } = useAppContext();
+    const { recordings, setRecordings, filter, showSurvey, setShowSurvey, showNotificationDot, setShowNotificationDot } = useAppContext();
     const [showDevNotice, setShowDevNotice] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     const handleSearchClick = () => {
         setShowDevNotice(true);
         setTimeout(() => setShowDevNotice(false), 2000);
     };
+
+    useEffect(() => {
+        const loadDashboardData = async () => {
+            try {
+                const [recordsRes, usageRes] = await Promise.all([
+                    getMyRecords(),
+                    getMyUsage()
+                ]);
+
+                // Map format_type to UI format string
+                const mapFormat = (ft?: string) => {
+                    switch (ft) {
+                        case 'soap_note': return 'Ghi chú SOAP';
+                        case 'ehr': return 'Tóm tắt lâm sàng';
+                        case 'todo-list': return 'Việc cần làm';
+                        default: return 'Chưa phân loại';
+                    }
+                };
+
+                const mappedRecords: Recording[] = recordsRes.items.map(item => ({
+                    id: item.id,
+                    title: item.display_name || 'Bản ghi không tên',
+                    patient: undefined,
+                    format: mapFormat(item.format_type || item.output_type),
+                    duration: item.elapsed_time ? `${Math.floor(item.elapsed_time)}s` : 'Unknown',
+                    date: new Date(item.created_at).toLocaleDateString(),
+                    status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
+                }));
+
+                setRecordings(mappedRecords);
+
+                // Trial Limit logic
+                if (usageRes.stt_remaining === 0 && usageRes.stt_request_more_count === 0) {
+                    // They hit the limit and haven't requested more yet -> show notification and survey
+                    // Assuming trial panel is managed in Context or we just pop up survey manually
+                    // In current state, showSurvey can be triggered
+                } else if (usageRes.stt_remaining <= 2) {
+                    setShowNotificationDot(true); // almost out of turns
+                } else {
+                    setShowNotificationDot(false);
+                }
+            } catch (err) {
+                console.error("Failed to fetch dashboard data", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadDashboardData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const filteredRecordings = recordings.filter(rec => {
         if (filter === null) return true;
@@ -141,37 +196,51 @@ export default function DashboardPage() {
                     {t('myRecordings')}
                 </h2>
 
-                {filteredRecordings.map(rec => (
-                    <Card
-                        key={rec.id}
-                        className="cursor-pointer hover:border-border hover:bg-bg-surface transition-colors"
-                        onClick={() => {
-                            const startTab = rec.format === 'Tóm tắt lâm sàng' ? 'ehr' : (rec.format === 'Ghi chú SOAP' ? 'soap' : (rec.format === 'Việc cần làm' ? 'todo' : 'freetext'));
-                            router.push(`/${startTab}?id=${rec.id}`);
-                        }}
-                    >
-                        <div className="flex justify-between items-start">
-                            <div className="flex flex-col">
-                                <h3 className="text-[15px] font-bold text-text-primary leading-tight">{rec.title}</h3>
-                                <p className="text-[12px] text-text-muted mt-1">
-                                    {rec.format ?? 'None'} &middot; {rec.duration} &middot; {rec.date}
-                                </p>
+                {isLoading ? (
+                    <div className="flex flex-col items-center justify-center p-8 text-text-muted">
+                        <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                        <span className="text-sm font-medium">Đang tải bản ghi...</span>
+                    </div>
+                ) : filteredRecordings.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center p-8 text-center bg-bg-surface rounded-2xl border border-dashed border-divider mt-2">
+                        <Stethoscope className="w-10 h-10 text-divider mb-3" />
+                        <p className="text-sm font-semibold text-text-muted">Chưa có bản ghi nào</p>
+                        <p className="text-xs text-text-tertiary mt-1">Bấm nút + để tạo bản ghi mới</p>
+                    </div>
+                ) : (
+                    filteredRecordings.map(rec => (
+                        <Card
+                            key={rec.id}
+                            className="cursor-pointer hover:border-border hover:bg-bg-surface transition-colors"
+                            onClick={() => {
+                                const startTab = rec.format === 'Tóm tắt lâm sàng' ? 'ehr' : (rec.format === 'Ghi chú SOAP' ? 'soap' : (rec.format === 'Việc cần làm' ? 'todo' : 'freetext'));
+                                router.push(`/${startTab}?id=${rec.id}`);
+                            }}
+                        >
+                            <div className="flex justify-between items-start">
+                                <div className="flex flex-col">
+                                    <h3 className="text-[15px] font-bold text-text-primary leading-tight">{rec.title}</h3>
+                                    <p className="text-[12px] text-text-muted mt-1">
+                                        {rec.format ?? 'None'} &middot; {rec.duration} &middot; {rec.date}
+                                    </p>
+                                </div>
+                                <Badge variant={
+                                    rec.status === 'transcribed' ? 'success' :
+                                        rec.status === 'transcribing' ? 'progress' :
+                                            rec.status === 'error' ? 'error' : 'warn'
+                                }>
+                                    {b(rec.status)}
+                                </Badge>
                             </div>
-                            <Badge variant={
-                                rec.status === 'transcribed' ? 'success' :
-                                    rec.status === 'transcribing' ? 'progress' :
-                                        rec.status === 'error' ? 'error' : 'warn'
-                            }>
-                                {b(rec.status)}
-                            </Badge>
-                        </div>
-                    </Card>
-                ))}
+                        </Card>
+                    ))
+                )}
             </div>
+
 
             {/* Development Notice Popup */}
             {showDevNotice && (
-                <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[100] bg-[#1a1a1a]/90 dark:bg-white/80 text-white dark:text-[#1a1a1a] px-5 py-2.5 rounded-full text-[13px] font-medium shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-100 bg-[#1a1a1a]/90 dark:bg-white/80 text-white dark:text-[#1a1a1a] px-5 py-2.5 rounded-full text-[13px] font-medium shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
                     {t('devMode')}
                 </div>
             )}

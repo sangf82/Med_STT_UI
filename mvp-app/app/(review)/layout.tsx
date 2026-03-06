@@ -13,6 +13,9 @@ import { Dialog } from '@/components/Dialog';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { useAppContext } from '@/context/AppContext';
+import { getRecordById } from '@/lib/api/sttMetrics';
+import type { SttRecord } from '@/lib/api/sttMetrics';
+
 
 export const ReviewContext = createContext<{
     setSaveStatus: (status: 'saved' | 'saving' | 'error') => void;
@@ -35,26 +38,67 @@ export default function ReviewLayout({
     const { recordings } = useAppContext();
     const searchParams = useSearchParams();
     const recordId = searchParams.get('id');
-
-    const record = useMemo(() => {
-        return recordings.find(r => r.id === recordId) || recordings[0];
-    }, [recordings, recordId]);
-
     const [menuOpen, setMenuOpen] = useState(false);
     const [renameOpen, setRenameOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
-    const [recordingName, setRecordingName] = useState(record?.title || 'Patient Consultation');
+    const [recordingName, setRecordingName] = useState('Patient Consultation');
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
     const [copySuccess, setCopySuccess] = useState(false);
+    const [recordData, setRecordData] = useState<SttRecord | null>(null);
+    const [isLoadingRecord, setIsLoadingRecord] = useState(true);
 
     useEffect(() => {
-        if (record) {
-            setRecordingName(record.title);
+        let mounted = true;
+        if (!recordId) {
+            setIsLoadingRecord(false);
+            return;
         }
-    }, [record]);
 
-    // For MVP, we simulated reading the format from the record logic
-    const format = record?.format || 'None';
+        getRecordById(recordId)
+            .then(data => {
+                if (mounted) {
+                    setRecordData(data);
+                    setRecordingName(data.display_name || 'Bản ghi không tên');
+                }
+            })
+            .catch(err => {
+                console.error("Failed to load record:", err);
+            })
+            .finally(() => {
+                if (mounted) setIsLoadingRecord(false);
+            });
+
+        return () => { mounted = false; };
+    }, [recordId]);
+
+    // Map backend format_type to localized string for Tab logic
+    const format = useMemo(() => {
+        if (!recordData) return 'None';
+        const type = recordData.format_type || recordData.output_type;
+        switch (type) {
+            case 'soap_note': return 'Ghi chú SOAP';
+            case 'ehr': return 'Tóm tắt lâm sàng';
+            case 'todo-list': return 'Việc cần làm';
+            default: return 'Chưa phân loại';
+        }
+    }, [recordData]);
+
+    const record = useMemo(() => {
+        if (!recordData) return null;
+        return {
+            id: recordData.id,
+            title: recordData.display_name || 'Bản ghi',
+            format,
+            duration: recordData.elapsed_time ? `${Math.floor(recordData.elapsed_time)}s` : 'Unknown',
+            date: new Date(recordData.created_at).toLocaleDateString(),
+            status: recordData.status === 'completed' ? 'transcribed' : recordData.status === 'failed' ? 'error' : 'transcribing',
+            content: recordData.content,
+            refined_text: recordData.refined_text,
+            raw_text: recordData.raw_text
+        };
+    }, [recordData, format]);
+
+
 
     const allTabs = [
         { id: 'soap', label: t('soapNote') },
@@ -203,7 +247,7 @@ export default function ReviewLayout({
                             <div className="flex items-center justify-center p-1 mr-1">
                                 <button
                                     onClick={handleCopy}
-                                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 transition-all text-[#FB8A0A]"
+                                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 transition-all text-brand-orange"
                                     aria-label="Copy"
                                 >
                                     <Copy className="w-[18px] h-[18px]" />
@@ -214,7 +258,12 @@ export default function ReviewLayout({
 
                     {/* Dynamic Content */}
                     <div className="flex-1 relative flex flex-col min-h-0">
-                        {record?.status === 'transcribing' ? (
+                        {isLoadingRecord ? (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+                                <Loader className="w-8 h-8 animate-spin text-accent-blue mb-4" />
+                                <p className="text-[16px] font-medium text-text-primary mb-2">Đang tải...</p>
+                            </div>
+                        ) : record?.status === 'transcribing' ? (
                             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
                                 <div className="relative w-16 h-16 mb-6">
                                     <div className="absolute inset-0 rounded-full border-4 border-accent-blue/20"></div>
@@ -277,7 +326,7 @@ export default function ReviewLayout({
                                 >
                                     {t('exit')}
                                 </button>
-                                <div className="w-[1px] h-4 bg-border" />
+                                <div className="w-px h-4 bg-border" />
                                 <button
                                     className="flex-1 text-center text-[15px] font-semibold text-accent-blue active:scale-95 transition-transform py-2"
                                     onClick={handleRenameConfirm}
@@ -305,7 +354,7 @@ export default function ReviewLayout({
                                 >
                                     {t('exit')}
                                 </button>
-                                <div className="w-[1px] h-4 bg-border" />
+                                <div className="w-px h-4 bg-border" />
                                 <button
                                     className="flex-1 text-center text-[15px] font-semibold text-danger active:scale-95 transition-transform py-2"
                                     onClick={() => {
@@ -321,7 +370,7 @@ export default function ReviewLayout({
 
                     {/* Copy Notification */}
                     {copySuccess && (
-                        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[100] bg-[#1a1a1a]/90 dark:bg-white/90 text-white dark:text-[#1a1a1a] px-4 py-2 rounded-full text-[13px] font-medium shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-100 bg-[#1a1a1a]/90 dark:bg-white/90 text-white dark:text-[#1a1a1a] px-4 py-2 rounded-full text-[13px] font-medium shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
                             {t('copySuccess')}
                         </div>
                     )}

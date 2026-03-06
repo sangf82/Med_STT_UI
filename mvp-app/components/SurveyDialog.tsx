@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Star, CheckCircle2, X } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
+import { requestMoreStt } from '@/lib/api/sttMetrics';
 
 interface SurveyDialogProps {
     onClose: () => void;
@@ -17,19 +18,33 @@ export function SurveyDialog({ onClose }: SurveyDialogProps) {
     const [reason, setReason] = useState('');
     const [refer, setRefer] = useState<boolean | null>(null);
     const [submitted, setSubmitted] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSubmit = () => {
-        setSubmitted(true);
-        setShowNotificationDot(false);
-        // Auto close after 3 seconds
-        setTimeout(() => {
-            onClose();
-        }, 3000);
+    const handleSubmit = async () => {
+        setIsSubmitting(true);
+        try {
+            await requestMoreStt({
+                rating: rating || undefined,
+                referred_friend: refer !== null ? refer : undefined
+            });
+            setSubmitted(true);
+            setShowNotificationDot(false);
+            
+            // Auto close after 3 seconds
+            setTimeout(() => {
+                onClose();
+            }, 3000);
+        } catch (error) {
+            console.error("Failed to submit request", error);
+            // Even if it fails, maybe let user retry or show generic error
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     if (submitted) {
         return (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center px-6 bg-bg-overlay animate-in fade-in duration-300">
+            <div className="fixed inset-0 z-200 flex items-center justify-center px-6 bg-bg-overlay animate-in fade-in duration-300">
                 <div className="bg-white dark:bg-bg-surface w-full max-w-[340px] rounded-[24px] p-8 flex flex-col items-center text-center shadow-2xl relative">
                     <button
                         onClick={onClose}
@@ -54,7 +69,7 @@ export function SurveyDialog({ onClose }: SurveyDialogProps) {
     const canSubmit = rating !== null && refer !== null;
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center px-6 bg-bg-overlay animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-200 flex items-center justify-center px-6 bg-bg-overlay animate-in fade-in duration-300">
             {/* Backdrop */}
             <div className="absolute inset-0" onClick={onClose} />
 
@@ -151,16 +166,16 @@ export function SurveyDialog({ onClose }: SurveyDialogProps) {
                             {t('no')}
                         </button>
                         <button
-                            disabled={!canSubmit}
+                            disabled={!canSubmit || isSubmitting}
                             onClick={handleSubmit}
                             className={cn(
-                                "flex-[2] h-[52px] rounded-2xl text-[15px] font-bold transition-all active:scale-95",
-                                canSubmit
+                                "flex-2 h-[52px] rounded-2xl text-[15px] font-bold transition-all active:scale-95",
+                                canSubmit && !isSubmitting
                                     ? "bg-accent-blue text-white shadow-lg shadow-accent-blue/30"
                                     : "bg-[#F5F5F5] dark:bg-bg-page/30 text-[#BBBBBB] dark:text-text-muted cursor-not-allowed border dark:border-divider/20"
                             )}
                         >
-                            {t('submit')}
+                            {isSubmitting ? "..." : t('submit')}
                         </button>
                     </div>
                 </div>

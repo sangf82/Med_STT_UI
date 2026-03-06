@@ -3,48 +3,85 @@
 import { useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, Suspense } from 'react';
+import { useAppContext } from '@/context/AppContext';
 import LocaleSwitcher from '@/components/LocaleSwitcher';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { Checkbox } from '@/components/Checkbox';
 import { ComplianceFooter } from '@/components/ComplianceFooter';
-import { Stethoscope } from 'lucide-react';
+import { Stethoscope, Loader2 } from 'lucide-react';
+import { apiClient } from '@/lib/apiClient';
+import { setAuthToken } from '@/lib/auth';
 
 function LoginContent() {
     const t = useTranslations('Auth');
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { setProfile } = useAppContext();
 
     // Read error state from URL via ?error=wrong_password or ?error=wrong_user
     const errorParam = searchParams.get('error');
 
-    const [identifier, setIdentifier] = useState(errorParam === 'wrong_password' ? 'dr.chen@memorial.org' : errorParam === 'wrong_user' ? 'unknown@email.com' : '');
+    const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [generalError, setGeneralError] = useState<string | null>(null);
 
     const identifierError = errorParam === 'wrong_user' ? t('errAccountNotFound') : undefined;
     const passwordError = errorParam === 'wrong_password' ? t('errWrongPassword') : undefined;
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsLoading(true);
+        setGeneralError(null);
 
-        // Simulate error paths for demo
-        if (identifier === 'admin') {
-            router.push('/dashboard');
-            return;
+        try {
+            const data = await apiClient<{ access_token: string }>('/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({
+                    email: identifier,
+                    password: password
+                })
+            });
+
+            if (data.access_token) {
+                setAuthToken(data.access_token);
+                
+                // Fetch user profile after login to populate context
+                try {
+                    const userProfile = await apiClient<any>('/auth/me');
+                    setProfile({
+                        name: userProfile.name || 'User',
+                        initials: (userProfile.name || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2),
+                        specialty: userProfile.role || 'Doctor',
+                        hospital: 'Memorial Hospital', // Default or fetch if available
+                        email: userProfile.email || '',
+                        phone: userProfile.phone || '',
+                        npi: userProfile.npi || '1234567890'
+                    });
+                    console.log('Logged in as:', userProfile.name);
+                } catch (profileErr) {
+                    console.error('Failed to fetch profile', profileErr);
+                }
+
+                router.push('/dashboard');
+            }
+        } catch (error: any) {
+            console.error('Login failed:', error);
+            
+            if (error.status === 401) {
+                // If it's 401, it's either wrong email or wrong password
+                // The API doesn't specify which, so we could show a general "Invalid credentials"
+                // or use the existing error params for specific mock-like behavior if desired.
+                setGeneralError(t('errWrongPassword')); 
+            } else if (error.status === 422) {
+                setGeneralError('Invalid email format or data.');
+            } else {
+                setGeneralError('An unexpected error occurred. Please try again.');
+            }
+        } finally {
+            setIsLoading(false);
         }
-
-        if (identifier === 'unknown@email.com') {
-            router.push('/login?error=wrong_user');
-            return;
-        }
-
-        if (password === 'wrong') {
-            router.push('/login?error=wrong_password');
-            return;
-        }
-
-        // Default success
-        router.push('/dashboard');
     };
 
     return (
@@ -62,6 +99,11 @@ function LoginContent() {
             </div>
 
             <form className="flex flex-col gap-[18px] px-[32px]" onSubmit={handleLogin}>
+                {generalError && (
+                    <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md border border-red-200">
+                        {generalError}
+                    </div>
+                )}
                 <Input
                     label={t('phoneEmail')}
                     placeholder={t('phoneEmailPlaceholder')}
@@ -83,7 +125,16 @@ function LoginContent() {
                     <button type="button" className="text-[13px] font-medium text-accent-blue hover:underline underline-offset-4 whitespace-nowrap" onClick={(e) => { e.preventDefault() }}>{t('forgotPassword')}</button>
                 </div>
 
-                <Button type="submit" className="mt-4">{t('signIn')}</Button>
+                <Button type="submit" className="mt-4" disabled={isLoading}>
+                    {isLoading ? (
+                        <div className="flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            {t('signIn')}...
+                        </div>
+                    ) : (
+                        t('signIn')
+                    )}
+                </Button>
 
                 <ComplianceFooter />
             </form>

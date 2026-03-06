@@ -15,7 +15,7 @@ export const doctorProfile: Profile = {
   hospital: "Memorial Hospital",
   email: "s.chen@memorial.org",
   phone: "+1 (555) 012-3456",
-  npi: "1234567890"
+  npi: "1234567890",
 };
 
 export type RecordingStatus = "transcribed" | "transcribing" | "error";
@@ -23,7 +23,7 @@ export type RecordingStatus = "transcribed" | "transcribing" | "error";
 export interface Recording {
   id: string;
   title: string;
-  patient: string;
+  patient?: string;
   format: string | null;
   duration: string;
   date: string;
@@ -31,90 +31,7 @@ export interface Recording {
   progress?: number;
 }
 
-export const initialRecordings: Recording[] = [
-  {
-    id: "rec-002",
-    title: "Theo dõi sau mổ #45",
-    patient: "K. Lee",
-    format: "Tóm tắt lâm sàng",
-    duration: "02:15",
-    date: "Vừa xong",
-    status: "transcribed"
-  },
-  {
-    id: "rec-012",
-    title: "Khám Tổng quát - V. Anh",
-    patient: "V. Anh",
-    format: "Ghi chú SOAP",
-    duration: "03:45",
-    date: "Đang xử lý...",
-    status: "transcribing",
-    progress: 65
-  },
-  {
-    id: "rec-013",
-    title: "Tư vấn Dinh dưỡng - L. Chi",
-    patient: "L. Chi",
-    format: "Tóm tắt lâm sàng",
-    duration: "05:20",
-    date: "Lỗi xử lý",
-    status: "error"
-  },
-  {
-    id: "rec-001",
-    title: "Ca khám #102",
-    patient: "M. Johnson",
-    format: "Ghi chú SOAP",
-    duration: "04:23",
-    date: "12/10/2025",
-    status: "transcribed"
-  },
-  {
-    id: "rec-003",
-    title: "Thăm khám Nhi khoa - Bé Bi",
-    patient: "Bé Bi",
-    format: "Ghi chú SOAP",
-    duration: "08:10",
-    date: "11/10/2025",
-    status: "transcribed"
-  },
-  {
-    id: "rec-004",
-    title: "Tóm tắt xuất viện - Bà Năm",
-    patient: "Bà Năm",
-    format: "Tóm tắt lâm sàng",
-    duration: "12:45",
-    date: "10/10/2025",
-    status: "transcribed"
-  },
-  {
-    id: "rec-005",
-    title: "Chuẩn bị Phẫu thuật - A. Tuấn",
-    patient: "A. Tuấn",
-    format: "Việc cần làm",
-    duration: "03:20",
-    date: "09/10/2025",
-    status: "transcribed"
-  },
-  {
-    id: "rec-010",
-    title: "Tiếp nhận Cấp cứu – R. Taylor",
-    patient: "R. Taylor",
-    format: "Việc cần làm",
-    duration: "09:30",
-    date: "02/10/2025",
-    status: "transcribed"
-  },
-  {
-    id: "rec-011",
-    title: "Tư vấn Bệnh nhân – S. Wang",
-    patient: "S. Wang",
-    format: "Chưa phân loại",
-    duration: "05:12",
-    date: "01/10/2025",
-    status: "transcribed"
-  }
-];
+export const initialRecordings: Recording[] = [];
 
 export const soapNoteMockEN = `**One-liner**: <mark>58-year-old male</mark>, <mark>history of HTN and type 2 DM</mark>, admitted for <mark>severe left chest pain</mark>, current diagnosis <mark>Acute anterior STEMI</mark>, day 1 post <mark>PCI</mark>.
 

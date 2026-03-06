@@ -7,10 +7,18 @@ import { RecordingControls } from '@/components/RecordingControls';
 import type { ControlState } from '@/components/RecordingControls';
 import { SaveDialog } from '@/components/SaveDialog';
 import { formatTimeMs } from '@/lib/utils';
-import { MoreVertical } from 'lucide-react';
+import { Loader2, MoreVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
+import { 
+    initChunkedUpload, 
+    uploadChunk, 
+    completeChunkedUpload, 
+    getSttJobStatus 
+} from '@/lib/api/sttMetrics';
+import { saveUploadSession, cleanupUploadSession } from '@/lib/db';
+
 
 // C1: Active Recording
 // C2: Paused
@@ -23,6 +31,7 @@ export default function RecordingPage() {
 
     const recorder = useAudioRecorder();
     const [showSave, setShowSave] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
     const [replaying, setReplaying] = useState(false);
     const [hasReplayed, setHasReplayed] = useState(false);
     const [seekPosition, setSeekPosition] = useState(1);
@@ -132,11 +141,85 @@ export default function RecordingPage() {
         setShowSave(true);
     };
     const handleCancelSave = () => setShowSave(false);
-    const handleConfirmSave = (name: string, format: string) => {
+    const handleConfirmSave = async (name: string, format: string) => {
         recorder.stop();
-        // Skip /format page — go directly to review page based on chosen format
-        const formatRoute = format === 'clinical' ? 'ehr' : format === 'none' ? 'freetext' : format;
-        router.push(`/${formatRoute}?id=rec-001`);
+        setShowSave(false);
+        setIsProcessing(true);
+
+        try {
+            if (!recorder.audioBlob) {
+                console.error("No audio blob to transcribe");
+                return;
+            }
+
+            let formatType = 'soap_note';
+            if (format === 'clinical') formatType = 'ehr';
+            if (format === 'todo') formatType = 'todo-list';
+            if (format === 'none') formatType = 'free_text';
+
+            // 1. Session and init setup
+            const sessionId = `sess_${Date.now()}`;
+            const CHUNK_SIZE = 1024 * 512; // 512KB default chunk size
+            const totalChunksGuess = Math.ceil(recorder.audioBlob.size / CHUNK_SIZE);
+            
+            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE);
+
+            // Use the provided chunk_size or default to CHUNK_SIZE
+            const actualChunkSize = initRes.chunk_size || CHUNK_SIZE;
+            const computedTotalChunks = Math.ceil(recorder.audioBlob.size / actualChunkSize);
+
+            // Save to IndexedDB (for auto-resume on crash/close)
+            await saveUploadSession({
+                upload_id: initRes.upload_id,
+                session_id: sessionId,
+                filename: 'record.webm',
+                total_chunks: computedTotalChunks,
+                chunk_size: actualChunkSize,
+                format_type: formatType,
+                format: format
+            }, recorder.audioBlob);
+
+            // 2. Upload chunks
+            for (let i = 0; i < computedTotalChunks; i++) {
+                const start = i * actualChunkSize;
+                const end = Math.min(start + actualChunkSize, recorder.audioBlob.size);
+                const chunk = recorder.audioBlob.slice(start, end);
+                await uploadChunk(initRes.upload_id, i, chunk);
+            }
+
+            // 3. Mark complete and create job
+            const completeRes = await completeChunkedUpload({
+                upload_id: initRes.upload_id,
+                session_id: sessionId,
+                format_type: formatType
+            });
+
+            // 4. Poll job status
+            let jobStatus = await getSttJobStatus(completeRes.job_id);
+            while (jobStatus.status === 'pending' || jobStatus.status === 'processing') {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                jobStatus = await getSttJobStatus(completeRes.job_id);
+            }
+
+            if (jobStatus.status === 'failed') {
+               throw new Error(jobStatus.error_message || "STT Job failed");
+            }
+
+            // 5. Success, get record ID, cleanup IndexedDB, and route
+            const finishRecordId = jobStatus.result?.record_id;
+            
+            await cleanupUploadSession(initRes.upload_id);
+
+            // Optionally we should update the record's display_name via PATCH using name here, 
+            // but for MVP just route to the proper review page with the record_id
+            const formatRoute = format === 'clinical' ? 'ehr' : format === 'none' ? 'freetext' : format;
+            router.push(`/${formatRoute}?id=${finishRecordId}`);
+        } catch (error) {
+            console.error("Transcription failed", error);
+            // In a real app we'd show a toast error
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     // Keep seekPosition in sync during playback
@@ -226,6 +309,18 @@ export default function RecordingPage() {
                     onCancel={handleCancelSave}
                     onSave={handleConfirmSave}
                 />
+            )}
+
+            {isProcessing && (
+                <div className="fixed inset-0 z-200 flex flex-col items-center justify-center bg-bg-page animate-in fade-in duration-300">
+                    <Loader2 className="w-10 h-10 text-accent-blue animate-spin mb-4" />
+                    <p className="text-[16px] font-semibold text-text-primary mb-1">
+                        Đang phân tích dữ liệu...
+                    </p>
+                    <p className="text-[13px] text-text-muted">
+                        Vui lòng không đóng trang
+                    </p>
+                </div>
             )}
         </div>
     );
