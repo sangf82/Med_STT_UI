@@ -106,20 +106,20 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                         </span>
                     </button>
 
-                    {/* Filter: Kế hoạch hành động */}
+                    {/* Filter: Việc cần làm */}
                     <button
-                        onClick={() => { setFilter('Kế hoạch hành động'); router.push('/dashboard'); onClose() }}
+                        onClick={() => { setFilter('Việc cần làm'); router.push('/dashboard'); onClose() }}
                         className={cn(
                             "flex items-center justify-between px-4 h-[44px] w-full text-left rounded-xl transition-colors focus-visible:outline-none shrink-0",
-                            filter === 'Kế hoạch hành động' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
+                            filter === 'Việc cần làm' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
                         )}
                     >
                         <div className="flex items-center gap-3.5">
-                            <ListTodo className={cn("w-[18px] h-[18px]", filter === 'Kế hoạch hành động' ? "text-accent-orange" : "text-text-secondary")} />
-                            <span className={cn("text-[14px] font-medium", filter === 'Kế hoạch hành động' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('todoList')}</span>
+                            <ListTodo className={cn("w-[18px] h-[18px]", filter === 'Việc cần làm' ? "text-accent-orange" : "text-text-secondary")} />
+                            <span className={cn("text-[14px] font-medium", filter === 'Việc cần làm' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('todoList')}</span>
                         </div>
-                        <span className={cn("text-[12px] font-semibold", filter === 'Kế hoạch hành động' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
-                            {recordings.filter(rec => rec.format === 'Kế hoạch hành động').length}
+                        <span className={cn("text-[12px] font-semibold", filter === 'Việc cần làm' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
+                            {recordings.filter(rec => rec.format === 'Việc cần làm').length}
                         </span>
                     </button>
 
@@ -171,45 +171,46 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
 }
 
 function SidebarSurvey({ t, onAction }: { t: any; onAction: () => void }) {
-    const { setShowSurvey, setShowTrialPanel } = useAppContext();
+    const { setShowSurvey, setShowTrialPanel, setShowNotificationDot } = useAppContext();
 
     return (
         <div
-            className="bg-white rounded-[20px] p-[16px] w-full flex flex-col gap-4 border border-[#EEEEEE] shadow-sm mb-4"
+            className="bg-white dark:bg-bg-surface rounded-[20px] p-[16px] w-full flex flex-col gap-4 border border-[#EEEEEE] dark:border-divider/50 shadow-sm mb-4"
         >
             <div className="flex items-start gap-3">
                 {/* Icon box */}
-                <div className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg bg-accent-orange/10 text-accent-orange">
+                <div className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg bg-accent-orange/10 dark:bg-accent-orange/20 text-accent-orange">
                     <MessageSquareQuote className="w-4.5 h-4.5" />
                 </div>
 
                 <div className="flex flex-col gap-1">
-                    <p className="text-[14px] font-bold text-[#1A1A1A] leading-tight">
+                    <p className="text-[14px] font-bold text-[#1A1A1A] dark:text-text-primary leading-tight">
                         {t('limit')}
                     </p>
-                    <p className="text-[12px] font-medium text-[#666666] leading-snug">
+                    <p className="text-[12px] font-medium text-[#666666] dark:text-text-muted leading-snug">
                         {t('limitSub')}
                     </p>
                 </div>
             </div>
 
-            <div className="flex border-t border-[#F0F0F0] -mx-4 -mb-4 h-[44px]">
+            <div className="flex border-t border-[#F0F0F0] dark:border-divider/30 -mx-4 -mb-4 h-[44px]">
                 <button
                     onClick={() => {
                         onAction(); // Close sidebar
                         setTimeout(() => setShowSurvey(true), 300); // Popup survey
                     }}
-                    className="flex-1 text-[14px] font-bold text-accent-blue active:bg-bg-page transition-colors"
+                    className="flex-1 text-[14px] font-bold text-accent-blue active:bg-bg-page dark:active:bg-bg-overlay transition-colors"
                 >
                     {t('yes')}
                 </button>
-                <div className="w-[1px] h-4 bg-[#E0E0E0] self-center" />
+                <div className="w-[1px] h-4 bg-[#E0E0E0] dark:bg-divider/40 self-center" />
                 <button
                     onClick={() => {
                         setShowTrialPanel(false);
+                        setShowNotificationDot(false);
                         onAction();
                     }}
-                    className="flex-1 text-[14px] font-bold text-[#888888] active:bg-bg-page transition-colors"
+                    className="flex-1 text-[14px] font-bold text-[#888888] dark:text-text-muted active:bg-bg-page dark:active:bg-bg-overlay transition-colors"
                 >
                     {t('no')}
                 </button>

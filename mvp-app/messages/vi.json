@@ -68,14 +68,14 @@
         "name": "Tên",
         "formatSoap": "Ghi chú SOAP",
         "formatClinical": "Tóm tắt lâm sàng",
-        "formatTodo": "Kế hoạch hành động",
+        "formatTodo": "Việc cần làm",
         "formatNone": "Văn bản tự do"
     },
     "Review": {
         "consultation": "Tư vấn bệnh nhân",
         "soapNote": "Ghi chú SOAP",
         "ehrSummary": "Tóm tắt lâm sàng",
-        "todoList": "Kế hoạch hành động",
+        "todoList": "Việc cần làm",
         "freeText": "Văn bản tự do",
         "raw": "Bản chữ gốc",
         "copySuccess": "Đã sao chép",

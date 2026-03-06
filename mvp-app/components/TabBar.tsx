@@ -17,7 +17,7 @@ export interface TabBarProps {
 
 export function TabBar({ tabs, activeTab, onTabChange, className }: TabBarProps) {
     return (
-        <div className={cn("flex w-full bg-tab-bg border-b border-tab-border", className)}>
+        <div className={cn("flex w-full bg-tab-bg", className)}>
             {tabs.map((tab) => {
                 const isActive = activeTab === tab.id;
                 return (

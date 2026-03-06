@@ -18,7 +18,7 @@ export default function DashboardPage() {
     const r = useTranslations('Review');
     const router = useRouter();
     const { open: openSidebar } = useSidebar();
-    const { recordings, filter, showSurvey, setShowSurvey } = useAppContext();
+    const { recordings, filter, showSurvey, setShowSurvey, showNotificationDot } = useAppContext();
     const [showDevNotice, setShowDevNotice] = useState(false);
 
     const handleSearchClick = () => {
@@ -35,7 +35,7 @@ export default function DashboardPage() {
     const headerTitle = useMemo(() => {
         if (filter === 'Ghi chú SOAP') return r('soapNote');
         if (filter === 'Tóm tắt lâm sàng') return r('ehrSummary');
-        if (filter === 'Kế hoạch hành động') return r('todoList');
+        if (filter === 'Việc cần làm') return r('todoList');
         if (filter === 'Chưa phân loại') return r('raw');
         return '';
     }, [filter, r]);
@@ -73,7 +73,7 @@ export default function DashboardPage() {
                     >
                         <div className="relative">
                             <Menu className="w-6 h-6" />
-                            {recordings.length >= 5 && (
+                            {showNotificationDot && (
                                 <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-danger border-2 border-bg-page rounded-full" />
                             )}
                         </div>
@@ -146,7 +146,7 @@ export default function DashboardPage() {
                         key={rec.id}
                         className="cursor-pointer hover:border-border hover:bg-bg-surface transition-colors"
                         onClick={() => {
-                            const startTab = rec.format === 'Tóm tắt lâm sàng' ? 'ehr' : (rec.format === 'Ghi chú SOAP' ? 'soap' : (rec.format === 'Kế hoạch hành động' ? 'todo' : 'freetext'));
+                            const startTab = rec.format === 'Tóm tắt lâm sàng' ? 'ehr' : (rec.format === 'Ghi chú SOAP' ? 'soap' : (rec.format === 'Việc cần làm' ? 'todo' : 'freetext'));
                             router.push(`/${startTab}?id=${rec.id}`);
                         }}
                     >

@@ -91,7 +91,7 @@ export const initialRecordings: Recording[] = [
     id: "rec-005",
     title: "Chuẩn bị Phẫu thuật - A. Tuấn",
     patient: "A. Tuấn",
-    format: "Kế hoạch hành động",
+    format: "Việc cần làm",
     duration: "03:20",
     date: "09/10/2025",
     status: "transcribed"
@@ -100,7 +100,7 @@ export const initialRecordings: Recording[] = [
     id: "rec-010",
     title: "Tiếp nhận Cấp cứu – R. Taylor",
     patient: "R. Taylor",
-    format: "Kế hoạch hành động",
+    format: "Việc cần làm",
     duration: "09:30",
     date: "02/10/2025",
     status: "transcribed"

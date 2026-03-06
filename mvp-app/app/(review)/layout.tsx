@@ -68,7 +68,7 @@ export default function ReviewLayout({
             if (tab.id === 'freetext') return true;
             if (format === 'Ghi chú SOAP' && tab.id === 'soap') return true;
             if (format === 'Tóm tắt lâm sàng' && tab.id === 'ehr') return true;
-            if (format === 'Kế hoạch hành động' && tab.id === 'todo') return true;
+            if (format === 'Việc cần làm' && tab.id === 'todo') return true;
             return false;
         });
     }, [format, t]);
@@ -90,10 +90,10 @@ export default function ReviewLayout({
         if (!record) return;
         const isSoapInvalid = pathname.includes('/soap') && format !== 'Ghi chú SOAP';
         const isEhrInvalid = pathname.includes('/ehr') && format !== 'Tóm tắt lâm sàng';
-        const isTodoInvalid = pathname.includes('/todo') && format !== 'Kế hoạch hành động';
+        const isTodoInvalid = pathname.includes('/todo') && format !== 'Việc cần làm';
 
         if (isSoapInvalid || isEhrInvalid || isTodoInvalid) {
-            const startTab = format === 'Tóm tắt lâm sàng' ? 'ehr' : (format === 'Ghi chú SOAP' ? 'soap' : (format === 'Kế hoạch hành động' ? 'todo' : 'freetext'));
+            const startTab = format === 'Tóm tắt lâm sàng' ? 'ehr' : (format === 'Ghi chú SOAP' ? 'soap' : (format === 'Việc cần làm' ? 'todo' : 'freetext'));
             router.replace(`/${startTab}?id=${recordId}`);
         }
     }, [pathname, record, format, recordId, router]);
@@ -149,13 +149,13 @@ export default function ReviewLayout({
     };
 
     return (
-        <div className="relative min-h-screen bg-bg-page text-text-primary max-w-md mx-auto w-full shadow-lg flex flex-col fade-in">
+        <div className="relative min-h-screen bg-bg-page text-text-primary max-w-md mx-auto w-full shadow-lg flex flex-col fade-in pt-[5px] overflow-x-hidden">
             <Suspense fallback={<div className="min-h-screen bg-bg-page" />}>
                 <ReviewContext.Provider value={{ setSaveStatus, record }}>
 
                     {/* Header is dynamic based on edit mode */}
                     {!isEditMode ? (
-                        <header className="sticky top-0 z-40 flex items-center justify-between h-[48px] px-4 w-full bg-bg-page text-text-primary">
+                        <header className="sticky top-0 z-40 flex items-center justify-between min-h-[64px] pt-4 px-4 w-full bg-bg-page text-text-primary tracking-tight">
                             <div className="flex items-center gap-1 min-w-0">
                                 <button
                                     onClick={() => router.push('/dashboard')}
@@ -165,8 +165,8 @@ export default function ReviewLayout({
                                     <ChevronLeft className="w-6 h-6" />
                                 </button>
                                 <div className="flex flex-col min-w-0">
-                                    <span className="text-[16px] font-semibold leading-tight truncate">{recordingName}</span>
-                                    <span className="text-[11px] font-medium text-text-muted shrink-0">{record?.format || 'None'} &middot; {record?.duration} &middot; {record?.date}</span>
+                                    <span className="text-[17px] font-bold leading-tight truncate">{recordingName}</span>
+                                    <span className="text-[11px] font-medium text-text-muted shrink-0">{record?.format === 'Việc cần làm' ? t('todoList') : (record?.format || 'None')} &middot; {record?.duration} &middot; {record?.date}</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0 ml-2">
@@ -196,17 +196,19 @@ export default function ReviewLayout({
 
                     {/* Tabs (Hidden in Edit mode) */}
                     {!isEditMode && (
-                        <div className="flex items-center w-full bg-bg-card shadow-[0_4px_12px_rgba(0,0,0,0.03)] z-20 sticky top-[48px]">
-                            <div className="flex-1">
+                        <div className="flex items-center w-full bg-bg-card dark:bg-bg-page shadow-[0_4px_12px_rgba(0,0,0,0.03)] dark:shadow-none z-20 sticky top-[64px] h-[48px] transition-all">
+                            <div className="flex-1 flex items-center h-full">
                                 <TabBar tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
                             </div>
-                            <button
-                                onClick={handleCopy}
-                                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 transition-all mr-2 text-[#FB8A0A]"
-                                aria-label="Copy"
-                            >
-                                <Copy className="w-[18px] h-[18px]" />
-                            </button>
+                            <div className="flex items-center justify-center p-1 mr-1">
+                                <button
+                                    onClick={handleCopy}
+                                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 transition-all text-[#FB8A0A]"
+                                    aria-label="Copy"
+                                >
+                                    <Copy className="w-[18px] h-[18px]" />
+                                </button>
+                            </div>
                         </div>
                     )}
 

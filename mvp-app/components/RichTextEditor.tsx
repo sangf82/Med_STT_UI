@@ -19,9 +19,9 @@ interface RichTextEditorProps {
     minHeight?: string;
 }
 
-export function RichTextEditor({ content, onChange, className, minHeight = "300px" }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, className, minHeight = "none" }: RichTextEditorProps) {
     const [mounted, setMounted] = useState(false);
-    const [isFocused, setIsFocused] = useState(false);
+    const [isKeyboardActive, setIsKeyboardActive] = useState(false);
 
     const editor = useEditor({
         extensions: [
@@ -53,7 +53,9 @@ export function RichTextEditor({ content, onChange, className, minHeight = "300p
             const markdown = (editor.storage as any).markdown?.getMarkdown() ?? '';
             onChange(markdown);
         },
-        onFocus: () => setIsFocused(true),
+        onFocus: () => {
+            // Focus happens, but we don't necessarily show toolbar/keyboard yet
+        },
         onBlur: ({ event }) => {
             const relatedTarget = (event as FocusEvent).relatedTarget as HTMLElement | null;
             const toolbar = document.getElementById('editor-toolbar');
@@ -62,7 +64,7 @@ export function RichTextEditor({ content, onChange, className, minHeight = "300p
             }
             setTimeout(() => {
                 if (!editor?.isFocused) {
-                    setIsFocused(false);
+                    setIsKeyboardActive(false);
                 }
             }, 200);
         },
@@ -71,9 +73,63 @@ export function RichTextEditor({ content, onChange, className, minHeight = "300p
                 class: 'focus:outline-none w-full h-full text-text-primary leading-relaxed tiptap-editor',
                 style: `min-height: ${minHeight};`,
             },
+            handleDOMEvents: {
+                mousedown: (view, event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'checkbox') {
+                        event.stopPropagation();
+                    }
+                    return false;
+                },
+                touchstart: (view, event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'checkbox') {
+                        event.stopPropagation();
+                    }
+                    return false;
+                },
+                pointerdown: (view, event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'checkbox') {
+                        event.stopPropagation();
+                    }
+                    return false;
+                },
+                click: (view, event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'checkbox') {
+                        return true; // Mark as handled for TipTap to prevent internal focus logic
+                    }
+
+                    // Intentional focus logic:
+                    if (view.hasFocus()) {
+                        // If already focused (pointer is there), second click opens keyboard
+                        setIsKeyboardActive(true);
+                    } else {
+                        // First click: focus it to show pointer, but keep keyboard inactive
+                        setIsKeyboardActive(false);
+                    }
+                    return false;
+                }
+            }
         },
         immediatelyRender: false,
     });
+
+    // Dynamically update inputmode based on intentional focus state
+    useEffect(() => {
+        if (editor) {
+            editor.setOptions({
+                editorProps: {
+                    attributes: {
+                        class: 'focus:outline-none w-full h-full text-text-primary leading-relaxed tiptap-editor',
+                        style: `min-height: ${minHeight};`,
+                        inputmode: isKeyboardActive ? 'text' : 'none',
+                    }
+                }
+            });
+        }
+    }, [isKeyboardActive, editor, minHeight]);
 
     useEffect(() => {
         setMounted(true);
@@ -95,8 +151,8 @@ export function RichTextEditor({ content, onChange, className, minHeight = "300p
 
     return (
         <div className={`flex flex-col flex-1 ${className ?? ''}`}>
-            {/* Toolbar at top, below header — only when focused */}
-            {isFocused && (
+            {/* Toolbar at top — only when keyboard is intentionally activated */}
+            {isKeyboardActive && (
                 <div
                     id="editor-toolbar"
                     className="sticky top-0 z-50 bg-bg-card border-b border-border shadow-sm"
@@ -108,7 +164,13 @@ export function RichTextEditor({ content, onChange, className, minHeight = "300p
             {/* Editor content — z-0 ensures it's below the toolbar's z-50 so dropdowns aren't clipped */}
             <div
                 className="flex-1 cursor-text px-4 py-4 relative z-0"
-                onClick={() => editor?.commands.focus()}
+                onClick={(e) => {
+                    // Only focus when clicking on the wrapper itself (the empty space),
+                    // not when clicking on content nodes (e.g. checkbox)
+                    if (e.target === e.currentTarget) {
+                        editor?.commands.focus();
+                    }
+                }}
             >
                 <EditorContent editor={editor} />
             </div>

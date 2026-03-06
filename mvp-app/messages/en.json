@@ -140,13 +140,16 @@
     },
     "Survey": {
         "title": "Quick Survey",
-        "rate": "Rate MedMate?",
-        "refer": "Refer it to your friend?",
-        "limit": "Trial limit soon. Want more?",
+        "intro": "Take this survey to get more usage turns",
+        "rate": "How do you rate MedMate",
+        "ratingReason": "Why did you choose this rating? (optional)",
+        "refer": "Would you like to refer this app to your friends?",
+        "limit": "Trial limit reached soon",
+        "limitSub": "But would you like to get more turns?",
         "yes": "Yes",
         "no": "No",
-        "submit": "Submit Feedback",
+        "submit": "Submit Survey",
         "thanks": "Thank you!",
-        "thanksSub": "We appreciate your feedback."
+        "thanksSub": "Thank you for your feedback, please continue using the app."
     }
 }

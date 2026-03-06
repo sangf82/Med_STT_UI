@@ -14,6 +14,8 @@ interface AppContextProps {
     setShowSurvey: (show: boolean) => void;
     showTrialPanel: boolean;
     setShowTrialPanel: (show: boolean) => void;
+    showNotificationDot: boolean;
+    setShowNotificationDot: (show: boolean) => void;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -24,6 +26,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const [filter, setFilter] = useState<string | null>(null);
     const [showSurvey, setShowSurvey] = useState(false);
     const [showTrialPanel, setShowTrialPanel] = useState(initialRecordings.length >= 5);
+    const [showNotificationDot, setShowNotificationDot] = useState(initialRecordings.length >= 5);
 
     return (
         <AppContext.Provider value={{
@@ -31,7 +34,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             profile, setProfile,
             filter, setFilter,
             showSurvey, setShowSurvey,
-            showTrialPanel, setShowTrialPanel
+            showTrialPanel, setShowTrialPanel,
+            showNotificationDot, setShowNotificationDot
         }}>
             {children}
         </AppContext.Provider>
