@@ -50,7 +50,8 @@
         "phoneLabel": "Điện thoại",
         "sectionPersonalInfo": "Thông tin cá nhân",
         "sectionContact": "Liên hệ",
-        "signOut": "Đăng xuất"
+        "signOut": "Đăng xuất",
+        "devMode": "Tính năng đang phát triển"
     },
     "Recording": {
         "newRecording": "Ghi âm mới",
@@ -130,5 +131,16 @@
         "saved": "Đã lưu",
         "saving": "Đang lưu...",
         "offline": "Ngoại tuyến"
+    },
+    "Survey": {
+        "title": "Khảo sát nhanh",
+        "rate": "Đánh giá MedMate?",
+        "refer": "Giới thiệu cho bạn bè?",
+        "limit": "Sắp hết lượt dùng thử. Thêm chứ?",
+        "yes": "Có",
+        "no": "Không",
+        "submit": "Gửi phản hồi",
+        "thanks": "Cảm ơn bạn!",
+        "thanksSub": "Chúng tôi trân trọng phản hồi của bạn."
     }
 }

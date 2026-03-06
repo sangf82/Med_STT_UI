@@ -174,6 +174,11 @@ export default function RecordingPage() {
             <Header
                 centerNode={titleIndicator}
                 onBack={handleBack}
+                rightNode={
+                    <button className="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 text-text-primary transition-colors hover:bg-bg-surface">
+                        <MoreVertical className="w-6 h-6" />
+                    </button>
+                }
             />
 
             <div className="flex-1 flex flex-col items-center pt-6 pb-[34px]">

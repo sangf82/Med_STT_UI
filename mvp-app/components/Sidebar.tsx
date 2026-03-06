@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import { Shield, AudioLines, Settings, FileText, ClipboardList, FileCode } from 'lucide-react'
+import { Shield, AudioLines, Settings, FileText, ClipboardList, FileCode, Star, MessageSquareQuote, Users2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from "next-intl"
 import { useAppContext } from "@/context/AppContext"
@@ -21,6 +21,7 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
     const router = useRouter()
     const t = useTranslations('Dashboard')
     const r = useTranslations('Review')
+    const s = useTranslations('Survey')
     const { recordings, filter, setFilter } = useAppContext()
 
     // Block scroll on body
@@ -50,7 +51,6 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                     </div>
                     <div className="flex flex-col gap-1">
                         <h2 className="text-[17px] font-bold">{profile.name}</h2>
-                        <p className="text-[12px] text-white/80">{profile.subtitle}</p>
                     </div>
                 </div>
 
@@ -134,6 +134,12 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                     </button>
                 </div>
 
+                {recordings.length >= 5 && (
+                    <div className="px-3 mb-2">
+                        <SidebarSurvey t={s} />
+                    </div>
+                )}
+
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-divider">
                     <div className="flex items-center gap-2 text-text-muted">
@@ -143,5 +149,137 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                 </div>
             </div>
         </div>
+    )
+}
+
+function SidebarSurvey({ t }: { t: any }) {
+    const [rating, setRating] = React.useState<number | null>(null);
+    const [refered, setRefered] = React.useState<boolean | null>(null);
+    const [limit, setLimit] = React.useState<boolean | null>(null);
+    const [submitted, setSubmitted] = React.useState(false);
+
+    if (submitted) {
+        return (
+            <div className="bg-bg-surface rounded-xl p-4 flex flex-col items-center justify-center gap-2 border border-divider/60 text-center fade-in shadow-sm min-h-[140px]">
+                <div className="w-9 h-9 rounded-full bg-accent-blue/10 flex items-center justify-center text-accent-blue">
+                    <Star className="w-4.5 h-4.5 fill-current" />
+                </div>
+                <div className="flex flex-col gap-0.5 text-center">
+                    <h3 className="text-[14px] font-bold text-text-primary">{t('thanks')}</h3>
+                    <p className="text-[13px] font-medium text-text-muted">{t('thanksSub')}</p>
+                </div>
+            </div>
+        );
+    }
+
+    const canSubmit = rating !== null || refered !== null || limit !== null;
+
+    return (
+        <div className="bg-bg-surface rounded-xl p-2.5 flex flex-col gap-2 border border-divider/60">
+            <div className="flex flex-col gap-1.5">
+                <p className="text-[14px] font-semibold text-text-primary leading-tight px-0.5">{t('rate')}</p>
+                <div className="flex gap-1 px-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                            key={star}
+                            onClick={() => setRating(star)}
+                            className={cn(
+                                "flex-1 h-7 rounded-lg flex items-center justify-center transition-all active:scale-95",
+                                rating === star ? "bg-accent-orange text-white shadow-sm shadow-accent-orange/20" : "bg-bg-page text-text-muted hover:text-accent-orange border border-divider/30"
+                            )}
+                        >
+                            <span className="text-[11px] font-bold">{star}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="h-px bg-divider/10 mx-0.5" />
+
+            <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5 px-0.5">
+                    <Users2 className="w-3.5 h-3.5 text-accent-blue" />
+                    <p className="text-[14px] font-medium text-text-secondary leading-tight">{t('refer')}</p>
+                </div>
+                <div className="flex gap-1 px-0.5">
+                    <SurveyButton
+                        active={refered === true}
+                        onClick={() => setRefered(true)}
+                        label={t('yes')}
+                        variant="blue"
+                    />
+                    <SurveyButton
+                        active={refered === false}
+                        onClick={() => setRefered(false)}
+                        label={t('no')}
+                        variant="muted"
+                    />
+                </div>
+            </div>
+
+            <div className="h-px bg-divider/10 mx-0.5" />
+
+            <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5 px-0.5">
+                    <MessageSquareQuote className="w-3.5 h-3.5 text-accent-orange" />
+                    <p className="text-[14px] font-medium text-text-secondary leading-tight">{t('limit')}</p>
+                </div>
+                <div className="flex gap-1 px-0.5">
+                    <SurveyButton
+                        active={limit === true}
+                        onClick={() => setLimit(true)}
+                        label={t('yes')}
+                        variant="orange"
+                    />
+                    <SurveyButton
+                        active={limit === false}
+                        onClick={() => setLimit(false)}
+                        label={t('no')}
+                        variant="muted"
+                    />
+                </div>
+            </div>
+
+            <button
+                disabled={!canSubmit}
+                onClick={() => setSubmitted(true)}
+                className={cn(
+                    "w-full py-2.5 mt-0.5 rounded-lg text-[13px] font-bold transition-all active:scale-95 border",
+                    canSubmit
+                        ? "bg-accent-blue text-white shadow-sm shadow-accent-blue/20 border-transparent"
+                        : "bg-bg-page text-text-muted border-divider/40 cursor-not-allowed"
+                )}
+            >
+                {t('submit')}
+            </button>
+        </div>
+    );
+}
+
+interface SurveyButtonProps {
+    active: boolean;
+    onClick: () => void;
+    label: string;
+    variant: 'orange' | 'blue' | 'muted';
+}
+
+function SurveyButton({ active, onClick, label, variant }: SurveyButtonProps) {
+    const variantClasses = {
+        orange: active ? "bg-accent-orange text-white shadow-sm shadow-accent-orange/20" : "bg-bg-page hover:text-accent-orange",
+        blue: active ? "bg-accent-blue text-white shadow-sm shadow-accent-blue/20" : "bg-bg-page hover:text-accent-blue",
+        muted: active ? "bg-text-muted text-white shadow-sm" : "bg-bg-page hover:text-text-primary"
+    };
+
+    return (
+        <button
+            onClick={onClick}
+            className={cn(
+                "flex-1 py-1.5 rounded-lg text-[12px] font-bold transition-all active:scale-95 border border-transparent",
+                variantClasses[variant],
+                !active && "border-border/10"
+            )}
+        >
+            {label}
+        </button>
     )
 }

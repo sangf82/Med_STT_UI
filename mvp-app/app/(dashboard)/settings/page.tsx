@@ -17,7 +17,13 @@ export default function SettingsPage() {
     const router = useRouter();
 
     const [autoSave, setAutoSave] = useState(true);
+    const [showDevNotice, setShowDevNotice] = useState(false);
     const { theme } = useTheme();
+
+    const handleChangePassword = () => {
+        setShowDevNotice(true);
+        setTimeout(() => setShowDevNotice(false), 2000);
+    };
 
     return (
         <div className="flex flex-col min-h-screen bg-bg-page text-text-primary fade-in">
@@ -35,7 +41,7 @@ export default function SettingsPage() {
                         <SettingsRow icon={User} label={t('profile')} onClick={() => router.push('/profile')} />
                     </div>
                     <div className="bg-bg-card rounded-b-[12px] overflow-hidden border-t border-border/10">
-                        <SettingsRow icon={KeyRound} label={t('changePassword')} />
+                        <SettingsRow icon={KeyRound} label={t('changePassword')} onClick={handleChangePassword} />
                     </div>
                 </div>
 
@@ -67,6 +73,13 @@ export default function SettingsPage() {
                 </div>
 
             </div>
+
+            {/* Development Notice Popup */}
+            {showDevNotice && (
+                <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[100] bg-[#1a1a1a]/90 dark:bg-white/80 text-white dark:text-[#1a1a1a] px-5 py-2.5 rounded-full text-[13px] font-medium shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    {t('devMode')}
+                </div>
+            )}
         </div>
     );
 }

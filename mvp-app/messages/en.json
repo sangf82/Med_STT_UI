@@ -50,7 +50,8 @@
         "phoneLabel": "Phone",
         "sectionPersonalInfo": "Personal Info",
         "sectionContact": "Contact",
-        "signOut": "Sign Out"
+        "signOut": "Sign Out",
+        "devMode": "Function in development"
     },
     "Recording": {
         "newRecording": "New Recording",
@@ -130,5 +131,16 @@
         "saved": "Saved",
         "saving": "Saving...",
         "offline": "Offline"
+    },
+    "Survey": {
+        "title": "Quick Survey",
+        "rate": "Rate MedMate?",
+        "refer": "Refer it to your friend?",
+        "limit": "Trial limit soon. Want more?",
+        "yes": "Yes",
+        "no": "No",
+        "submit": "Submit Feedback",
+        "thanks": "Thank you!",
+        "thanksSub": "We appreciate your feedback."
     }
 }

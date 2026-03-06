@@ -16,8 +16,14 @@ export default function DashboardPage() {
     const b = useTranslations('Badge');
     const r = useTranslations('Review');
     const router = useRouter();
-    const { isOpen: isSidebarOpen, open: openSidebar } = useSidebar();
+    const { open: openSidebar } = useSidebar();
     const { recordings, filter } = useAppContext();
+    const [showDevNotice, setShowDevNotice] = useState(false);
+
+    const handleSearchClick = () => {
+        setShowDevNotice(true);
+        setTimeout(() => setShowDevNotice(false), 2000);
+    };
 
     const filteredRecordings = recordings.filter(rec => {
         if (filter === null) return true;
@@ -63,11 +69,17 @@ export default function DashboardPage() {
                         style={{ bottom: `${12 - progress * 8}px` }}
                         aria-label="Open menu"
                     >
-                        <Menu className="w-6 h-6" />
+                        <div className="relative">
+                            <Menu className="w-6 h-6" />
+                            {recordings.length >= 5 && (
+                                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-danger border-2 border-bg-page rounded-full" />
+                            )}
+                        </div>
                     </button>
 
                     {/* Search Icon */}
                     <button
+                        onClick={handleSearchClick}
                         className="absolute right-3 w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 text-text-primary"
                         style={{ bottom: `${12 - progress * 8}px` }}
                         aria-label="Search"
@@ -154,6 +166,13 @@ export default function DashboardPage() {
                     </Card>
                 ))}
             </div>
+
+            {/* Development Notice Popup */}
+            {showDevNotice && (
+                <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[100] bg-[#1a1a1a]/90 dark:bg-white/80 text-white dark:text-[#1a1a1a] px-5 py-2.5 rounded-full text-[13px] font-medium shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    {t('devMode')}
+                </div>
+            )}
         </div>
     );
 }
