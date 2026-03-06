@@ -61,6 +61,7 @@ export default function RecordingPage() {
         audioElRef.current = audio;
 
         const startFrom = seekPosition < 1 ? seekPosition : 0;
+        setSeekPosition(startFrom);
         setReplaying(true);
 
         audio.onended = () => {
@@ -136,6 +137,27 @@ export default function RecordingPage() {
         router.push('/format');
     };
 
+    // Keep seekPosition in sync during playback
+    useEffect(() => {
+        const audio = audioElRef.current;
+        if (!audio || !replaying) return;
+
+        const handleTimeUpdate = () => {
+            const dur = knownDurationSec > 0 ? knownDurationSec : (Number.isFinite(audio.duration) ? audio.duration : 0);
+            if (dur > 0) {
+                setSeekPosition(audio.currentTime / dur);
+            }
+        };
+
+        audio.addEventListener('timeupdate', handleTimeUpdate);
+        return () => audio.removeEventListener('timeupdate', handleTimeUpdate);
+    }, [replaying, knownDurationSec]);
+
+    // Calculate display time
+    const displayTimeMs = (recorder.state === 'recording')
+        ? recorder.timeMs
+        : Math.floor(seekPosition * (recorder.timeMs || 0));
+
     // Header center: recording indicator + title
     const isRecording = recorder.state === 'recording';
     const titleIndicator = (
@@ -152,18 +174,13 @@ export default function RecordingPage() {
             <Header
                 centerNode={titleIndicator}
                 onBack={handleBack}
-                rightNode={
-                    <button className="w-10 h-10 flex items-center justify-center rounded-full active:scale-95 text-text-primary transition-colors hover:bg-bg-surface">
-                        <MoreVertical className="w-6 h-6" />
-                    </button>
-                }
             />
 
             <div className="flex-1 flex flex-col items-center pt-6 pb-[34px]">
 
                 {/* Timer */}
                 <div className="text-[52px] font-light leading-none tracking-tight text-center">
-                    {formatTimeMs(recorder.timeMs)}
+                    {formatTimeMs(displayTimeMs)}
                 </div>
 
                 {/* Spacer */}

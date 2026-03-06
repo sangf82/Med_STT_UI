@@ -1,21 +1,37 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Menu, Search, Stethoscope } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useSidebar } from '@/context/SidebarContext';
 import { Badge } from '@/components/Badge';
 import { Card } from '@/components/Card';
 import { useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
     const t = useTranslations('Dashboard');
     const a = useTranslations('Auth');
     const b = useTranslations('Badge');
+    const r = useTranslations('Review');
     const router = useRouter();
-    const { recordings } = useAppContext();
-    const { open: openSidebar } = useSidebar();
+    const { isOpen: isSidebarOpen, open: openSidebar } = useSidebar();
+    const { recordings, filter } = useAppContext();
+
+    const filteredRecordings = recordings.filter(rec => {
+        if (filter === null) return true;
+        if (filter === 'None') return !rec.format;
+        return rec.format === filter;
+    });
+
+    const headerTitle = useMemo(() => {
+        if (filter === 'SOAP Note') return r('soapNote');
+        if (filter === 'Clinical Summary') return r('ehrSummary');
+        if (filter === 'None') return r('raw');
+        return '';
+    }, [filter, r]);
+
     const [scrollY, setScrollY] = useState(0);
 
     useEffect(() => {
@@ -69,7 +85,11 @@ export default function DashboardPage() {
                         }}
                     >
                         <Stethoscope className="w-[22px] h-[22px] text-accent-blue" />
-                        <span className="text-[18px] font-bold text-text-primary leading-none pt-[2px]">MedMate</span>
+                        {headerTitle ? (
+                            <span className="text-[18px] font-bold text-text-primary leading-none pt-[2px]">{headerTitle}</span>
+                        ) : (
+                            <span className="text-[18px] font-bold leading-none pt-[2px]"><span className="text-accent-blue">Med</span><span className="text-accent-orange">Mate</span></span>
+                        )}
                     </div>
 
                     {/* Expanded Hero Big Logo (Fades out) */}
@@ -82,8 +102,14 @@ export default function DashboardPage() {
                         }}
                     >
                         <Stethoscope className="w-[48px] h-[48px] text-accent-blue mb-2" />
-                        <h1 className="text-[28px] font-bold leading-tight"><span className="text-accent-blue">Med</span><span className="text-accent-orange">Mate</span></h1>
-                        <p className="text-[14px] text-text-muted mt-[2px]">{a('subtitle')}</p>
+                        {headerTitle ? (
+                            <h1 className="text-[28px] font-bold leading-tight text-text-primary">{headerTitle}</h1>
+                        ) : (
+                            <>
+                                <h1 className="text-[28px] font-bold leading-tight"><span className="text-accent-blue">Med</span><span className="text-accent-orange">Mate</span></h1>
+                                <p className="text-[14px] text-text-muted mt-[2px]">{a('subtitle')}</p>
+                            </>
+                        )}
                     </div>
 
                 </div>
@@ -94,13 +120,21 @@ export default function DashboardPage() {
 
             {/* ── Recording List ── */}
             <div className="px-4 flex flex-col gap-[10px]">
-                <h2 className={`text-[13px] font-semibold text-text-muted mb-1 px-1 transition-all duration-300 ${isScrolled ? 'opacity-100 h-auto' : 'opacity-0 h-0 overflow-hidden'}`}>{t('myRecordings')}</h2>
+                <h2 className={cn(
+                    "text-[13px] font-semibold text-text-muted mb-1 px-1 transition-all duration-300",
+                    isScrolled ? 'opacity-100 h-auto' : 'opacity-0 h-0 overflow-hidden'
+                )}>
+                    {t('myRecordings')}
+                </h2>
 
-                {recordings.map(rec => (
+                {filteredRecordings.map(rec => (
                     <Card
                         key={rec.id}
                         className="cursor-pointer hover:border-border hover:bg-bg-surface transition-colors"
-                        onClick={() => router.push(`/soap?id=${rec.id}`)}
+                        onClick={() => {
+                            const startTab = rec.format === 'Clinical Summary' ? 'ehr' : (rec.format === 'SOAP Note' ? 'soap' : 'freetext');
+                            router.push(`/${startTab}?id=${rec.id}`);
+                        }}
                     >
                         <div className="flex justify-between items-start">
                             <div className="flex flex-col">

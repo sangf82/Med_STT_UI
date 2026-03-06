@@ -2,11 +2,10 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import { Shield, AudioLines, Wand2, Globe, Settings } from 'lucide-react'
-import { Toggle } from "./Toggle"
+import { Shield, AudioLines, Settings, FileText, ClipboardList, FileCode } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from "next-intl"
-import LocaleSwitcher from './LocaleSwitcher'
+import { useAppContext } from "@/context/AppContext"
 
 export interface SidebarProps {
     open: boolean;
@@ -21,8 +20,8 @@ export interface SidebarProps {
 export function Sidebar({ open, onClose, profile }: SidebarProps) {
     const router = useRouter()
     const t = useTranslations('Dashboard')
-
-    const [autoTranscribe, setAutoTranscribe] = React.useState(true)
+    const r = useTranslations('Review')
+    const { recordings, filter, setFilter } = useAppContext()
 
     // Block scroll on body
     React.useEffect(() => {
@@ -36,7 +35,7 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex fade-in pointer-events-auto">
+        <div className="fixed inset-0 z-[100] flex fade-in pointer-events-auto">
             <div
                 className="absolute inset-0 bg-bg-overlay"
                 onClick={onClose}
@@ -56,48 +55,82 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                 </div>
 
                 {/* Navigation */}
-                <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-1 px-3 mt-1">
+                <div className="flex-1 overflow-y-auto py-2 flex flex-col gap-0 px-3 mt-1">
                     {/* All Records */}
                     <button
-                        onClick={() => { router.push('/dashboard'); onClose() }}
-                        className="flex items-center gap-3.5 px-4 h-[50px] w-full text-left bg-accent-orange/15 hover:bg-accent-orange/20 rounded-xl transition-colors focus-visible:outline-none shrink-0"
+                        onClick={() => { setFilter(null); router.push('/dashboard'); onClose() }}
+                        className={cn(
+                            "flex items-center justify-between px-4 h-[44px] w-full text-left rounded-xl transition-colors focus-visible:outline-none shrink-0",
+                            filter === null ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
+                        )}
                     >
-                        <AudioLines className="w-[20px] h-[20px] text-accent-orange" />
-                        <span className="text-[15px] font-semibold text-accent-orange">{t('allRecords')}</span>
+                        <div className="flex items-center gap-3.5">
+                            <AudioLines className={cn("w-[18px] h-[18px]", filter === null ? "text-accent-orange" : "text-text-secondary")} />
+                            <span className={cn("text-[14px] font-semibold", filter === null ? "text-accent-orange" : "text-text-primary")}>{t('allRecords')}</span>
+                        </div>
+                        <span className={cn("text-[12px] font-bold", filter === null ? "text-accent-orange/60" : "text-text-muted")}>{recordings.length}</span>
                     </button>
 
-                    {/* Auto-transcribe */}
-                    <div
-                        className="flex items-center justify-between px-4 h-[50px] w-full rounded-xl hover:bg-bg-surface transition-colors shrink-0 cursor-pointer"
-                        onClick={() => setAutoTranscribe(!autoTranscribe)}
+                    {/* Filter: SOAP Note */}
+                    <button
+                        onClick={() => { setFilter('SOAP Note'); router.push('/dashboard'); onClose() }}
+                        className={cn(
+                            "flex items-center justify-between px-4 h-[44px] w-full text-left rounded-xl transition-colors focus-visible:outline-none shrink-0",
+                            filter === 'SOAP Note' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
+                        )}
                     >
                         <div className="flex items-center gap-3.5">
-                            <Wand2 className="w-[20px] h-[20px] text-text-secondary" />
-                            <span className="text-[15px] font-medium text-text-primary">{t('autoTranscribe')}</span>
+                            <FileText className={cn("w-[18px] h-[18px]", filter === 'SOAP Note' ? "text-accent-orange" : "text-text-secondary")} />
+                            <span className={cn("text-[14px] font-medium", filter === 'SOAP Note' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('soapNote')}</span>
                         </div>
-                        <div onClick={e => e.stopPropagation()}>
-                            <Toggle checked={autoTranscribe} onCheckedChange={setAutoTranscribe} />
-                        </div>
-                    </div>
+                        <span className={cn("text-[12px] font-semibold", filter === 'SOAP Note' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
+                            {recordings.filter(rec => rec.format === 'SOAP Note').length}
+                        </span>
+                    </button>
 
-                    {/* Language */}
-                    <div className="flex items-center justify-between px-4 h-[50px] w-full rounded-xl hover:bg-bg-surface transition-colors shrink-0">
+                    {/* Filter: Clinical Summary */}
+                    <button
+                        onClick={() => { setFilter('Clinical Summary'); router.push('/dashboard'); onClose() }}
+                        className={cn(
+                            "flex items-center justify-between px-4 h-[44px] w-full text-left rounded-xl transition-colors focus-visible:outline-none shrink-0",
+                            filter === 'Clinical Summary' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
+                        )}
+                    >
                         <div className="flex items-center gap-3.5">
-                            <Globe className="w-[20px] h-[20px] text-text-secondary" />
-                            <span className="text-[15px] font-medium text-text-primary">{t('language')}</span>
+                            <ClipboardList className={cn("w-[18px] h-[18px]", filter === 'Clinical Summary' ? "text-accent-orange" : "text-text-secondary")} />
+                            <span className={cn("text-[14px] font-medium", filter === 'Clinical Summary' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('ehrSummary')}</span>
                         </div>
-                        <div className="relative">
-                            <LocaleSwitcher variant="filled" />
+                        <span className={cn("text-[12px] font-semibold", filter === 'Clinical Summary' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
+                            {recordings.filter(rec => rec.format === 'Clinical Summary').length}
+                        </span>
+                    </button>
+
+                    {/* Filter: Original Text */}
+                    <button
+                        onClick={() => { setFilter('None'); router.push('/dashboard'); onClose() }}
+                        className={cn(
+                            "flex items-center justify-between px-4 h-[44px] w-full text-left rounded-xl transition-colors focus-visible:outline-none shrink-0",
+                            filter === 'None' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
+                        )}
+                    >
+                        <div className="flex items-center gap-3.5">
+                            <FileCode className={cn("w-[18px] h-[18px]", filter === 'None' ? "text-accent-orange" : "text-text-secondary")} />
+                            <span className={cn("text-[14px] font-medium", filter === 'None' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('raw')}</span>
                         </div>
-                    </div>
+                        <span className={cn("text-[12px] font-semibold", filter === 'None' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
+                            {recordings.filter(rec => !rec.format).length}
+                        </span>
+                    </button>
+
+                    <div className="h-2 my-1 border-t border-divider/50 mx-4" />
 
                     {/* Settings */}
                     <button
                         onClick={() => { router.push('/settings'); onClose() }}
-                        className="flex items-center gap-3.5 px-4 h-[50px] w-full text-left rounded-xl hover:bg-bg-surface transition-colors focus-visible:outline-none shrink-0"
+                        className="flex items-center gap-3.5 px-4 h-[44px] w-full text-left rounded-xl hover:bg-bg-surface transition-colors focus-visible:outline-none shrink-0"
                     >
-                        <Settings className="w-[20px] h-[20px] text-text-secondary" />
-                        <span className="text-[15px] font-medium text-text-primary">{t('settings')}</span>
+                        <Settings className="w-[18px] h-[18px] text-text-secondary" />
+                        <span className="text-[14px] font-medium text-text-primary">{t('settings')}</span>
                     </button>
                 </div>
 

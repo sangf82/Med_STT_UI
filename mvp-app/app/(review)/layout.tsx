@@ -73,14 +73,26 @@ export default function ReviewLayout({
 
     const activeTab = useMemo(() => {
         if (pathname.includes('/freetext')) return 'freetext';
-        if (format === 'SOAP Note') return 'soap';
-        if (format === 'Clinical Summary') return 'ehr';
+        if (pathname.includes('/ehr')) return 'ehr';
+        if (pathname.includes('/soap')) return 'soap';
         return 'freetext';
-    }, [pathname, format]);
+    }, [pathname]);
 
     const handleTabChange = (id: string) => {
         router.push(`/${id}${recordId ? `?id=${recordId}` : ''}`);
     };
+
+    // Redirect if land on invalid tab for the record format
+    useEffect(() => {
+        if (!record) return;
+        const isSoapInvalid = pathname.includes('/soap') && format !== 'SOAP Note';
+        const isEhrInvalid = pathname.includes('/ehr') && format !== 'Clinical Summary';
+
+        if (isSoapInvalid || isEhrInvalid) {
+            const startTab = format === 'Clinical Summary' ? 'ehr' : (format === 'SOAP Note' ? 'soap' : 'freetext');
+            router.replace(`/${startTab}?id=${recordId}`);
+        }
+    }, [pathname, record, format, recordId, router]);
 
     const handleCopy = () => {
         const text = document.querySelector('textarea')?.value;

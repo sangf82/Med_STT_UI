@@ -63,8 +63,8 @@ export function Waveform({
 
     // --- Scrollbar drag ---
     const posFromEvent = React.useCallback((e: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent) => {
-        if (!trackRef.current) return 0;
-        const rect = trackRef.current.getBoundingClientRect();
+        if (!containerRef.current) return 0;
+        const rect = containerRef.current.getBoundingClientRect();
         const clientX = 'touches' in e
             ? (e.touches[0]?.clientX ?? 0)
             : (e as MouseEvent).clientX;
@@ -154,75 +154,77 @@ export function Waveform({
 
         return (
             <div ref={containerRef} className={cn("w-full", className)} {...props}>
-              <div
-                className="w-full relative overflow-hidden bg-waveform-bg"
-                style={{ height: WAVEFORM_HEIGHT }}
-              >
-                {/* All bars in a single translated strip */}
                 <div
-                    ref={stripRef}
-                    className="absolute top-0 flex items-center gap-[2px]"
-                    style={{
-                        height: barsH,
-                        willChange: 'transform',
-                        transform: `translateX(${initialOffset}px)`,
-                    }}
+                    className="w-full relative overflow-hidden bg-waveform-bg cursor-pointer"
+                    style={{ height: WAVEFORM_HEIGHT }}
+                    onMouseDown={handleTrackDown}
+                    onTouchStart={handleTrackDown}
                 >
-                    {levels.map((level, i) => {
-                        const minH = 3;
-                        const maxH = barsH * 0.85;
-                        const h = Math.max(minH, level * maxH);
+                    {/* All bars in a single translated strip */}
+                    <div
+                        ref={stripRef}
+                        className="absolute top-0 flex items-center gap-[2px]"
+                        style={{
+                            height: barsH,
+                            willChange: 'transform',
+                            transform: `translateX(${initialOffset}px)`,
+                        }}
+                    >
+                        {levels.map((level, i) => {
+                            const minH = 3;
+                            const maxH = barsH * 0.85;
+                            const h = Math.max(minH, level * maxH);
 
-                        let colorClass: string;
-                        if (prePauseLevels > 0 && i >= prePauseLevels) {
-                            colorClass = "bg-waveform-new";
-                        } else {
-                            colorClass = "bg-waveform-bar";
-                        }
+                            let colorClass: string;
+                            if (prePauseLevels > 0 && i >= prePauseLevels) {
+                                colorClass = "bg-waveform-new";
+                            } else {
+                                colorClass = "bg-waveform-bar";
+                            }
 
-                        return (
-                            <div
-                                key={i}
-                                className={cn("rounded-[1px] shrink-0", colorClass)}
-                                style={{ width: BAR_WIDTH, height: h }}
-                            />
-                        );
-                    })}
+                            return (
+                                <div
+                                    key={i}
+                                    className={cn("rounded-[1px] shrink-0", colorClass)}
+                                    style={{ width: BAR_WIDTH, height: h }}
+                                />
+                            );
+                        })}
+                    </div>
+
+                    {/* Center red line — fixed */}
+                    <div
+                        className="absolute bg-waveform-center"
+                        style={{ left: '50%', top: 0, width: 2, height: barsH, transform: 'translateX(-1px)' }}
+                    />
                 </div>
 
-                {/* Center red line — fixed */}
+                {/* Scrollbar */}
                 <div
-                    className="absolute bg-waveform-center"
-                    style={{ left: '50%', top: 0, width: 2, height: barsH, transform: 'translateX(-1px)' }}
-                />
-              </div>
-
-              {/* Scrollbar */}
-              <div
-                ref={trackRef}
-                className="relative cursor-pointer select-none"
-                style={{ width: '100%', height: 32, marginTop: 2, touchAction: 'none' }}
-                onMouseDown={handleTrackDown}
-                onTouchStart={handleTrackDown}
-              >
-                <div
-                    className="absolute w-full rounded-full"
-                    style={{ height: 1, top: '50%', transform: 'translateY(-50%)', background: 'transparent' }}
-                />
-                <div
-                    ref={thumbRef}
-                    className="absolute rounded-full pointer-events-none"
-                    style={{
-                        width: 36,
-                        height: 5,
-                        left: Math.max(0, pos * ((containerRef.current?.clientWidth ?? 350) - 36)),
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'var(--text-muted)',
-                        opacity: 0.45,
-                    }}
-                />
-              </div>
+                    ref={trackRef}
+                    className="relative cursor-pointer select-none"
+                    style={{ width: '100%', height: 32, marginTop: 2, touchAction: 'none' }}
+                    onMouseDown={handleTrackDown}
+                    onTouchStart={handleTrackDown}
+                >
+                    <div
+                        className="absolute w-full rounded-full"
+                        style={{ height: 1, top: '50%', transform: 'translateY(-50%)', background: 'transparent' }}
+                    />
+                    <div
+                        ref={thumbRef}
+                        className="absolute rounded-full pointer-events-none"
+                        style={{
+                            width: 36,
+                            height: 5,
+                            left: Math.max(0, pos * ((containerRef.current?.clientWidth ?? 350) - 36)),
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'var(--text-muted)',
+                            opacity: 0.45,
+                        }}
+                    />
+                </div>
             </div>
         );
     }

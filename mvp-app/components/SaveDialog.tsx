@@ -45,7 +45,7 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
             {/* Backdrop */}
             <div className="absolute inset-0" onClick={onCancel} />
 
-            {/* Dialog card — matches C4 design */}
+            {/* Dialog card */}
             <div
                 className="relative w-full max-w-[340px] bg-save-card-bg flex flex-col"
                 style={{
@@ -53,35 +53,27 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
                     padding: '24px 24px 16px 24px',
                 }}
             >
-                {/* Title */}
                 <h2 className="text-[20px] font-bold text-text-primary">
                     {t('saveRecording')}
                 </h2>
 
-                {/* Spacer 24px */}
                 <div className="h-6" />
 
-                {/* Name input */}
                 <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full text-[15px] text-text-primary bg-transparent border-b border-b-[#CCCCCC] pb-2 outline-none focus:border-b-accent-blue transition-colors"
-                    style={{ lineHeight: '20px' }}
                 />
 
-                {/* Spacer 20px */}
                 <div className="h-5" />
 
-                {/* Output Format label */}
                 <span className="text-[13px] text-text-muted">
                     {t('outputFormat')}
                 </span>
 
-                {/* Spacer 4px */}
                 <div className="h-1" />
 
-                {/* Format dropdown */}
                 <div ref={dropdownRef} className="relative">
                     <button
                         onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -94,17 +86,14 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
                     </button>
 
                     {dropdownOpen && (
-                        <div
-                            className="absolute left-0 top-full mt-1 w-[200px] bg-save-card-bg rounded-xl shadow-lg border border-[#E0E0E0] dark:border-[#333] z-10 overflow-hidden"
-                        >
+                        <div className="absolute left-0 top-full mt-1 w-[200px] bg-save-card-bg rounded-xl shadow-card border border-border z-10 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
                             {formatOptions.map((opt) => (
                                 <button
                                     key={opt.key}
                                     onClick={() => { setFormat(opt.key); setDropdownOpen(false); }}
-                                    className={`w-full text-left px-4 py-2.5 text-[15px] transition-colors
-                                        ${format === opt.key
-                                            ? 'text-accent-blue font-semibold bg-[#F0F8FF] dark:bg-[#1A2A3A]'
-                                            : 'text-text-primary hover:bg-[#F5F5F5] dark:hover:bg-[#2A2A2A]'
+                                    className={`w-full text-left px-4 py-2.5 text-[15px] transition-colors ${format === opt.key
+                                            ? 'text-accent-blue font-semibold bg-accent-blue/10'
+                                            : 'text-text-primary hover:bg-bg-surface'
                                         }`}
                                 >
                                     {t(opt.labelKey)}
@@ -114,20 +103,16 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
                     )}
                 </div>
 
-                {/* Spacer 8px */}
                 <div className="h-2" />
 
-                {/* Button row — Cancel | divider | Save */}
                 <div className="flex items-center h-[48px]">
                     <button
                         onClick={onCancel}
-                        className="flex-1 h-full flex items-center justify-center text-[16px] font-semibold transition-opacity active:opacity-60"
-                        style={{ color: '#888888' }}
+                        className="flex-1 h-full flex items-center justify-center text-[16px] font-semibold transition-opacity active:opacity-60 text-[#888888]"
                     >
                         {t('cancel')}
                     </button>
 
-                    {/* Vertical divider */}
                     <div className="w-[1px] h-5 bg-[#D0D0D0]" />
 
                     <button
