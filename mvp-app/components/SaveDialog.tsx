@@ -9,11 +9,11 @@ export interface SaveDialogProps {
     onSave: (name: string, format: string) => void;
 }
 
-type FormatKey = 'soap' | 'clinical' | 'none';
+type FormatKey = 'soap' | 'clinical' | 'todo' | 'none';
 
 export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
     const t = useTranslations('Recording');
-    const defaultName = `Consult ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '')}` +
+    const defaultName = `Ca khám ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '')}` +
         `_${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '')}`;
     const [name, setName] = useState(defaultName);
     const [format, setFormat] = useState<FormatKey>('soap');
@@ -23,6 +23,7 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
     const formatOptions: { key: FormatKey; labelKey: string }[] = [
         { key: 'soap', labelKey: 'formatSoap' },
         { key: 'clinical', labelKey: 'formatClinical' },
+        { key: 'todo', labelKey: 'formatTodo' },
         { key: 'none', labelKey: 'formatNone' },
     ];
 
@@ -92,8 +93,8 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
                                     key={opt.key}
                                     onClick={() => { setFormat(opt.key); setDropdownOpen(false); }}
                                     className={`w-full text-left px-4 py-2.5 text-[15px] transition-colors ${format === opt.key
-                                            ? 'text-accent-blue font-semibold bg-accent-blue/10'
-                                            : 'text-text-primary hover:bg-bg-surface'
+                                        ? 'text-accent-blue font-semibold bg-accent-blue/10'
+                                        : 'text-text-primary hover:bg-bg-surface'
                                         }`}
                                 >
                                     {t(opt.labelKey)}
@@ -118,6 +119,7 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
                     <button
                         onClick={() => onSave(name, format)}
                         className="flex-1 h-full flex items-center justify-center text-[16px] font-bold text-accent-blue transition-opacity active:opacity-60"
+                        title={t('save')}
                     >
                         {t('save')}
                     </button>

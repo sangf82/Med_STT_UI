@@ -9,6 +9,7 @@ import { Badge } from '@/components/Badge';
 import { Card } from '@/components/Card';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { SurveyDialog } from '@/components/SurveyDialog';
 
 export default function DashboardPage() {
     const t = useTranslations('Dashboard');
@@ -17,7 +18,7 @@ export default function DashboardPage() {
     const r = useTranslations('Review');
     const router = useRouter();
     const { open: openSidebar } = useSidebar();
-    const { recordings, filter } = useAppContext();
+    const { recordings, filter, showSurvey, setShowSurvey } = useAppContext();
     const [showDevNotice, setShowDevNotice] = useState(false);
 
     const handleSearchClick = () => {
@@ -32,9 +33,10 @@ export default function DashboardPage() {
     });
 
     const headerTitle = useMemo(() => {
-        if (filter === 'SOAP Note') return r('soapNote');
-        if (filter === 'Clinical Summary') return r('ehrSummary');
-        if (filter === 'None') return r('raw');
+        if (filter === 'Ghi chú SOAP') return r('soapNote');
+        if (filter === 'Tóm tắt lâm sàng') return r('ehrSummary');
+        if (filter === 'Kế hoạch hành động') return r('todoList');
+        if (filter === 'Chưa phân loại') return r('raw');
         return '';
     }, [filter, r]);
 
@@ -144,7 +146,7 @@ export default function DashboardPage() {
                         key={rec.id}
                         className="cursor-pointer hover:border-border hover:bg-bg-surface transition-colors"
                         onClick={() => {
-                            const startTab = rec.format === 'Clinical Summary' ? 'ehr' : (rec.format === 'SOAP Note' ? 'soap' : 'freetext');
+                            const startTab = rec.format === 'Tóm tắt lâm sàng' ? 'ehr' : (rec.format === 'Ghi chú SOAP' ? 'soap' : (rec.format === 'Kế hoạch hành động' ? 'todo' : 'freetext'));
                             router.push(`/${startTab}?id=${rec.id}`);
                         }}
                     >
@@ -172,6 +174,10 @@ export default function DashboardPage() {
                 <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[100] bg-[#1a1a1a]/90 dark:bg-white/80 text-white dark:text-[#1a1a1a] px-5 py-2.5 rounded-full text-[13px] font-medium shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
                     {t('devMode')}
                 </div>
+            )}
+            {/* Survey Dialog Overlay */}
+            {showSurvey && (
+                <SurveyDialog onClose={() => setShowSurvey(false)} />
             )}
         </div>
     );

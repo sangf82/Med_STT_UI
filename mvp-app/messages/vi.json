@@ -66,14 +66,16 @@
         "skip": "Bỏ qua",
         "paused": "TẠM DỪNG",
         "name": "Tên",
-        "formatSoap": "SOAP Note",
+        "formatSoap": "Ghi chú SOAP",
         "formatClinical": "Tóm tắt lâm sàng",
-        "formatNone": "Không"
+        "formatTodo": "Kế hoạch hành động",
+        "formatNone": "Văn bản tự do"
     },
     "Review": {
         "consultation": "Tư vấn bệnh nhân",
         "soapNote": "Ghi chú SOAP",
         "ehrSummary": "Tóm tắt lâm sàng",
+        "todoList": "Kế hoạch hành động",
         "freeText": "Văn bản tự do",
         "raw": "Bản chữ gốc",
         "copySuccess": "Đã sao chép",
@@ -122,7 +124,11 @@
         "oneLiner": "Tóm tắt một dòng",
         "pertinentPositives": "Triệu chứng dương tính",
         "pertinentNegatives": "Triệu chứng âm tính",
-        "problemList": "Danh sách vấn đề"
+        "problemList": "Danh sách vấn đề",
+        "priority": "Ưu tiên",
+        "task": "Công việc",
+        "purpose": "Mục đích",
+        "status": "Trạng thái"
     },
     "Badge": {
         "transcribed": "Đã chuyển đổi",
@@ -134,13 +140,16 @@
     },
     "Survey": {
         "title": "Khảo sát nhanh",
-        "rate": "Đánh giá MedMate?",
-        "refer": "Giới thiệu cho bạn bè?",
-        "limit": "Sắp hết lượt dùng thử. Thêm chứ?",
+        "intro": "Hãy làm khảo sát này để có thêm lượt dùng",
+        "rate": "Bạn đánh giá MedMate như thế nào?",
+        "ratingReason": "Tại sao bạn chọn mức đánh giá này? (tùy chọn)",
+        "refer": "Bạn có muốn giới thiệu ứng dụng này cho bạn bè không?",
+        "limit": "Bạn sắp hết lượt dùng thử",
+        "limitSub": "Nhưng bạn có muốn dùng thêm nữa không?",
         "yes": "Có",
         "no": "Không",
-        "submit": "Gửi phản hồi",
+        "submit": "Gửi khảo sát",
         "thanks": "Cảm ơn bạn!",
-        "thanksSub": "Chúng tôi trân trọng phản hồi của bạn."
+        "thanksSub": "Cảm ơn phản hồi của bạn, hãy tiếp tục sử dụng ứng dụng."
     }
 }

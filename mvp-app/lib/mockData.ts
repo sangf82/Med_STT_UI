@@ -1,173 +1,242 @@
 export interface Profile {
-    name: string;
-    initials: string;
-    specialty: string;
-    hospital: string;
-    email: string;
-    phone: string;
-    npi: string;
+  name: string;
+  initials: string;
+  specialty: string;
+  hospital: string;
+  email: string;
+  phone: string;
+  npi: string;
 }
 
 export const doctorProfile: Profile = {
-    name: "Dr. Sarah Chen",
-    initials: "SC",
-    specialty: "Cardiology",
-    hospital: "Memorial Hospital",
-    email: "s.chen@memorial.org",
-    phone: "+1 (555) 012-3456",
-    npi: "1234567890"
+  name: "Dr. Sarah Chen",
+  initials: "SC",
+  specialty: "Cardiology",
+  hospital: "Memorial Hospital",
+  email: "s.chen@memorial.org",
+  phone: "+1 (555) 012-3456",
+  npi: "1234567890"
 };
 
 export type RecordingStatus = "transcribed" | "transcribing" | "error";
 
 export interface Recording {
-    id: string;
-    title: string;
-    patient: string;
-    format: string | null;
-    duration: string;
-    date: string;
-    status: RecordingStatus;
-    progress?: number;
+  id: string;
+  title: string;
+  patient: string;
+  format: string | null;
+  duration: string;
+  date: string;
+  status: RecordingStatus;
+  progress?: number;
 }
 
 export const initialRecordings: Recording[] = [
-    {
-        id: "rec-001",
-        title: "Encounter #102",
-        patient: "M. Johnson",
-        format: "SOAP Note",
-        duration: "04:23",
-        date: "Oct 12, 2025",
-        status: "transcribed"
-    },
-    {
-        id: "rec-002",
-        title: "Post-Op Follow-up #45",
-        patient: "K. Lee",
-        format: "SOAP Note",
-        duration: "02:15",
-        date: "Just now",
-        status: "transcribing",
-        progress: 65
-    },
-    {
-        id: "rec-003",
-        title: "Clinical Note – Heart Exam",
-        patient: "R. Williams",
-        format: "Clinical Summary",
-        duration: "12:07",
-        date: "Oct 11, 2025",
-        status: "transcribed"
-    },
-    {
-        id: "rec-004",
-        title: "Patient Intake – J. Smith",
-        patient: "J. Smith",
-        format: null,
-        duration: "08:45",
-        date: "Oct 9, 2025",
-        status: "transcribed"
-    },
-    {
-        id: "rec-005",
-        title: "Diabetes Review – A. Patel",
-        patient: "A. Patel",
-        format: "SOAP Note",
-        duration: "06:12",
-        date: "Oct 8, 2025",
-        status: "transcribed"
-    },
-    {
-        id: "rec-006",
-        title: "Pre-Op Assessment #78",
-        patient: "L. Garcia",
-        format: "Clinical Summary",
-        duration: "03:50",
-        date: "Oct 7, 2025",
-        status: "transcribed"
-    },
-    {
-        id: "rec-007",
-        title: "Neuro Consult – T. Brown",
-        patient: "T. Brown",
-        format: "SOAP Note",
-        duration: "15:22",
-        date: "Oct 5, 2025",
-        status: "transcribed"
-    },
-    {
-        id: "rec-008",
-        title: "Cardiology Follow-up #33",
-        patient: "M. Davis",
-        format: "SOAP Note",
-        duration: "07:18",
-        date: "Oct 4, 2025",
-        status: "error"
-    },
-    {
-        id: "rec-009",
-        title: "Pediatrics Wellness Check",
-        patient: "S. Wilson",
-        format: null,
-        duration: "04:05",
-        date: "Oct 3, 2025",
-        status: "transcribed"
-    },
-    {
-        id: "rec-010",
-        title: "Emergency Intake – R. Taylor",
-        patient: "R. Taylor",
-        format: "Clinical Summary",
-        duration: "09:30",
-        date: "Oct 2, 2025",
-        status: "error"
-    }
+  {
+    id: "rec-002",
+    title: "Theo dõi sau mổ #45",
+    patient: "K. Lee",
+    format: "Tóm tắt lâm sàng",
+    duration: "02:15",
+    date: "Vừa xong",
+    status: "transcribed"
+  },
+  {
+    id: "rec-012",
+    title: "Khám Tổng quát - V. Anh",
+    patient: "V. Anh",
+    format: "Ghi chú SOAP",
+    duration: "03:45",
+    date: "Đang xử lý...",
+    status: "transcribing",
+    progress: 65
+  },
+  {
+    id: "rec-013",
+    title: "Tư vấn Dinh dưỡng - L. Chi",
+    patient: "L. Chi",
+    format: "Tóm tắt lâm sàng",
+    duration: "05:20",
+    date: "Lỗi xử lý",
+    status: "error"
+  },
+  {
+    id: "rec-001",
+    title: "Ca khám #102",
+    patient: "M. Johnson",
+    format: "Ghi chú SOAP",
+    duration: "04:23",
+    date: "12/10/2025",
+    status: "transcribed"
+  },
+  {
+    id: "rec-003",
+    title: "Thăm khám Nhi khoa - Bé Bi",
+    patient: "Bé Bi",
+    format: "Ghi chú SOAP",
+    duration: "08:10",
+    date: "11/10/2025",
+    status: "transcribed"
+  },
+  {
+    id: "rec-004",
+    title: "Tóm tắt xuất viện - Bà Năm",
+    patient: "Bà Năm",
+    format: "Tóm tắt lâm sàng",
+    duration: "12:45",
+    date: "10/10/2025",
+    status: "transcribed"
+  },
+  {
+    id: "rec-005",
+    title: "Chuẩn bị Phẫu thuật - A. Tuấn",
+    patient: "A. Tuấn",
+    format: "Kế hoạch hành động",
+    duration: "03:20",
+    date: "09/10/2025",
+    status: "transcribed"
+  },
+  {
+    id: "rec-010",
+    title: "Tiếp nhận Cấp cứu – R. Taylor",
+    patient: "R. Taylor",
+    format: "Kế hoạch hành động",
+    duration: "09:30",
+    date: "02/10/2025",
+    status: "transcribed"
+  },
+  {
+    id: "rec-011",
+    title: "Tư vấn Bệnh nhân – S. Wang",
+    patient: "S. Wang",
+    format: "Chưa phân loại",
+    duration: "05:12",
+    date: "01/10/2025",
+    status: "transcribed"
+  }
 ];
 
-export const soapNoteMockEN = `One-liner: 58-year-old male with a history of HTN and type 2 DM presents with severe left chest pain, currently diagnosed with acute anterior ST-elevation myocardial infarction (STEMI), day 1 post percutaneous coronary intervention (PCI).
+export const soapNoteMockEN = `**One-liner**: <mark>58-year-old male</mark>, <mark>history of HTN and type 2 DM</mark>, admitted for <mark>severe left chest pain</mark>, current diagnosis <mark>Acute anterior STEMI</mark>, day 1 post <mark>PCI</mark>.
 
-S (Subjective): Patient reports mild residual chest tightness in the epigastric region, non-radiating. No shortness of breath, no diaphoresis.
+### S (Subjective)
+Patient reports <mark>mild residual chest tightness in the epigastric region</mark>, non-radiating. <mark>No shortness of breath</mark>, <mark>no diaphoresis</mark>.
 
-O (Objective): HR 82 bpm, BP 130/80 mmHg. Radial artery puncture site is dry, no hematoma. Heart sounds regular, lungs clear. ECG check: ST segment elevation decreased by > 50%.
+### O (Objective)
+- <mark>HR 82 bpm, BP 130/80 mmHg</mark>.
+- <mark>Radial artery puncture site is dry</mark>, no hematoma.
+- Heart sounds regular, lungs clear. 
+- ECG: <mark>ST elevation decreased > 50%</mark>.
 
-A (Assessment): Day 1 STEMI post PCI hour 6 - Hemodynamically stable - Killip I.
+### A (Assessment)
+<mark>STEMI day 1 post PCI hour 6</mark> - <mark>Hemodynamically stable</mark> - Killip I.
 
-P (Plan): Continue dual antiplatelet therapy (DAPT), high-dose Statin, glycemic control, and closely monitor for arrhythmic complications.`;
+### P (Plan)
+1. Continue <mark>dual antiplatelet therapy (DAPT)</mark>.
+2. <mark>high-dose Statin</mark>.
+3. Glycemic control.
+4. Closely monitor for arrhythmic complications.`;
 
-export const soapNoteMockVI = `One-liner: Bệnh nhân Nam 58 tuổi, tiền sử THA và ĐTĐ tuýp 2, vào viện vì đau ngực trái dữ dội, chẩn đoán hiện tại là Nhồi máu cơ tim cấp (STEMI) vùng trước rộng, điều trị ngày 1 bằng can thiệp mạch vành (PCI).
+export const soapNoteMockVI = `**One-liner**: Bệnh nhân <mark>Nam</mark> <mark>58 tuổi</mark>, <mark>tiền sử THA và ĐTĐ tuýp 2</mark>, vào viện vì <mark>đau ngực trái dữ dội</mark>, chẩn đoán hiện tại là <mark>Nhồi máu cơ tim cấp (STEMI) vùng trước rộng</mark>, điều trị <mark>ngày 1</mark> bằng <mark>can thiệp mạch vành (PCI)</mark>.
 
-S (Subjective): Bệnh nhân còn đau tức ngực nhẹ tại vùng thượng vị, không lan. Không khó thở, không vã mồ hôi.
+### S (Subjective)
+Bệnh nhân còn <mark>đau tức ngực nhẹ tại vùng thượng vị</mark>, không lan. <mark>Không khó thở</mark>, <mark>không vã mồ hôi</mark>.
 
-O (Objective): Mạch 82 l/p, HA 130/80 mmHg. Vết chọc động mạch quay khô, không tụ máu. Tim đều, phổi trong. ECG kiểm tra: ST đã giảm chênh xuống > 50%.
+### O (Objective)
+- <mark>Mạch 82 l/p</mark>, <mark>HA 130/80 mmHg</mark>.
+- <mark>Vết chọc động mạch quay khô</mark>, không tụ máu.
+- Tim đều, phổi trong. 
+- ECG kiểm tra: <mark>ST đã giảm chênh xuống > 50%</mark>.
 
-A (Assessment): STEMI ngày 1 sau PCI giờ thứ 6 - Huyết động ổn định - Killip I.
+### A (Assessment)
+<mark>Nhận định</mark>: <mark>STEMI ngày 1 sau PCI giờ thứ 6</mark> - <mark>Huyết động ổn định</mark> - Killip I.
 
-P (Plan): Tiếp tục thuốc kháng kết tập tiểu cầu kép (DAPT), Statin liều cao, kiểm soát đường huyết và theo dõi sát biến chứng loạn nhịp.`;
+### P (Plan)
+1. Tiếp tục <mark>thuốc kháng kết tập tiểu cầu kép (DAPT)</mark>.
+2. <mark>Statin liều cao</mark>.
+3. Kiểm soát đường huyết.
+4. Theo dõi sát biến chứng loạn nhịp.`;
 
-export const ehrSummaryMockEN = `One-liner: 58-year-old male with a history of HTN and type 2 DM presents with typical angina, 2 hours of onset.
+export const ehrSummaryMockEN = `**One-liner**: <mark>58-year-old male</mark>, <mark>history of HTN and type 2 DM</mark>, admitted for <mark>typical angina</mark>, 2 hours of onset.
 
-Recorded Syndromes:
-Acute Coronary Syndrome: Crushing chest pain radiating to the left arm, diaphoresis, ECG shows ST elevation in V1-V4, Troponin I positive.
-Risk Factor Synthesis: Poorly controlled HTN, type 2 DM, long-term smoking history.`;
+### Recorded Syndromes
+- **ACS**: <mark>Crushing chest pain</mark> radiating to left arm, <mark>diaphoresis</mark>, ECG shows <mark>ST elevation in V1-V4</mark>, <mark>Troponin I positive</mark>.
+- **Risk Factors**: <mark>Poorly controlled HTN</mark>, <mark>type 2 DM</mark>, <mark>long-term smoking history</mark>.`;
 
-export const ehrSummaryMockVI = `One-liner: Bệnh nhân Nam 58 tuổi, tiền sử THA và ĐTĐ tuýp 2, vào viện vì đau thắt ngực điển hình giờ thứ 2.
+export const ehrSummaryMockVI = `**One-liner**: Bệnh nhân <mark>Nam</mark> <mark>58 tuổi</mark>, <mark>tiền sử THA và ĐTĐ tuýp 2</mark>, vào viện vì <mark>đau thắt ngực điển hình giờ thứ 2</mark>.
 
-Các hội chứng ghi nhận:
-Hội chứng vành cấp: Đau ngực kiểu đè ép, lan tay trái, vã mồ hôi, ECG có ST chênh lên V1-V4, Troponin I dương tính.
-Nhóm triệu chứng yếu tố nguy cơ: Tiền sử THA kiểm soát kém, ĐTĐ tuýp 2, hút thuốc lá lâu năm.`;
+### Các hội chứng ghi nhận
+- **Hội chứng vành cấp**: <mark>Đau ngực kiểu đè ép, lan tay trái, vã mồ hôi</mark>, ECG có <mark>ST chênh lên V1-V4</mark>, <mark>Troponin I dương tính</mark>.
+- **Nhóm triệu chứng yếu tố nguy cơ**: <mark>Tiền sử THA kiểm soát kém, ĐTĐ tuýp 2, hút thuốc lá lâu năm</mark>.
 
-export const freeTextMockEN = `So the patient comes in today reporting that they've been experiencing chest tightness, um, primarily when they're doing physical activity over the past three weeks. They describe it as a squeezing pressure that lasts about five to ten minutes. They deny any radiation to arms or jaw. They do report some mild shortness of breath on exertion.
+**Dữ kiện có nghĩa**:
+- <mark>Đau ngực kiểu mạch vành điểm 8/10</mark>
+- <mark>ECG có ST chênh lên > 2 mm</mark>
+- <mark>Troponin I (+) nhanh</mark>
 
-On examination, blood pressure is one forty-five over ninety-two. Heart rate is eighty-two, regular. Chest auscultation reveals normal S1 and S2. No murmurs, no gallops detected. Lungs are clear bilaterally. ECG shows normal sinus rhythm with no ST elevation or depression.
+**Chẩn đoán sơ bộ**:
+1. <mark>Nhồi máu cơ tim cấp (STEMI) vùng trước rộng giờ thứ 2</mark>.
+2. <mark>Tăng huyết áp</mark>.
+3. <mark>Đái tháo đường tuýp 2</mark>.`;
 
-My assessment is exertional chest tightness with elevated blood pressure. The differential would include stable angina and hypertension-related symptoms. I think the risk for acute coronary syndrome is low at this point.
+export const freeTextMockEN = `Patient reports <mark>chest tightness</mark> during <mark>physical activity</mark> over the past <mark>three weeks</mark>. Described as <mark>squeezing pressure</mark> lasting <mark>5-10 minutes</mark>. No radiation. Some <mark>mild shortness of breath</mark> on exertion.
 
-For the plan, I'm going to start them on amlodipine five milligrams daily for the blood pressure. I want to order a stress echocardiogram, get a lipid panel and basic metabolic panel. We'll follow up in two weeks and I'm advising moderate exercise with symptom monitoring in the meantime.`;
-export const freeTextMockVI = `B\u1ec7nh nh\u00e2n h\u00f4m nay \u0111\u1ebfn b\u00e1o c\u00e1o r\u1eb1ng h\u1ecd \u0111\u00e3 b\u1ecb \u0111au th\u1eaft ng\u1ef1c, ch\u1ee7 y\u1ebfu l\u00e0 khi h\u1ecd l\u00e0m c\u00e1c ho\u1ea1t \u0111\u1ed9ng th\u1ec3 ch\u1ea5t trong ba tu\u1ea7n qua. H\u1ecd m\u00f4 t\u1ea3 c\u1ea3m gi\u00e1c nh\u01b0 b\u1ecb b\u00f3p ngh\u1eb9t k\u00e9o d\u00e0i kho\u1ea3ng n\u0103m \u0111\u1ebfn m\u01b0\u1eddi ph\u00fat. H\u1ecd ph\u1ee7 nh\u1eadn b\u1ea5t k\u1ef3 s\u1ef1 lan sang c\u00e1nh tay hay h\u00e0m. H\u1ecd c\u00f3 b\u00e1o c\u00e1o kh\u00f3 th\u1edf nh\u1eb9 khi g\u1eafng s\u1ee9c.
+On examination, <mark>BP 145/92 mmHg</mark>, <mark>HR 82</mark>. Chest auscultation reveals normal S1 and S2. Lungs clear. ECG shows normal sinus rhythm.
 
-Kh\u00e1m l\u00e2m s\u00e0ng, huy\u1ebft \u00e1p 145/92 mmHg. Nh\u1ecbp tim 82, \u0111\u1ec1u. Nghe tim ph\u1ed5i b\u00ecnh th\u01b0\u1eddng S1 v\u00e0 S2. Kh\u00f4ng ti\u1ebfng th\u1ed5i, kh\u00f4ng gallop. Ph\u1ed5i trong hai b\u00ean. \u0110i\u1ec7n t\u00e2m \u0111\u1ed3 cho th\u1ea5y nh\u1ecbp xoang b\u00ecnh th\u01b0\u1eddng, kh\u00f4ng c\u00f3 ST ch\u00eanh l\u00ean hay xu\u1ed1ng.
+Assessment: <mark>Exertional chest tightness</mark> with <mark>elevated blood pressure</mark>. Plan: Start <mark>amlodipine 5mg daily</mark>, order <mark>stress echocardiogram</mark>, lipid panel.`;
 
-\u0110\u00e1nh gi\u00e1 c\u1ee7a t\u00f4i l\u00e0 \u0111au th\u1eaft ng\u1ef1c khi g\u1eafng s\u1ee9c v\u1edbi huy\u1ebft \u00e1p t\u0103ng cao. Ch\u1ea9n \u0111o\u00e1n ph\u00e2n bi\u1ec7t bao g\u1ed3m \u0111au th\u1eaft ng\u1ef1c \u1ed5n \u0111\u1ecbnh v\u00e0 c\u00e1c tri\u1ec7u ch\u1ee9ng li\u00ean quan \u0111\u1ebfn t\u0103ng huy\u1ebft \u00e1p. T\u00f4i ngh\u0129 nguy c\u01a1 h\u1ed9i ch\u1ee9ng m\u1ea1ch v\u00e0nh c\u1ea5p th\u1ea5p \u1edf th\u1eddi \u0111i\u1ec3m n\u00e0y.
+export const freeTextMockVI = `Bệnh nhân hôm nay đến báo cáo rằng họ đã bị <mark>đau thắt ngực</mark>, chủ yếu là khi họ làm các hoạt động thể chất trong <mark>ba tuần qua</mark>. Họ mô tả cảm giác như <mark>bị bóp nghẹt kéo dài khoảng năm đến mười phút</mark>. Họ phủ nhận bất kỳ sự lan sang cánh tay hay hàm. Họ có báo cáo <mark>khó thở nhẹ khi gắng sức</mark>.
 
-V\u1ec1 k\u1ebf ho\u1ea1ch, t\u00f4i s\u1ebd b\u1eaft \u0111\u1ea7u cho b\u1ec7nh nh\u00e2n d\u00f9ng amlodipine 5mg h\u00e0ng ng\u00e0y cho huy\u1ebft \u00e1p. T\u00f4i mu\u1ed1n y\u00eau c\u1ea7u si\u00eau \u00e2m tim g\u1eafng s\u1ee9c, x\u00e9t nghi\u1ec7m lipid v\u00e0 \u0111i\u1ec7n gi\u1ea3i c\u01a1 b\u1ea3n. Ch\u00fang t\u00f4i s\u1ebd t\u00e1i kh\u00e1m sau hai tu\u1ea7n v\u00e0 khuy\u00ean t\u1eadp th\u1ec3 d\u1ee5c v\u1eeba ph\u1ea3i, theo d\u00f5i tri\u1ec7u ch\u1ee9ng.`;
+Khám lâm sàng, <mark>huyết áp 145/92 mmHg</mark>. Nhịp tim <mark>82</mark>, đều. Nghe tim phổi bình thường S1 và S2. Không tiếng thổi, không gallop. Phổi trong hai bên. Điện tâm đồ cho thấy nhịp xoang bình thường, không có ST chênh lên hay xuống.
+
+Đánh giá của tôi là <mark>đau thắt ngực khi gắng sức với huyết áp tăng cao</mark>. Chẩn đoán phân biệt bao gồm đau thắt ngực ổn định và các triệu chứng liên quan đến tăng huyết áp. Tôi nghĩ nguy cơ hội chứng mạch và hội cấp thấp ở thời điểm này.
+
+Về kế hoạch, tôi sẽ bắt đầu cho bệnh nhân dùng <mark>amlodipine 5mg hàng ngày</mark> cho huyết áp. Tôi muốn yêu cầu <mark>siêu âm tim gắng sức</mark>, xét nghiệm lipid và điện giải cơ bản. Chúng tôi sẽ tái khám sau hai tuần và khuyên tập thể dục vừa phải, theo dõi triệu chứng.`;
+
+export const todoListMDMockVI = `
+- [ ] **STAT**: Lấy máu xét nghiệm <mark>Troponin I</mark> giờ thứ 3 (*Mục đích: Theo dõi động học men tim*)
+- [ ] **STAT**: Liên hệ đơn vị <mark>Cathlab</mark> (*Mục đích: Chuẩn bị can thiệp PCI*)
+- [ ] **Routine**: Giải thích tình trạng cho gia đình (*Mục đích: Cam kết thực hiện thủ thuật*)
+- [ ] **Follow-up**: Theo dõi <mark>HA & nhịp tim</mark> mỗi 15 phút (*Mục đích: Phát hiện sớm loạn nhịp/sốc*)
+`;
+
+export const todoListMDMockEN = `
+- [ ] **STAT**: Draw blood for <mark>Troponin I</mark> at hour 3 (*Purpose: Monitor cardiac enzyme kinetics*)
+- [ ] **STAT**: Contact <mark>Cathlab</mark> unit (*Purpose: Prepare for PCI intervention*)
+- [ ] **Routine**: Explain condition to family (*Purpose: Obtain procedure consent*)
+- [ ] **Follow-up**: Monitor <mark>BP & HR</mark> every 15 minutes (*Purpose: Early detection of arrhythmia/shock*)
+`;
+
+// New variations for more variety
+export const pediatricSOAPMockVI = `**One-liner**: Bệnh nhân <mark>Nữ</mark> <mark>4 tuổi</mark>, <mark>không tiền sử bệnh lý</mark>, vào viện vì <mark>sốt cao và ho có đờm</mark> ngày thứ 2.
+
+### S (Subjective)
+Mẹ báo bé <mark>sốt cao 39°C</mark> đáp ứng kém với hạ sốt. <mark>Quấy khóc, lười ăn</mark>, chưa ghi nhận co giật.
+
+### O (Objective)
+- <mark>Nhiệt độ 38.5°C</mark>, <mark>mạch 110 l/p</mark>.
+- Họng đỏ, amidan không mủ.
+- Phổi có <mark>rales ẩm rải rác</mark> bên phải.
+- SpO2: <mark>96%</mark>.
+
+### A (Assessment)
+<mark>Viêm phế quản phổi cấp</mark> ngày 2 - Theo dõi viêm phổi thùy.
+
+### P (Plan)
+1. Kháng sinh <mark>Augmentin 250mg</mark> x 2 lần/ngày.
+2. Hạ sốt <mark>Hapacol 250mg</mark> khi sốt > 38.5°C.
+3. Vỗ rung lồng ngực.
+`;
+
+export const geriatricDischargeMockVI = `**One-liner**: Bệnh nhân <mark>Nữ</mark> <mark>82 tuổi</mark>, tiền sử <mark>THA, suy tim EF 40%</mark>, ra viện sau 5 ngày điều trị <mark>ợ huyết khối tĩnh mạch sâu</mark>.
+
+### Recorded Syndromes
+- **Hội chứng suy tim**: <mark>Khó thở NYHA II</mark>, <mark>phù nhẹ mu bàn chân</mark> đã giảm.
+
+### Dữ kiện có nghĩa
+- <mark>INR: 2.5</mark> (trong ngưỡng mục tiêu).
+- Siêu âm mạch: cục máu đông đang thoái triển.
+
+### Chẩn đoán sơ bộ
+1. <mark>Suy tim mạn tính</mark>.
+2. <mark>Hậu phẫu DVT</mark>.
+`;

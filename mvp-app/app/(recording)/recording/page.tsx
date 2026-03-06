@@ -132,9 +132,11 @@ export default function RecordingPage() {
         setShowSave(true);
     };
     const handleCancelSave = () => setShowSave(false);
-    const handleConfirmSave = () => {
+    const handleConfirmSave = (name: string, format: string) => {
         recorder.stop();
-        router.push('/format');
+        // Skip /format page — go directly to review page based on chosen format
+        const formatRoute = format === 'clinical' ? 'ehr' : format === 'none' ? 'freetext' : format;
+        router.push(`/${formatRoute}?id=rec-001`);
     };
 
     // Keep seekPosition in sync during playback

@@ -2,10 +2,11 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import { Shield, AudioLines, Settings, FileText, ClipboardList, FileCode, Star, MessageSquareQuote, Users2 } from 'lucide-react'
+import { Shield, AudioLines, Settings, FileText, ClipboardList, FileCode, Star, MessageSquareQuote, Users2, ListTodo } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from "next-intl"
 import { useAppContext } from "@/context/AppContext"
+import { Dialog } from "@/components/Dialog"
 
 export interface SidebarProps {
     open: boolean;
@@ -22,7 +23,7 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
     const t = useTranslations('Dashboard')
     const r = useTranslations('Review')
     const s = useTranslations('Survey')
-    const { recordings, filter, setFilter } = useAppContext()
+    const { recordings, filter, setFilter, showTrialPanel, setShowTrialPanel } = useAppContext()
 
     // Block scroll on body
     React.useEffect(() => {
@@ -71,58 +72,75 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                         <span className={cn("text-[12px] font-bold", filter === null ? "text-accent-orange/60" : "text-text-muted")}>{recordings.length}</span>
                     </button>
 
-                    {/* Filter: SOAP Note */}
+                    {/* Filter: Ghi chú SOAP */}
                     <button
-                        onClick={() => { setFilter('SOAP Note'); router.push('/dashboard'); onClose() }}
+                        onClick={() => { setFilter('Ghi chú SOAP'); router.push('/dashboard'); onClose() }}
                         className={cn(
                             "flex items-center justify-between px-4 h-[44px] w-full text-left rounded-xl transition-colors focus-visible:outline-none shrink-0",
-                            filter === 'SOAP Note' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
+                            filter === 'Ghi chú SOAP' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
                         )}
                     >
                         <div className="flex items-center gap-3.5">
-                            <FileText className={cn("w-[18px] h-[18px]", filter === 'SOAP Note' ? "text-accent-orange" : "text-text-secondary")} />
-                            <span className={cn("text-[14px] font-medium", filter === 'SOAP Note' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('soapNote')}</span>
+                            <FileText className={cn("w-[18px] h-[18px]", filter === 'Ghi chú SOAP' ? "text-accent-orange" : "text-text-secondary")} />
+                            <span className={cn("text-[14px] font-medium", filter === 'Ghi chú SOAP' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('soapNote')}</span>
                         </div>
-                        <span className={cn("text-[12px] font-semibold", filter === 'SOAP Note' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
-                            {recordings.filter(rec => rec.format === 'SOAP Note').length}
+                        <span className={cn("text-[12px] font-semibold", filter === 'Ghi chú SOAP' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
+                            {recordings.filter(rec => rec.format === 'Ghi chú SOAP').length}
                         </span>
                     </button>
 
-                    {/* Filter: Clinical Summary */}
+                    {/* Filter: Tóm tắt lâm sàng */}
                     <button
-                        onClick={() => { setFilter('Clinical Summary'); router.push('/dashboard'); onClose() }}
+                        onClick={() => { setFilter('Tóm tắt lâm sàng'); router.push('/dashboard'); onClose() }}
                         className={cn(
                             "flex items-center justify-between px-4 h-[44px] w-full text-left rounded-xl transition-colors focus-visible:outline-none shrink-0",
-                            filter === 'Clinical Summary' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
+                            filter === 'Tóm tắt lâm sàng' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
                         )}
                     >
                         <div className="flex items-center gap-3.5">
-                            <ClipboardList className={cn("w-[18px] h-[18px]", filter === 'Clinical Summary' ? "text-accent-orange" : "text-text-secondary")} />
-                            <span className={cn("text-[14px] font-medium", filter === 'Clinical Summary' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('ehrSummary')}</span>
+                            <ClipboardList className={cn("w-[18px] h-[18px]", filter === 'Tóm tắt lâm sàng' ? "text-accent-orange" : "text-text-secondary")} />
+                            <span className={cn("text-[14px] font-medium", filter === 'Tóm tắt lâm sàng' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('ehrSummary')}</span>
                         </div>
-                        <span className={cn("text-[12px] font-semibold", filter === 'Clinical Summary' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
-                            {recordings.filter(rec => rec.format === 'Clinical Summary').length}
+                        <span className={cn("text-[12px] font-semibold", filter === 'Tóm tắt lâm sàng' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
+                            {recordings.filter(rec => rec.format === 'Tóm tắt lâm sàng').length}
                         </span>
                     </button>
 
-                    {/* Filter: Original Text */}
+                    {/* Filter: Kế hoạch hành động */}
                     <button
-                        onClick={() => { setFilter('None'); router.push('/dashboard'); onClose() }}
+                        onClick={() => { setFilter('Kế hoạch hành động'); router.push('/dashboard'); onClose() }}
                         className={cn(
                             "flex items-center justify-between px-4 h-[44px] w-full text-left rounded-xl transition-colors focus-visible:outline-none shrink-0",
-                            filter === 'None' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
+                            filter === 'Kế hoạch hành động' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
                         )}
                     >
                         <div className="flex items-center gap-3.5">
-                            <FileCode className={cn("w-[18px] h-[18px]", filter === 'None' ? "text-accent-orange" : "text-text-secondary")} />
-                            <span className={cn("text-[14px] font-medium", filter === 'None' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('raw')}</span>
+                            <ListTodo className={cn("w-[18px] h-[18px]", filter === 'Kế hoạch hành động' ? "text-accent-orange" : "text-text-secondary")} />
+                            <span className={cn("text-[14px] font-medium", filter === 'Kế hoạch hành động' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('todoList')}</span>
                         </div>
-                        <span className={cn("text-[12px] font-semibold", filter === 'None' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
-                            {recordings.filter(rec => !rec.format).length}
+                        <span className={cn("text-[12px] font-semibold", filter === 'Kế hoạch hành động' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
+                            {recordings.filter(rec => rec.format === 'Kế hoạch hành động').length}
                         </span>
                     </button>
 
-                    <div className="h-2 my-1 border-t border-divider/50 mx-4" />
+                    {/* Filter: Chưa phân loại */}
+                    <button
+                        onClick={() => { setFilter('Chưa phân loại'); router.push('/dashboard'); onClose() }}
+                        className={cn(
+                            "flex items-center justify-between px-4 h-[44px] w-full text-left rounded-xl transition-colors focus-visible:outline-none shrink-0",
+                            filter === 'Chưa phân loại' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
+                        )}
+                    >
+                        <div className="flex items-center gap-3.5">
+                            <FileCode className={cn("w-[18px] h-[18px]", filter === 'Chưa phân loại' ? "text-accent-orange" : "text-text-secondary")} />
+                            <span className={cn("text-[14px] font-medium", filter === 'Chưa phân loại' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('raw')}</span>
+                        </div>
+                        <span className={cn("text-[12px] font-semibold", filter === 'Chưa phân loại' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
+                            {recordings.filter(rec => rec.format === 'Chưa phân loại' || !rec.format).length}
+                        </span>
+                    </button>
+
+                    <div className="my-1 border-t border-divider/50 mx-4" />
 
                     {/* Settings */}
                     <button
@@ -132,13 +150,13 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                         <Settings className="w-[18px] h-[18px] text-text-secondary" />
                         <span className="text-[14px] font-medium text-text-primary">{t('settings')}</span>
                     </button>
-                </div>
 
-                {recordings.length >= 5 && (
-                    <div className="px-3 mb-2">
-                        <SidebarSurvey t={s} />
-                    </div>
-                )}
+                    {showTrialPanel && recordings.length >= 5 && (
+                        <div className="mt-auto pt-4 mb-1 px-1">
+                            <SidebarSurvey t={s} onAction={onClose} />
+                        </div>
+                    )}
+                </div>
 
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-divider">
@@ -152,106 +170,50 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
     )
 }
 
-function SidebarSurvey({ t }: { t: any }) {
-    const [rating, setRating] = React.useState<number | null>(null);
-    const [refered, setRefered] = React.useState<boolean | null>(null);
-    const [limit, setLimit] = React.useState<boolean | null>(null);
-    const [submitted, setSubmitted] = React.useState(false);
-
-    if (submitted) {
-        return (
-            <div className="bg-bg-surface rounded-xl p-4 flex flex-col items-center justify-center gap-2 border border-divider/60 text-center fade-in shadow-sm min-h-[140px]">
-                <div className="w-9 h-9 rounded-full bg-accent-blue/10 flex items-center justify-center text-accent-blue">
-                    <Star className="w-4.5 h-4.5 fill-current" />
-                </div>
-                <div className="flex flex-col gap-0.5 text-center">
-                    <h3 className="text-[14px] font-bold text-text-primary">{t('thanks')}</h3>
-                    <p className="text-[13px] font-medium text-text-muted">{t('thanksSub')}</p>
-                </div>
-            </div>
-        );
-    }
-
-    const canSubmit = rating !== null || refered !== null || limit !== null;
+function SidebarSurvey({ t, onAction }: { t: any; onAction: () => void }) {
+    const { setShowSurvey, setShowTrialPanel } = useAppContext();
 
     return (
-        <div className="bg-bg-surface rounded-xl p-2.5 flex flex-col gap-2 border border-divider/60">
-            <div className="flex flex-col gap-1.5">
-                <p className="text-[14px] font-semibold text-text-primary leading-tight px-0.5">{t('rate')}</p>
-                <div className="flex gap-1 px-0.5">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                        <button
-                            key={star}
-                            onClick={() => setRating(star)}
-                            className={cn(
-                                "flex-1 h-7 rounded-lg flex items-center justify-center transition-all active:scale-95",
-                                rating === star ? "bg-accent-orange text-white shadow-sm shadow-accent-orange/20" : "bg-bg-page text-text-muted hover:text-accent-orange border border-divider/30"
-                            )}
-                        >
-                            <span className="text-[11px] font-bold">{star}</span>
-                        </button>
-                    ))}
+        <div
+            className="bg-white rounded-[20px] p-[16px] w-full flex flex-col gap-4 border border-[#EEEEEE] shadow-sm mb-4"
+        >
+            <div className="flex items-start gap-3">
+                {/* Icon box */}
+                <div className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg bg-accent-orange/10 text-accent-orange">
+                    <MessageSquareQuote className="w-4.5 h-4.5" />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                    <p className="text-[14px] font-bold text-[#1A1A1A] leading-tight">
+                        {t('limit')}
+                    </p>
+                    <p className="text-[12px] font-medium text-[#666666] leading-snug">
+                        {t('limitSub')}
+                    </p>
                 </div>
             </div>
 
-            <div className="h-px bg-divider/10 mx-0.5" />
-
-            <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-1.5 px-0.5">
-                    <Users2 className="w-3.5 h-3.5 text-accent-blue" />
-                    <p className="text-[14px] font-medium text-text-secondary leading-tight">{t('refer')}</p>
-                </div>
-                <div className="flex gap-1 px-0.5">
-                    <SurveyButton
-                        active={refered === true}
-                        onClick={() => setRefered(true)}
-                        label={t('yes')}
-                        variant="blue"
-                    />
-                    <SurveyButton
-                        active={refered === false}
-                        onClick={() => setRefered(false)}
-                        label={t('no')}
-                        variant="muted"
-                    />
-                </div>
+            <div className="flex border-t border-[#F0F0F0] -mx-4 -mb-4 h-[44px]">
+                <button
+                    onClick={() => {
+                        onAction(); // Close sidebar
+                        setTimeout(() => setShowSurvey(true), 300); // Popup survey
+                    }}
+                    className="flex-1 text-[14px] font-bold text-accent-blue active:bg-bg-page transition-colors"
+                >
+                    {t('yes')}
+                </button>
+                <div className="w-[1px] h-4 bg-[#E0E0E0] self-center" />
+                <button
+                    onClick={() => {
+                        setShowTrialPanel(false);
+                        onAction();
+                    }}
+                    className="flex-1 text-[14px] font-bold text-[#888888] active:bg-bg-page transition-colors"
+                >
+                    {t('no')}
+                </button>
             </div>
-
-            <div className="h-px bg-divider/10 mx-0.5" />
-
-            <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-1.5 px-0.5">
-                    <MessageSquareQuote className="w-3.5 h-3.5 text-accent-orange" />
-                    <p className="text-[14px] font-medium text-text-secondary leading-tight">{t('limit')}</p>
-                </div>
-                <div className="flex gap-1 px-0.5">
-                    <SurveyButton
-                        active={limit === true}
-                        onClick={() => setLimit(true)}
-                        label={t('yes')}
-                        variant="orange"
-                    />
-                    <SurveyButton
-                        active={limit === false}
-                        onClick={() => setLimit(false)}
-                        label={t('no')}
-                        variant="muted"
-                    />
-                </div>
-            </div>
-
-            <button
-                disabled={!canSubmit}
-                onClick={() => setSubmitted(true)}
-                className={cn(
-                    "w-full py-2.5 mt-0.5 rounded-lg text-[13px] font-bold transition-all active:scale-95 border",
-                    canSubmit
-                        ? "bg-accent-blue text-white shadow-sm shadow-accent-blue/20 border-transparent"
-                        : "bg-bg-page text-text-muted border-divider/40 cursor-not-allowed"
-                )}
-            >
-                {t('submit')}
-            </button>
         </div>
     );
 }

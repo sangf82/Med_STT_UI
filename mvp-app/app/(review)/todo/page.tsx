@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useRef } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { ehrSummaryMockEN, ehrSummaryMockVI } from '@/lib/mockData';
+import { todoListMDMockEN, todoListMDMockVI } from '@/lib/mockData';
+import { useState, useRef } from 'react';
 import { useReview } from '../layout';
 import { RichTextEditor } from '@/components/RichTextEditor';
 
-export default function EhrSummaryPage() {
+export default function TodoListPage() {
+    const t = useTranslations('Review');
     const locale = useLocale();
 
-    const data = locale === 'vi' ? ehrSummaryMockVI : ehrSummaryMockEN;
-    const [content, setContent] = useState(data);
+    const mockData = locale === 'vi' ? todoListMDMockVI : todoListMDMockEN;
+    const [content, setContent] = useState(mockData);
     const { setSaveStatus } = useReview();
     const timeoutRef = useRef<NodeJS.Timeout>(null);
 

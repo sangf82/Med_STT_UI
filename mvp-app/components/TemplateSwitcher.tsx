@@ -5,10 +5,11 @@ import { ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 
-const TEMPLATES = [
+const TEMPLATES: Array<{ value: string; key: any }> = [
     { value: 'SOAP Note', key: 'formatSoap' },
     { value: 'Clinical Summary', key: 'formatClinical' },
-] as const;
+    { value: 'To-do List', key: 'formatTodo' },
+];
 
 export default function TemplateSwitcher() {
     const t = useTranslations('Recording');

@@ -68,12 +68,14 @@
         "name": "Name",
         "formatSoap": "SOAP Note",
         "formatClinical": "Clinical Summary",
+        "formatTodo": "To-do List",
         "formatNone": "None"
     },
     "Review": {
         "consultation": "Patient Consultation",
         "soapNote": "SOAP Note",
         "ehrSummary": "Clinical Summary",
+        "todoList": "To-do List",
         "freeText": "Free Text",
         "raw": "Original text",
         "copySuccess": "Copied",
@@ -122,7 +124,11 @@
         "oneLiner": "One Liner",
         "pertinentPositives": "Pertinent Positives",
         "pertinentNegatives": "Pertinent Negatives",
-        "problemList": "Problem List"
+        "problemList": "Problem List",
+        "priority": "Priority",
+        "task": "Task",
+        "purpose": "Purpose",
+        "status": "Status"
     },
     "Badge": {
         "transcribed": "Transcribed",

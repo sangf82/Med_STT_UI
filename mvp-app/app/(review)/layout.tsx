@@ -59,14 +59,16 @@ export default function ReviewLayout({
     const allTabs = [
         { id: 'soap', label: t('soapNote') },
         { id: 'ehr', label: t('ehrSummary') },
+        { id: 'todo', label: t('todoList') },
         { id: 'freetext', label: t('raw') }
     ];
 
     const tabs = useMemo(() => {
         return allTabs.filter(tab => {
             if (tab.id === 'freetext') return true;
-            if (format === 'SOAP Note' && tab.id === 'soap') return true;
-            if (format === 'Clinical Summary' && tab.id === 'ehr') return true;
+            if (format === 'Ghi chú SOAP' && tab.id === 'soap') return true;
+            if (format === 'Tóm tắt lâm sàng' && tab.id === 'ehr') return true;
+            if (format === 'Kế hoạch hành động' && tab.id === 'todo') return true;
             return false;
         });
     }, [format, t]);
@@ -75,6 +77,7 @@ export default function ReviewLayout({
         if (pathname.includes('/freetext')) return 'freetext';
         if (pathname.includes('/ehr')) return 'ehr';
         if (pathname.includes('/soap')) return 'soap';
+        if (pathname.includes('/todo')) return 'todo';
         return 'freetext';
     }, [pathname]);
 
@@ -85,21 +88,40 @@ export default function ReviewLayout({
     // Redirect if land on invalid tab for the record format
     useEffect(() => {
         if (!record) return;
-        const isSoapInvalid = pathname.includes('/soap') && format !== 'SOAP Note';
-        const isEhrInvalid = pathname.includes('/ehr') && format !== 'Clinical Summary';
+        const isSoapInvalid = pathname.includes('/soap') && format !== 'Ghi chú SOAP';
+        const isEhrInvalid = pathname.includes('/ehr') && format !== 'Tóm tắt lâm sàng';
+        const isTodoInvalid = pathname.includes('/todo') && format !== 'Kế hoạch hành động';
 
-        if (isSoapInvalid || isEhrInvalid) {
-            const startTab = format === 'Clinical Summary' ? 'ehr' : (format === 'SOAP Note' ? 'soap' : 'freetext');
+        if (isSoapInvalid || isEhrInvalid || isTodoInvalid) {
+            const startTab = format === 'Tóm tắt lâm sàng' ? 'ehr' : (format === 'Ghi chú SOAP' ? 'soap' : (format === 'Kế hoạch hành động' ? 'todo' : 'freetext'));
             router.replace(`/${startTab}?id=${recordId}`);
         }
     }, [pathname, record, format, recordId, router]);
 
     const handleCopy = () => {
-        const text = document.querySelector('textarea')?.value;
-        if (text) {
-            navigator.clipboard.writeText(text);
-            setCopySuccess(true);
-            setTimeout(() => setCopySuccess(false), 2000);
+        // Find the active TipTap editor instance by its class
+        const editorContentElement = document.querySelector('.ProseMirror');
+        if (editorContentElement) {
+            // Get plain text for normal pasting (Notepad)
+            const plainText = (editorContentElement as HTMLElement).innerText || '';
+            // Get rich HTML for formatted pasting (Word, Docs)
+            const htmlText = editorContentElement.innerHTML;
+
+            // Construct a clipboard item with both formats
+            const clipboardItem = new ClipboardItem({
+                'text/plain': new Blob([plainText], { type: 'text/plain' }),
+                'text/html': new Blob([htmlText], { type: 'text/html' })
+            });
+
+            navigator.clipboard.write([clipboardItem]).then(() => {
+                setCopySuccess(true);
+                setTimeout(() => setCopySuccess(false), 2000);
+            }).catch(() => {
+                // Fallback for older browsers
+                navigator.clipboard.writeText(plainText);
+                setCopySuccess(true);
+                setTimeout(() => setCopySuccess(false), 2000);
+            });
         }
     };
 
@@ -189,7 +211,7 @@ export default function ReviewLayout({
                     )}
 
                     {/* Dynamic Content */}
-                    <div className="flex-1 relative z-0 flex flex-col min-h-0">
+                    <div className="flex-1 relative flex flex-col min-h-0">
                         {record?.status === 'transcribing' ? (
                             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
                                 <div className="relative w-16 h-16 mb-6">
@@ -198,9 +220,6 @@ export default function ReviewLayout({
                                 </div>
                                 <p className="text-[16px] font-medium text-text-primary mb-2">
                                     {t('transcribingDetail')}
-                                </p>
-                                <p className="text-[14px] text-text-secondary max-w-[240px]">
-                                    {record.progress}% completed
                                 </p>
                             </div>
                         ) : record?.status === 'error' ? (
