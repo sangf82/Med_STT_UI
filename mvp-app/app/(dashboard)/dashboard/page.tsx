@@ -82,6 +82,10 @@ export default function DashboardPage() {
 
     useEffect(() => {
         loadDashboardData();
+        // Trigger background upload immediately when opening list (retry incomplete / stuck)
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("stt-trigger-upload"));
+        }
     }, [loadDashboardData]);
 
     // Poll when any record is transcribing or uploading so list updates when job completes

@@ -13,7 +13,7 @@ import { Dialog } from '@/components/Dialog';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { useAppContext } from '@/context/AppContext';
-import { getRecordById, updateRecord } from '@/lib/api/sttMetrics';
+import { getRecordById, updateRecord, retryRecord, deleteRecord } from '@/lib/api/sttMetrics';
 import type { SttRecord } from '@/lib/api/sttMetrics';
 
 
@@ -46,6 +46,7 @@ export default function ReviewLayout({
     const [copySuccess, setCopySuccess] = useState(false);
     const [recordData, setRecordData] = useState<SttRecord | null>(null);
     const [isLoadingRecord, setIsLoadingRecord] = useState(true);
+    const [isRetrying, setIsRetrying] = useState(false);
 
     useEffect(() => {
         let mounted = true;
@@ -319,7 +320,16 @@ export default function ReviewLayout({
                                     {t('errorDetail')}
                                 </h3>
                                 <button
-                                    onClick={() => window.location.reload()}
+                                    onClick={async () => {
+                                        if (!recordId) return;
+                                        try {
+                                            await retryRecord(recordId);
+                                            const updated = await getRecordById(recordId);
+                                            setRecordData(updated);
+                                        } catch (e) {
+                                            console.error('Retry failed', e);
+                                        }
+                                    }}
                                     className="mt-4 flex items-center gap-2 bg-accent-blue text-white px-6 py-2.5 rounded-full text-[14px] font-semibold shadow-md active:scale-95 transition-transform"
                                 >
                                     <RefreshCw className="w-4 h-4" />
@@ -394,9 +404,16 @@ export default function ReviewLayout({
                                 <div className="w-px h-4 bg-border" />
                                 <button
                                     className="flex-1 text-center text-[15px] font-semibold text-danger active:scale-95 transition-transform py-2"
-                                    onClick={() => {
+                                    onClick={async () => {
                                         setDeleteOpen(false);
-                                        router.push('/dashboard');
+                                        if (recordId) {
+                                            try {
+                                                await deleteRecord(recordId);
+                                                router.push('/dashboard');
+                                            } catch (e) {
+                                                console.error('Delete failed', e);
+                                            }
+                                        }
                                     }}
                                 >
                                     {t('deleteAction')}

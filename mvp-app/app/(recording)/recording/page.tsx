@@ -155,12 +155,17 @@ export default function RecordingPage() {
             const CHUNK_SIZE = 1024 * 512;
             const totalChunksGuess = Math.ceil(recorder.audioBlob.size / CHUNK_SIZE);
 
+<<<<<<< HEAD
             // 1. Init only (backend creates record status=uploading). Quick.
             const initRes = await initChunkedUpload(name || 'record.webm', totalChunksGuess, sessionId, CHUNK_SIZE);
+=======
+            // 1. Init with display_name (tên ca khám) and file info; backend creates record status=uploading.
+            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE, name?.trim() || undefined);
+>>>>>>> e623e1bb42ea90b8d1b2f44c79ad1214129ab35d
             const actualChunkSize = initRes.chunk_size || CHUNK_SIZE;
             const computedTotalChunks = Math.ceil(recorder.audioBlob.size / actualChunkSize);
 
-            // 2. Persist session + chunks to IndexedDB. BackgroundUploader will upload chunks + complete in background.
+            // 2. Persist session + chunks + display_name to IndexedDB. BackgroundUploader will send display_name on complete.
             await saveUploadSession({
                 upload_id: initRes.upload_id,
                 session_id: sessionId,
@@ -168,7 +173,8 @@ export default function RecordingPage() {
                 total_chunks: computedTotalChunks,
                 chunk_size: actualChunkSize,
                 format_type: formatType,
-                format: format
+                format: format,
+                display_name: name?.trim() || undefined,
             }, recorder.audioBlob);
 
             // 3. Return to list immediately; upload + STT run in background

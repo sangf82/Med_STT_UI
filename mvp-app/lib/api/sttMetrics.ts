@@ -200,6 +200,17 @@ export const updateRecord = (
   });
 };
 
+/** Re-run STT for a failed record. Returns 202; poll getRecordById for result. */
+export const retryRecord = (recordId: string) =>
+  apiClient<{ message: string; record_id: string }>(
+    `/stt-metrics/me/records/${recordId}/retry`,
+    { method: "POST" },
+  );
+
+/** Delete an STT record. Hypothesis user only; 204 on success. */
+export const deleteRecord = (recordId: string) =>
+  apiClient<void>(`/stt-metrics/me/records/${recordId}`, { method: "DELETE" });
+
 // 4. AI Transcription
 
 export const basicSttAudio = async (audioBlob: Blob, session_id: string) => {
@@ -270,12 +281,15 @@ export const initChunkedUpload = async (
   total_chunks: number,
   session_id: string,
   chunk_size?: number,
+  display_name?: string,
 ): Promise<ChunkedUploadInitResponse> => {
   const form = new FormData();
   form.append("session_id", session_id);
   form.append("filename", filename);
   form.append("total_chunks", total_chunks.toString());
   if (chunk_size != null) form.append("chunk_size", chunk_size.toString());
+  if (display_name != null && display_name.trim())
+    form.append("display_name", display_name.trim());
 
   const token = getAuthToken();
   const headers: Record<string, string> = {};
@@ -331,18 +345,27 @@ export const getChunkedUploadStatus = (uploadId: string) =>
 
 export const completeChunkedUpload = async (payload: {
   upload_id: string;
+  session_id?: string;
   output_format?: string;
+  output_type?: string;
+  format_type?: string;
   display_name?: string;
 }): Promise<ChunkedUploadCompleteResponse> => {
   const form = new FormData();
   form.append("upload_id", payload.upload_id);
-  if (payload.output_format) {
-    form.append("output_format", payload.output_format);
-  } else {
-    form.append("output_format", "soap_note");
+
+  const finalFormat =
+    payload.output_format ||
+    payload.format_type ||
+    payload.output_type ||
+    "soap_note";
+  form.append("output_format", finalFormat);
+
+  if (payload.display_name != null && payload.display_name.trim()) {
+    form.append("display_name", payload.display_name.trim());
   }
-  if (payload.display_name) {
-    form.append("display_name", payload.display_name);
+  if (payload.session_id) {
+    form.append("session_id", payload.session_id);
   }
 
   const token = getAuthToken();
