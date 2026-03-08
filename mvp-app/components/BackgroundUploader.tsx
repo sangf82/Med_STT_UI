@@ -2,12 +2,14 @@
 
 import { useEffect, useRef } from 'react';
 import { 
+  pingServer,
   getIncompleteUploads, 
   getChunkedUploadStatus, 
   uploadChunk, 
   completeChunkedUpload,
   abandonUpload
 } from '@/lib/api/sttMetrics';
+import { getAuthToken } from '@/lib/auth';
 import { db, cleanupUploadSession } from '@/lib/db';
 
 export function BackgroundUploader() {
@@ -17,20 +19,28 @@ export function BackgroundUploader() {
     let intervalId: NodeJS.Timeout;
 
     const runUploads = async () => {
+      if (!getAuthToken()) return; // only call API when logged in
       // Prevent multiple overlaps
       if (isRunning.current) return;
       isRunning.current = true;
 
       try {
+        // 0. Confirm backend is reachable (design: gọi /ping trước khi /incomplete)
+        const pingOk = await pingServer().catch(() => null);
+        if (!pingOk) {
+          isRunning.current = false;
+          return;
+        }
         // 1. Fetch incomplete uploads from BE
         const res = await getIncompleteUploads().catch(() => null);
-        if (!res || !res.items || res.items.length === 0) {
+        const uploads = res?.uploads ?? [];
+        if (uploads.length === 0) {
           isRunning.current = false;
           return; // nothing to do
         }
 
         // 2. Try to resume each incomplete upload
-        for (const item of res.items) {
+        for (const item of uploads) {
           // Verify if we have this upload in local indexedDB
           const localMeta = await db.uploads.where({ upload_id: item.upload_id }).first();
           if (!localMeta) {

@@ -1,4 +1,5 @@
 import { apiClient } from "../apiClient";
+import { getAuthToken, logout } from "../auth";
 
 // --- Types ---
 
@@ -65,6 +66,7 @@ export interface ChunkedUploadStatusResponse {
 
 export interface ChunkedUploadCompleteResponse {
   job_id: string;
+  record_id?: string;
 }
 
 export interface SttJobResponse {
@@ -114,7 +116,7 @@ export interface IncompleteUpload {
 }
 
 export interface IncompleteUploadsResponse {
-  items: IncompleteUpload[];
+  uploads: IncompleteUpload[]; // backend returns { uploads: [...] }
 }
 
 // --- API Functions ---
@@ -256,19 +258,35 @@ export const transcribeAudio = async (
 };
 
 // --- Chunked Upload & Queue ---
+// Backend expects FormData for init/complete/abandon (not JSON).
 
-export const initChunkedUpload = (
+export const initChunkedUpload = async (
   filename: string,
   total_chunks: number,
   session_id: string,
   chunk_size?: number,
-) => {
-  const body: Record<string, any> = { filename, total_chunks, session_id };
-  if (chunk_size) body.chunk_size = chunk_size;
-  return apiClient<ChunkedUploadInitResponse>("/ai/stt/upload/init", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+): Promise<ChunkedUploadInitResponse> => {
+  const form = new FormData();
+  form.append("session_id", session_id);
+  form.append("filename", filename);
+  form.append("total_chunks", total_chunks.toString());
+  if (chunk_size != null) form.append("chunk_size", chunk_size.toString());
+
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const url = `${process.env.NEXT_PUBLIC_API_URL || "https://medmate-backend-k25riftvia-as.a.run.app"}/ai/stt/upload/init`;
+  const res = await fetch(url, { method: "POST", headers, body: form });
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      logout();
+      throw new Error("Unauthorized");
+    }
+    const err = await res.json().catch(() => ({}));
+    throw { status: res.status, message: err.detail || res.statusText };
+  }
+  return res.json();
 };
 
 export const uploadChunk = async (
@@ -306,16 +324,32 @@ export const uploadChunk = async (
 export const getChunkedUploadStatus = (uploadId: string) =>
   apiClient<ChunkedUploadStatusResponse>(`/ai/stt/upload/status/${uploadId}`);
 
-export const completeChunkedUpload = (payload: {
+export const completeChunkedUpload = async (payload: {
   upload_id: string;
   session_id?: string;
   output_type?: string;
   format_type?: string;
-}) =>
-  apiClient<ChunkedUploadCompleteResponse>("/ai/stt/upload/complete", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+}): Promise<ChunkedUploadCompleteResponse> => {
+  const form = new FormData();
+  form.append("upload_id", payload.upload_id);
+  form.append("output_format", payload.format_type || payload.output_type || "soap_note");
+
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const url = `${process.env.NEXT_PUBLIC_API_URL || "https://medmate-backend-k25riftvia-as.a.run.app"}/ai/stt/upload/complete`;
+  const res = await fetch(url, { method: "POST", headers, body: form });
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      logout();
+      throw new Error("Unauthorized");
+    }
+    const err = await res.json().catch(() => ({}));
+    throw { status: res.status, message: err.detail || res.statusText };
+  }
+  return res.json();
+};
 
 export const getSttJobStatus = (jobId: string) =>
   apiClient<SttJobResponse>(`/ai/stt/jobs/${jobId}`);
@@ -332,8 +366,23 @@ export const pingServer = () =>
 export const getIncompleteUploads = () =>
   apiClient<IncompleteUploadsResponse>("/ai/stt/upload/incomplete");
 
-export const abandonUpload = (uploadId: string) =>
-  apiClient<{ ok: boolean }>("/ai/stt/upload/abandon", {
-    method: "POST",
-    body: JSON.stringify({ upload_id: uploadId }),
-  });
+export const abandonUpload = async (uploadId: string): Promise<{ upload_id: string; status: string }> => {
+  const form = new FormData();
+  form.append("upload_id", uploadId);
+
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const url = `${process.env.NEXT_PUBLIC_API_URL || "https://medmate-backend-k25riftvia-as.a.run.app"}/ai/stt/upload/abandon`;
+  const res = await fetch(url, { method: "POST", headers, body: form });
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      logout();
+      throw new Error("Unauthorized");
+    }
+    const err = await res.json().catch(() => ({}));
+    throw { status: res.status, message: err.detail || res.statusText };
+  }
+  return res.json();
+};

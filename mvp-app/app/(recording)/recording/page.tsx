@@ -14,8 +14,7 @@ import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { 
     initChunkedUpload, 
     uploadChunk, 
-    completeChunkedUpload, 
-    getSttJobStatus 
+    completeChunkedUpload 
 } from '@/lib/api/sttMetrics';
 import { saveUploadSession, cleanupUploadSession } from '@/lib/db';
 
@@ -187,33 +186,17 @@ export default function RecordingPage() {
                 await uploadChunk(initRes.upload_id, i, chunk);
             }
 
-            // 3. Mark complete and create job
+            // 3. Mark complete and create job (backend creates placeholder record with status=processing)
             const completeRes = await completeChunkedUpload({
                 upload_id: initRes.upload_id,
                 session_id: sessionId,
                 format_type: formatType
             });
 
-            // 4. Poll job status
-            let jobStatus = await getSttJobStatus(completeRes.job_id);
-            while (jobStatus.status === 'pending' || jobStatus.status === 'processing') {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                jobStatus = await getSttJobStatus(completeRes.job_id);
-            }
-
-            if (jobStatus.status === 'failed') {
-               throw new Error(jobStatus.error_message || "STT Job failed");
-            }
-
-            // 5. Success, get record ID, cleanup IndexedDB, and route
-            const finishRecordId = jobStatus.result?.record_id;
-            
             await cleanupUploadSession(initRes.upload_id);
 
-            // Optionally we should update the record's display_name via PATCH using name here, 
-            // but for MVP just route to the proper review page with the record_id
-            const formatRoute = format === 'clinical' ? 'ehr' : format === 'none' ? 'freetext' : format;
-            router.push(`/${formatRoute}?id=${finishRecordId}`);
+            // 4. Redirect to dashboard (list records) immediately; record shows as "processing" until job completes
+            router.push('/dashboard');
         } catch (error) {
             console.error("Transcription failed", error);
             // In a real app we'd show a toast error
