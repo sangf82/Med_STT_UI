@@ -66,7 +66,8 @@ export function BackgroundUploader() {
             await completeChunkedUpload({
               upload_id: item.upload_id,
               session_id: localMeta.session_id,
-              format_type: localMeta.format_type
+              format_type: localMeta.format_type,
+              display_name: (localMeta as { display_name?: string }).display_name,
             });
             // If complete succeeds, remove from IndexedDB
             await cleanupUploadSession(item.upload_id);
@@ -82,11 +83,19 @@ export function BackgroundUploader() {
       }
     };
 
-    // Run on mount and every 5s so async saves (init + IDB then redirect) get uploaded quickly
+    const onTrigger = () => runUploads();
+    if (typeof window !== "undefined") {
+      window.addEventListener("stt-trigger-upload", onTrigger);
+    }
     runUploads();
     intervalId = setInterval(runUploads, 5000);
 
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("stt-trigger-upload", onTrigger);
+      }
+    };
   }, []);
 
   return null; // pure headless component

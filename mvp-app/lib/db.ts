@@ -10,6 +10,7 @@ export interface UploadMetadata {
   created_at: string;
   format_type: string;
   format: string; // "clinical", "todo", "none", etc.
+  display_name?: string; // tên ca khám (gửi lên complete để record không bị "Bản ghi không tên")
 }
 
 export interface UploadChunk {

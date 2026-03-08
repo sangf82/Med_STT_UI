@@ -331,10 +331,14 @@ export const completeChunkedUpload = async (payload: {
   session_id?: string;
   output_type?: string;
   format_type?: string;
+  display_name?: string;
 }): Promise<ChunkedUploadCompleteResponse> => {
   const form = new FormData();
   form.append("upload_id", payload.upload_id);
   form.append("output_format", payload.format_type || payload.output_type || "soap_note");
+  if (payload.display_name != null && payload.display_name.trim()) {
+    form.append("display_name", payload.display_name.trim());
+  }
 
   const token = getAuthToken();
   const headers: Record<string, string> = {};
