@@ -13,7 +13,7 @@ import { Dialog } from '@/components/Dialog';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { useAppContext } from '@/context/AppContext';
-import { getRecordById, retryRecord } from '@/lib/api/sttMetrics';
+import { getRecordById, retryRecord, deleteRecord } from '@/lib/api/sttMetrics';
 import type { SttRecord } from '@/lib/api/sttMetrics';
 
 
@@ -383,9 +383,16 @@ export default function ReviewLayout({
                                 <div className="w-px h-4 bg-border" />
                                 <button
                                     className="flex-1 text-center text-[15px] font-semibold text-danger active:scale-95 transition-transform py-2"
-                                    onClick={() => {
+                                    onClick={async () => {
                                         setDeleteOpen(false);
-                                        router.push('/dashboard');
+                                        if (recordId) {
+                                            try {
+                                                await deleteRecord(recordId);
+                                                router.push('/dashboard');
+                                            } catch (e) {
+                                                console.error('Delete failed', e);
+                                            }
+                                        }
                                     }}
                                 >
                                     {t('deleteAction')}

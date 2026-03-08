@@ -202,6 +202,10 @@ export const retryRecord = (recordId: string) =>
     { method: "POST" },
   );
 
+/** Delete an STT record. Hypothesis user only; 204 on success. */
+export const deleteRecord = (recordId: string) =>
+  apiClient<void>(`/stt-metrics/me/records/${recordId}`, { method: "DELETE" });
+
 // 4. AI Transcription
 
 export const basicSttAudio = async (audioBlob: Blob, session_id: string) => {
