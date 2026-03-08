@@ -265,12 +265,14 @@ export const initChunkedUpload = async (
   total_chunks: number,
   session_id: string,
   chunk_size?: number,
+  display_name?: string,
 ): Promise<ChunkedUploadInitResponse> => {
   const form = new FormData();
   form.append("session_id", session_id);
   form.append("filename", filename);
   form.append("total_chunks", total_chunks.toString());
   if (chunk_size != null) form.append("chunk_size", chunk_size.toString());
+  if (display_name != null && display_name.trim()) form.append("display_name", display_name.trim());
 
   const token = getAuthToken();
   const headers: Record<string, string> = {};

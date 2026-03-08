@@ -155,8 +155,8 @@ export default function RecordingPage() {
             const CHUNK_SIZE = 1024 * 512;
             const totalChunksGuess = Math.ceil(recorder.audioBlob.size / CHUNK_SIZE);
 
-            // 1. Init only (backend creates record status=uploading). Quick.
-            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE);
+            // 1. Init with display_name (tên ca khám) and file info; backend creates record status=uploading.
+            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE, name?.trim() || undefined);
             const actualChunkSize = initRes.chunk_size || CHUNK_SIZE;
             const computedTotalChunks = Math.ceil(recorder.audioBlob.size / actualChunkSize);
 
