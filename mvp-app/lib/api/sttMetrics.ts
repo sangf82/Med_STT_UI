@@ -195,6 +195,13 @@ export const updateRecord = (
     body: JSON.stringify(payload),
   });
 
+/** Re-run STT for a failed record. Returns 202; poll getRecordById for result. */
+export const retryRecord = (recordId: string) =>
+  apiClient<{ message: string; record_id: string }>(
+    `/stt-metrics/me/records/${recordId}/retry`,
+    { method: "POST" },
+  );
+
 // 4. AI Transcription
 
 export const basicSttAudio = async (audioBlob: Blob, session_id: string) => {
