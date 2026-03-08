@@ -82,9 +82,9 @@ export function BackgroundUploader() {
       }
     };
 
-    // Run string on mount to recover, and poll periodically
+    // Run on mount and every 5s so async saves (init + IDB then redirect) get uploaded quickly
     runUploads();
-    intervalId = setInterval(runUploads, 30000); // Check every 30s
+    intervalId = setInterval(runUploads, 5000);
 
     return () => clearInterval(intervalId);
   }, []);

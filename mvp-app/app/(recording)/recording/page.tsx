@@ -11,12 +11,8 @@ import { Loader2, MoreVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import { 
-    initChunkedUpload, 
-    uploadChunk, 
-    completeChunkedUpload 
-} from '@/lib/api/sttMetrics';
-import { saveUploadSession, cleanupUploadSession } from '@/lib/db';
+import { initChunkedUpload } from '@/lib/api/sttMetrics';
+import { saveUploadSession } from '@/lib/db';
 
 
 // C1: Active Recording
@@ -143,31 +139,28 @@ export default function RecordingPage() {
     const handleConfirmSave = async (name: string, format: string) => {
         recorder.stop();
         setShowSave(false);
-        setIsProcessing(true);
+
+        if (!recorder.audioBlob) {
+            console.error("No audio blob to transcribe");
+            return;
+        }
 
         try {
-            if (!recorder.audioBlob) {
-                console.error("No audio blob to transcribe");
-                return;
-            }
-
             let formatType = 'soap_note';
             if (format === 'clinical') formatType = 'ehr';
             if (format === 'todo') formatType = 'todo-list';
             if (format === 'none') formatType = 'free_text';
 
-            // 1. Session and init setup
             const sessionId = `sess_${Date.now()}`;
-            const CHUNK_SIZE = 1024 * 512; // 512KB default chunk size
+            const CHUNK_SIZE = 1024 * 512;
             const totalChunksGuess = Math.ceil(recorder.audioBlob.size / CHUNK_SIZE);
-            
-            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE);
 
-            // Use the provided chunk_size or default to CHUNK_SIZE
+            // 1. Init only (backend creates record status=uploading). Quick.
+            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE);
             const actualChunkSize = initRes.chunk_size || CHUNK_SIZE;
             const computedTotalChunks = Math.ceil(recorder.audioBlob.size / actualChunkSize);
 
-            // Save to IndexedDB (for auto-resume on crash/close)
+            // 2. Persist session + chunks to IndexedDB. BackgroundUploader will upload chunks + complete in background.
             await saveUploadSession({
                 upload_id: initRes.upload_id,
                 session_id: sessionId,
@@ -178,30 +171,12 @@ export default function RecordingPage() {
                 format: format
             }, recorder.audioBlob);
 
-            // 2. Upload chunks
-            for (let i = 0; i < computedTotalChunks; i++) {
-                const start = i * actualChunkSize;
-                const end = Math.min(start + actualChunkSize, recorder.audioBlob.size);
-                const chunk = recorder.audioBlob.slice(start, end);
-                await uploadChunk(initRes.upload_id, i, chunk);
-            }
-
-            // 3. Mark complete and create job (backend creates placeholder record with status=processing)
-            const completeRes = await completeChunkedUpload({
-                upload_id: initRes.upload_id,
-                session_id: sessionId,
-                format_type: formatType
-            });
-
-            await cleanupUploadSession(initRes.upload_id);
-
-            // 4. Redirect to dashboard (list records) immediately; record shows as "processing" until job completes
+            // 3. Return to list immediately; upload + STT run in background
             router.push('/dashboard');
         } catch (error) {
-            console.error("Transcription failed", error);
-            // In a real app we'd show a toast error
-        } finally {
-            setIsProcessing(false);
+            console.error("Save/init failed", error);
+            setIsProcessing(true);
+            setTimeout(() => setIsProcessing(false), 2000);
         }
     };
 

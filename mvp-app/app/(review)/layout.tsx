@@ -54,22 +54,38 @@ export default function ReviewLayout({
             return;
         }
 
-        getRecordById(recordId)
-            .then(data => {
-                if (mounted) {
-                    setRecordData(data);
-                    setRecordingName(data.display_name || 'Bản ghi không tên');
-                }
-            })
-            .catch(err => {
-                console.error("Failed to load record:", err);
-            })
-            .finally(() => {
-                if (mounted) setIsLoadingRecord(false);
-            });
+        const fetchRecord = () =>
+            getRecordById(recordId)
+                .then(data => {
+                    if (mounted) {
+                        setRecordData(data);
+                        setRecordingName(data.display_name || 'Bản ghi không tên');
+                    }
+                })
+                .catch(err => {
+                    console.error("Failed to load record:", err);
+                })
+                .finally(() => {
+                    if (mounted) setIsLoadingRecord(false);
+                });
 
+        fetchRecord();
         return () => { mounted = false; };
     }, [recordId]);
+
+    // When viewing a processing record, poll until it completes so we can show result
+    useEffect(() => {
+        if (!recordId || !recordData || (recordData.status !== 'processing' && recordData.status !== 'pending')) return;
+        const t = setInterval(() => {
+            getRecordById(recordId)
+                .then(data => {
+                    setRecordData(data);
+                    setRecordingName(data.display_name || 'Bản ghi không tên');
+                })
+                .catch(() => {});
+        }, 3000);
+        return () => clearInterval(t);
+    }, [recordId, recordData?.status]);
 
     // Map backend format_type to localized string for Tab logic
     const format = useMemo(() => {

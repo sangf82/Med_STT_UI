@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Menu, Search, Stethoscope, Loader2 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useSidebar } from '@/context/SidebarContext';
@@ -30,56 +30,59 @@ export default function DashboardPage() {
         setTimeout(() => setShowDevNotice(false), 2000);
     };
 
-    useEffect(() => {
-        const loadDashboardData = async () => {
-            try {
-                const [recordsRes, usageRes] = await Promise.all([
-                    getMyRecords(),
-                    getMyUsage()
-                ]);
+    const loadDashboardData = useCallback(async () => {
+        try {
+            const [recordsRes, usageRes] = await Promise.all([
+                getMyRecords(),
+                getMyUsage()
+            ]);
 
-                // Map format_type to UI format string
-                const mapFormat = (ft?: string) => {
-                    switch (ft) {
-                        case 'soap_note': return 'Ghi chú SOAP';
-                        case 'ehr': return 'Tóm tắt lâm sàng';
-                        case 'todo-list': return 'Việc cần làm';
-                        default: return 'Chưa phân loại';
-                    }
-                };
-
-                const mappedRecords: Recording[] = recordsRes.items.map(item => ({
-                    id: item.id,
-                    title: item.display_name || 'Bản ghi không tên',
-                    patient: undefined,
-                    format: mapFormat(item.format_type || item.output_type),
-                    duration: item.elapsed_time ? `${Math.floor(item.elapsed_time)}s` : 'Unknown',
-                    date: new Date(item.created_at).toLocaleDateString(),
-                    status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
-                }));
-
-                setRecordings(mappedRecords);
-
-                // Trial Limit logic
-                if (usageRes.stt_remaining === 0 && usageRes.stt_request_more_count === 0) {
-                    // They hit the limit and haven't requested more yet -> show notification and survey
-                    // Assuming trial panel is managed in Context or we just pop up survey manually
-                    // In current state, showSurvey can be triggered
-                } else if (usageRes.stt_remaining <= 2) {
-                    setShowNotificationDot(true); // almost out of turns
-                } else {
-                    setShowNotificationDot(false);
+            const mapFormat = (ft?: string) => {
+                switch (ft) {
+                    case 'soap_note': return 'Ghi chú SOAP';
+                    case 'ehr': return 'Tóm tắt lâm sàng';
+                    case 'todo-list': return 'Việc cần làm';
+                    default: return 'Chưa phân loại';
                 }
-            } catch (err) {
-                console.error("Failed to fetch dashboard data", err);
-            } finally {
-                setIsLoading(false);
-            }
-        };
+            };
 
+            const mappedRecords: Recording[] = recordsRes.items.map(item => ({
+                id: item.id,
+                title: item.display_name || 'Bản ghi không tên',
+                patient: undefined,
+                format: mapFormat(item.format_type || item.output_type),
+                duration: item.elapsed_time ? `${Math.floor(item.elapsed_time)}s` : 'Unknown',
+                date: new Date(item.created_at).toLocaleDateString(),
+                status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
+            }));
+
+            setRecordings(mappedRecords);
+
+            if (usageRes.stt_remaining === 0 && usageRes.stt_request_more_count === 0) {
+                // show survey when limit hit
+            } else if (usageRes.stt_remaining <= 2) {
+                setShowNotificationDot(true);
+            } else {
+                setShowNotificationDot(false);
+            }
+        } catch (err) {
+            console.error("Failed to fetch dashboard data", err);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [setRecordings, setShowNotificationDot]);
+
+    useEffect(() => {
         loadDashboardData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [loadDashboardData]);
+
+    // Poll when any record is transcribing so list updates when job completes
+    useEffect(() => {
+        const hasTranscribing = recordings.some((rec) => rec.status === 'transcribing');
+        if (!hasTranscribing) return;
+        const interval = setInterval(loadDashboardData, 3000);
+        return () => clearInterval(interval);
+    }, [recordings, loadDashboardData]);
 
     const filteredRecordings = recordings.filter(rec => {
         if (filter === null) return true;
