@@ -1,7 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { initialRecordings, doctorProfile, type Profile, type Recording } from '@/lib/mockData';
+import { apiClient } from '@/lib/apiClient';
+import { getAuthToken } from '@/lib/auth';
 
 interface AppContextProps {
     recordings: Recording[];
@@ -27,6 +29,30 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const [showSurvey, setShowSurvey] = useState(false);
     const [showTrialPanel, setShowTrialPanel] = useState(initialRecordings.length >= 5);
     const [showNotificationDot, setShowNotificationDot] = useState(initialRecordings.length >= 5);
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            const token = getAuthToken();
+            if (!token) return;
+
+            try {
+                const userProfile = await apiClient<any>('/auth/me');
+                setProfile({
+                    name: userProfile.name || 'User',
+                    initials: (userProfile.name || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2),
+                    specialty: userProfile.role || 'Doctor',
+                    hospital: 'Memorial Hospital', // Default or fetch if available
+                    email: userProfile.email || '',
+                    phone: userProfile.phone || '',
+                    npi: userProfile.npi || '1234567890'
+                });
+            } catch (error) {
+                console.error('Failed to fetch profile in AppContext', error);
+            }
+        };
+
+        fetchProfile();
+    }, []);
 
     return (
         <AppContext.Provider value={{
