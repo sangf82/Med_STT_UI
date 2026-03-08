@@ -148,15 +148,15 @@ export default function RecordingPage() {
         try {
             let formatType = 'soap_note';
             if (format === 'clinical') formatType = 'ehr';
-            if (format === 'todo') formatType = 'todo-list';
-            if (format === 'none') formatType = 'free_text';
+            if (format === 'todo') formatType = 'to-do';
+            if (format === 'none') formatType = 'free';
 
             const sessionId = `sess_${Date.now()}`;
             const CHUNK_SIZE = 1024 * 512;
             const totalChunksGuess = Math.ceil(recorder.audioBlob.size / CHUNK_SIZE);
 
             // 1. Init only (backend creates record status=uploading). Quick.
-            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE);
+            const initRes = await initChunkedUpload(name || 'record.webm', totalChunksGuess, sessionId, CHUNK_SIZE);
             const actualChunkSize = initRes.chunk_size || CHUNK_SIZE;
             const computedTotalChunks = Math.ceil(recorder.audioBlob.size / actualChunkSize);
 
@@ -164,7 +164,7 @@ export default function RecordingPage() {
             await saveUploadSession({
                 upload_id: initRes.upload_id,
                 session_id: sessionId,
-                filename: 'record.webm',
+                filename: name,
                 total_chunks: computedTotalChunks,
                 chunk_size: actualChunkSize,
                 format_type: formatType,

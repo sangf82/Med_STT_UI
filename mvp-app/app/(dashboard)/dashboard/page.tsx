@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils';
 import { SurveyDialog } from '@/components/SurveyDialog';
 import { getMyRecords, getMyUsage } from '@/lib/api/sttMetrics';
 import type { Recording } from '@/lib/mockData';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '@/lib/db';
 
 
 export default function DashboardPage() {
@@ -24,6 +26,8 @@ export default function DashboardPage() {
     const { recordings, setRecordings, filter, showSurvey, setShowSurvey, showNotificationDot, setShowNotificationDot } = useAppContext();
     const [showDevNotice, setShowDevNotice] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const rawUploading = useLiveQuery(() => db.uploads.toArray());
+    const uploadingSessions = useMemo(() => rawUploading || [], [rawUploading]);
 
     const handleSearchClick = () => {
         setShowDevNotice(true);
@@ -36,25 +40,29 @@ export default function DashboardPage() {
                 getMyRecords(),
                 getMyUsage()
             ]);
+            console.log("DEBUG: GET REC:", JSON.stringify(recordsRes.items.slice(0,2), null, 2));
 
             const mapFormat = (ft?: string) => {
-                switch (ft) {
-                    case 'soap_note': return 'Ghi chú SOAP';
-                    case 'ehr': return 'Tóm tắt lâm sàng';
-                    case 'todo-list': return 'Việc cần làm';
-                    default: return 'Chưa phân loại';
-                }
+                const normalized = ft?.toLowerCase() || '';
+                if (normalized.includes('soap')) return 'Ghi chú SOAP';
+                if (normalized.includes('ehr') || normalized.includes('clinical')) return 'Tóm tắt lâm sàng';
+                if (normalized.includes('todo')) return 'Việc cần làm';
+                if (normalized.includes('free') || normalized.includes('none')) return 'Văn bản tự do';
+                return 'Chưa phân loại';
             };
 
-            const mappedRecords: Recording[] = recordsRes.items.map(item => ({
-                id: item.id,
-                title: item.display_name || 'Bản ghi không tên',
-                patient: undefined,
-                format: mapFormat(item.format_type || item.output_type),
-                duration: item.elapsed_time ? `${Math.floor(item.elapsed_time)}s` : 'Unknown',
-                date: new Date(item.created_at).toLocaleDateString(),
-                status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
-            }));
+            const mappedRecords: Recording[] = recordsRes.items.map(item => {
+                const formatLabel = mapFormat(item.format_type || item.output_type || item.output_format);
+                return {
+                    id: item.id,
+                    title: item.display_name || 'Bản ghi không tên',
+                    patient: undefined,
+                    format: formatLabel,
+                    duration: item.elapsed_time ? `${Math.floor(item.elapsed_time)}s` : '...',
+                    date: new Date(item.created_at).toLocaleDateString(),
+                    status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
+                };
+            });
 
             setRecordings(mappedRecords);
 
@@ -76,15 +84,40 @@ export default function DashboardPage() {
         loadDashboardData();
     }, [loadDashboardData]);
 
-    // Poll when any record is transcribing so list updates when job completes
+    // Poll when any record is transcribing or uploading so list updates when job completes
     useEffect(() => {
         const hasTranscribing = recordings.some((rec) => rec.status === 'transcribing');
-        if (!hasTranscribing) return;
+        const hasUploading = uploadingSessions.length > 0;
+        if (!hasTranscribing && !hasUploading) return;
         const interval = setInterval(loadDashboardData, 3000);
         return () => clearInterval(interval);
-    }, [recordings, loadDashboardData]);
+    }, [recordings, uploadingSessions.length, loadDashboardData]);
 
-    const filteredRecordings = recordings.filter(rec => {
+    const mappedUploading: Recording[] = useMemo(() => {
+        return uploadingSessions.map(session => {
+            const mapFormat = (ft?: string) => {
+                const normalized = ft?.toLowerCase() || '';
+                if (normalized.includes('soap')) return 'Ghi chú SOAP';
+                if (normalized.includes('ehr') || normalized.includes('clinical')) return 'Tóm tắt lâm sàng';
+                if (normalized.includes('todo')) return 'Việc cần làm';
+                if (normalized.includes('free') || normalized.includes('none')) return 'Văn bản tự do';
+                return 'Chưa phân loại';
+            };
+            return {
+                id: session.upload_id,
+                title: session.filename || 'Bản ghi không tên',
+                patient: undefined,
+                format: mapFormat(session.format_type || session.format),
+                duration: '...',
+                date: new Date(session.created_at).toLocaleDateString(),
+                status: 'uploading'
+            };
+        });
+    }, [uploadingSessions]);
+
+    const allRecordings = useMemo(() => [...mappedUploading, ...recordings], [mappedUploading, recordings]);
+
+    const filteredRecordings = allRecordings.filter(rec => {
         if (filter === null) return true;
         if (filter === 'None') return !rec.format;
         return rec.format === filter;
@@ -214,9 +247,19 @@ export default function DashboardPage() {
                     filteredRecordings.map(rec => (
                         <Card
                             key={rec.id}
-                            className="cursor-pointer hover:border-border hover:bg-bg-surface transition-colors"
+                            className={cn(
+                                "transition-colors",
+                                rec.status === 'uploading' 
+                                    ? "opacity-80" 
+                                    : "cursor-pointer hover:border-border hover:bg-bg-surface"
+                            )}
                             onClick={() => {
-                                const startTab = rec.format === 'Tóm tắt lâm sàng' ? 'ehr' : (rec.format === 'Ghi chú SOAP' ? 'soap' : (rec.format === 'Việc cần làm' ? 'todo' : 'freetext'));
+                                if (rec.status === 'uploading') return;
+                                const startTab = 
+                                    rec.format === 'Tóm tắt lâm sàng' ? 'ehr' : 
+                                    rec.format === 'Ghi chú SOAP' ? 'soap' : 
+                                    rec.format === 'Việc cần làm' ? 'todo' : 
+                                    'freetext';
                                 router.push(`/${startTab}?id=${rec.id}`);
                             }}
                         >
@@ -229,7 +272,7 @@ export default function DashboardPage() {
                                 </div>
                                 <Badge variant={
                                     rec.status === 'transcribed' ? 'success' :
-                                        rec.status === 'transcribing' ? 'progress' :
+                                        (rec.status === 'transcribing' || rec.status === 'uploading') ? 'progress' :
                                             rec.status === 'error' ? 'error' : 'warn'
                                 }>
                                     {b(rec.status)}

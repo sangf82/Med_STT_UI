@@ -18,7 +18,11 @@ export const doctorProfile: Profile = {
   npi: "1234567890",
 };
 
-export type RecordingStatus = "transcribed" | "transcribing" | "error";
+export type RecordingStatus =
+  | "transcribed"
+  | "transcribing"
+  | "error"
+  | "uploading";
 
 export interface Recording {
   id: string;

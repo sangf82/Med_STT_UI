@@ -13,7 +13,7 @@ import { Dialog } from '@/components/Dialog';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { useAppContext } from '@/context/AppContext';
-import { getRecordById } from '@/lib/api/sttMetrics';
+import { getRecordById, updateRecord } from '@/lib/api/sttMetrics';
 import type { SttRecord } from '@/lib/api/sttMetrics';
 
 
@@ -187,8 +187,29 @@ export default function ReviewLayout({
 
 
 
-    const handleRenameConfirm = () => {
-        setRenameOpen(false);
+    const handleRenameConfirm = async () => {
+        if (!recordId) return;
+        try {
+            setSaveStatus('saving');
+            // Fetch content from the recordData if available, fallback to empty string
+            const currentContent = recordData?.content || recordData?.refined_text || recordData?.raw_text || "";
+            
+            await updateRecord(recordId, { 
+                display_name: recordingName,
+                content: currentContent
+            });
+            
+            setSaveStatus('saved');
+            setRenameOpen(false);
+            
+            // Locally update the name
+            if (recordData) {
+                setRecordData({ ...recordData, display_name: recordingName });
+            }
+        } catch (e) {
+            console.error("Rename failed", e);
+            setSaveStatus('error');
+        }
     };
 
     const isEditMode = pathname.includes('/edit');

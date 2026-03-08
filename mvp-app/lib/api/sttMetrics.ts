@@ -22,6 +22,7 @@ export interface SttRecord {
   content?: string;
   output_type?: string;
   format_type?: string;
+  output_format?: string;
   status: "completed" | "failed" | "processing" | "pending";
   error_message?: string;
   elapsed_time?: number;
@@ -189,11 +190,15 @@ export const getRecordById = (recordId: string) =>
 export const updateRecord = (
   recordId: string,
   payload: { content?: string; display_name?: string },
-) =>
-  apiClient<SttRecord>(`/stt-metrics/me/records/${recordId}`, {
+) => {
+  // NOTE: The backend requires "content" field in the PATCH body.
+  // Ensure all callers provide it. If you only want to update display_name,
+  // you must still provide the current content.
+  return apiClient<SttRecord>(`/stt-metrics/me/records/${recordId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
+};
 
 // 4. AI Transcription
 
@@ -326,13 +331,19 @@ export const getChunkedUploadStatus = (uploadId: string) =>
 
 export const completeChunkedUpload = async (payload: {
   upload_id: string;
-  session_id?: string;
-  output_type?: string;
-  format_type?: string;
+  output_format?: string;
+  display_name?: string;
 }): Promise<ChunkedUploadCompleteResponse> => {
   const form = new FormData();
   form.append("upload_id", payload.upload_id);
-  form.append("output_format", payload.format_type || payload.output_type || "soap_note");
+  if (payload.output_format) {
+    form.append("output_format", payload.output_format);
+  } else {
+    form.append("output_format", "soap_note");
+  }
+  if (payload.display_name) {
+    form.append("display_name", payload.display_name);
+  }
 
   const token = getAuthToken();
   const headers: Record<string, string> = {};
@@ -366,7 +377,9 @@ export const pingServer = () =>
 export const getIncompleteUploads = () =>
   apiClient<IncompleteUploadsResponse>("/ai/stt/upload/incomplete");
 
-export const abandonUpload = async (uploadId: string): Promise<{ upload_id: string; status: string }> => {
+export const abandonUpload = async (
+  uploadId: string,
+): Promise<{ upload_id: string; status: string }> => {
   const form = new FormData();
   form.append("upload_id", uploadId);
 

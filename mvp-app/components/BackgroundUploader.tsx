@@ -7,7 +7,9 @@ import {
   getChunkedUploadStatus, 
   uploadChunk, 
   completeChunkedUpload,
-  abandonUpload
+  abandonUpload,
+  getSttJobStatus,
+  updateRecord
 } from '@/lib/api/sttMetrics';
 import { getAuthToken } from '@/lib/auth';
 import { db, cleanupUploadSession } from '@/lib/db';
@@ -63,14 +65,40 @@ export function BackgroundUploader() {
 
           // Finally try to complete
           try {
-            await completeChunkedUpload({
+            const completeRes = await completeChunkedUpload({
               upload_id: item.upload_id,
-              session_id: localMeta.session_id,
-              format_type: localMeta.format_type
+              output_format: localMeta.format_type,
+              display_name: localMeta.filename // Ensures custom names reach the backend
             });
             // If complete succeeds, remove from IndexedDB
             await cleanupUploadSession(item.upload_id);
-          } catch (e: any) {
+
+            // The backend might not apply display_name or format correctly until the job completes.
+            // Start a non-blocking background poll to update the record with the latest config once done.
+            if (completeRes.job_id) {
+               const pollAndUpdateRecord = async (jobId: string, name: string) => {
+                  let attempts = 0;
+                  while (attempts < 120) { // Up to 10 minutes (5s interval)
+                     await new Promise(r => setTimeout(r, 5000));
+                     const jobRes = await getSttJobStatus(jobId).catch(() => null);
+                     if (jobRes?.status === 'done') {
+                        if (jobRes.result?.record_id) {
+                           await updateRecord(jobRes.result.record_id, {
+                              display_name: name,
+                              content: jobRes.result.refined_text || jobRes.result.raw_text || ""
+                           }).catch((e) => console.error("Poll update name failed:", e));
+                        }
+                        break;
+                     } else if (jobRes?.status === 'failed') {
+                        break;
+                     }
+                     attempts++;
+                  }
+               };
+               // Do not await this so interval doesn't block!
+               pollAndUpdateRecord(completeRes.job_id, localMeta.filename);
+            }
+          } catch (e) {
             console.error("Failed to complete resumed upload", e);
              // If error is 400 with missing chunks, it will just retry next interval
           }
