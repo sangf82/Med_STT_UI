@@ -43,6 +43,11 @@ export default function DashboardPage() {
     }, []);
 
     const loadDashboardData = useCallback(async (recordsOnly = false, keepListOnError = false) => {
+        const LOAD_TIMEOUT_MS = 20000; // stop spinner after 20s if requests hang (e.g. CORS)
+        const timeoutId = setTimeout(() => {
+            setIsLoading(false);
+            if (!keepListOnError) setRecordings([]);
+        }, LOAD_TIMEOUT_MS);
         try {
             if (recordsOnly) {
                 const recordsRes = await getMyRecords();
@@ -93,6 +98,7 @@ export default function DashboardPage() {
             console.error("Failed to fetch dashboard data", err);
             if (!keepListOnError) setRecordings([]);
         } finally {
+            clearTimeout(timeoutId);
             setIsLoading(false);
         }
     }, [mapFormat, setRecordings, setShowNotificationDot]);
@@ -107,10 +113,15 @@ export default function DashboardPage() {
         }
     }, []);
 
-    // Refetch when user returns (screen on / tab focus / bfcache). Do not set loading; on error keep current list so screen is not cleared.
+    // Refetch when user returns (screen on / tab focus / bfcache). Debounce to avoid storm (e.g. CORS/429).
     useEffect(() => {
         if (typeof window === "undefined") return;
+        let lastRefetch = 0;
+        const REFETCH_DEBOUNCE_MS = 8000;
         const refetch = () => {
+            const now = Date.now();
+            if (now - lastRefetch < REFETCH_DEBOUNCE_MS) return;
+            lastRefetch = now;
             loadDashboardDataRef.current(false, true);
         };
         const onVisible = () => {
