@@ -61,7 +61,8 @@ export default function RecordsPage() {
 
   const openRecord = (r: SttRecord) => {
     if (r.status === 'processing' || r.status === 'pending') return;
-    const formatRoute = (r.output_format ?? (r as { output_type?: string }).output_type) === 'to-do' ? 'todo' : 'ehr';
+    const raw = (r.output_format ?? (r as { output_type?: string }).output_type ?? '').trim().toLowerCase();
+    const formatRoute = raw === 'to-do' || raw === 'todo' ? 'todo' : 'ehr';
     router.push(`/${formatRoute}?id=${r.id}`);
   };
 

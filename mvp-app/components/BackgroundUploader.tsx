@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { 
+import {
   pingServer,
-  getIncompleteUploads, 
-  getChunkedUploadStatus, 
-  uploadChunk, 
+  getIncompleteUploads,
+  getChunkedUploadStatus,
+  uploadChunk,
   completeChunkedUpload,
   abandonUpload,
   getSttJobStatus,
-  updateRecord
+  updateRecord,
+  normalizeOutputFormat,
 } from '@/lib/api/sttMetrics';
 import { getAuthToken } from '@/lib/auth';
 import { db, cleanupUploadSession } from '@/lib/db';
@@ -68,7 +69,7 @@ export function BackgroundUploader() {
             const completeRes = await completeChunkedUpload({
               upload_id: item.upload_id,
               session_id: localMeta.session_id,
-              output_format: (localMeta as { output_format?: string; output_type?: string }).output_format ?? (localMeta as { output_type?: string }).output_type ?? "soap_note",
+              output_format: normalizeOutputFormat((localMeta as { output_format?: string; output_type?: string }).output_format ?? (localMeta as { output_type?: string }).output_type),
               display_name: localMeta.filename || (localMeta as { display_name?: string }).display_name,
             });
             // If complete succeeds, remove from IndexedDB

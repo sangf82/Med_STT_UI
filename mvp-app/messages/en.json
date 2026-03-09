@@ -101,6 +101,7 @@
     "words": "words",
     "transcribingDetail": "Transcribing record...",
     "errorDetail": "There was an error transcribing. Please try again.",
+    "timeoutAfterRetriesDetail": "Transcription timed out after 3 attempts. Tap Retry to try again.",
     "retry": "Retry",
     "recordNotFound": "Record not found",
     "save": "Save",

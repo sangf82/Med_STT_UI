@@ -101,6 +101,7 @@
     "words": "từ",
     "transcribingDetail": "Đang chuyển đổi văn bản...",
     "errorDetail": "Đã xảy ra lỗi khi chuyển đổi. Vui lòng thử lại.",
+    "timeoutAfterRetriesDetail": "Chuyển đổi hết thời gian sau 3 lần thử. Nhấn Thử lại để thử lại.",
     "retry": "Thử lại",
     "recordNotFound": "Không tìm thấy bản ghi",
     "save": "Lưu",

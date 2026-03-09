@@ -8,8 +8,8 @@ export interface UploadMetadata {
   total_chunks: number;
   chunk_size: number;
   created_at: string;
-  output_format: string; // soap_note | ehr | to-do (AVAILABLE_OUTPUT_FORMATS)
-  format: string; // "soap" | "clinical" | "todo"
+  output_format: string; // only "soap_note" | "ehr" | "to-do" (match AI/backend)
+  format: string; // UI key only: "soap" | "clinical" | "todo"
   display_name?: string;
 }
 

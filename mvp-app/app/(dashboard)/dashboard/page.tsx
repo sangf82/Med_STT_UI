@@ -40,13 +40,11 @@ export default function DashboardPage() {
                 getMyRecords(),
                 getMyUsage()
             ]);
-            console.log("DEBUG: GET REC:", JSON.stringify(recordsRes.items.slice(0,2), null, 2));
-
             const mapFormat = (ft?: string) => {
-                const normalized = ft?.toLowerCase() || '';
-                if (normalized.includes('soap')) return 'Ghi chú SOAP';
-                if (normalized.includes('ehr') || normalized.includes('clinical')) return 'Tóm tắt lâm sàng';
-                if (normalized.includes('todo')) return 'Việc cần làm';
+                const v = (ft ?? '').trim().toLowerCase().replace(/\s/g, '_');
+                if (v === 'soap_note' || v === 'soap') return 'Ghi chú SOAP';
+                if (v === 'ehr') return 'Tóm tắt lâm sàng';
+                if (v === 'to-do' || v === 'todo') return 'Việc cần làm';
                 return 'Chưa phân loại';
             };
 
@@ -97,14 +95,14 @@ export default function DashboardPage() {
     }, [recordings, uploadingSessions.length, loadDashboardData]);
 
     const mappedUploading: Recording[] = useMemo(() => {
+        const mapFormat = (ft?: string) => {
+            const v = (ft ?? '').trim().toLowerCase().replace(/\s/g, '_');
+            if (v === 'soap_note' || v === 'soap') return 'Ghi chú SOAP';
+            if (v === 'ehr') return 'Tóm tắt lâm sàng';
+            if (v === 'to-do' || v === 'todo') return 'Việc cần làm';
+            return 'Chưa phân loại';
+        };
         return uploadingSessions.map(session => {
-            const mapFormat = (ft?: string) => {
-                const normalized = ft?.toLowerCase() || '';
-                if (normalized.includes('soap')) return 'Ghi chú SOAP';
-                if (normalized.includes('ehr') || normalized.includes('clinical')) return 'Tóm tắt lâm sàng';
-                if (normalized.includes('todo')) return 'Việc cần làm';
-                return 'Chưa phân loại';
-            };
             const meta = session as { output_format?: string; output_type?: string; format?: string };
             return {
                 id: session.upload_id,

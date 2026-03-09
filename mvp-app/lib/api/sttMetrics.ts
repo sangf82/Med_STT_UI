@@ -5,11 +5,12 @@ import { getAuthToken, logout } from "../auth";
 export const AVAILABLE_OUTPUT_FORMATS = ["soap_note", "ehr", "to-do"] as const;
 export type OutputFormat = (typeof AVAILABLE_OUTPUT_FORMATS)[number];
 
+/** Normalize to one of AVAILABLE_OUTPUT_FORMATS only (matches backend/AI). */
 export function normalizeOutputFormat(value: string | undefined): OutputFormat {
   if (!value || !value.trim()) return "soap_note";
   const raw = value.trim().toLowerCase().replace(/\s/g, "_");
   if (raw === "soap_note" || raw === "soap") return "soap_note";
-  if (raw === "ehr") return "ehr";
+  if (raw === "ehr" || raw === "clinical") return "ehr";
   if (raw === "to-do" || raw === "todo" || raw === "todolist") return "to-do";
   return "soap_note";
 }
@@ -251,11 +252,11 @@ export const basicSttAudio = async (audioBlob: Blob, session_id: string) => {
 
 export const transcribeAudio = async (
   audioBlob: Blob,
-  output_format?: string,
+  output_format?: OutputFormat | string,
 ) => {
   const formData = new FormData();
   formData.append("audio", audioBlob, "record.webm");
-  if (output_format) formData.append("output_format", output_format);
+  formData.append("output_format", normalizeOutputFormat(output_format));
   // Note: Don't set Content-Type header manually when using FormData, browser will set it with boundaries
 
   const token =
@@ -353,12 +354,12 @@ export const getChunkedUploadStatus = (uploadId: string) =>
 export const completeChunkedUpload = async (payload: {
   upload_id: string;
   session_id?: string;
-  output_format?: string;
+  output_format?: OutputFormat | string;
   display_name?: string;
 }): Promise<ChunkedUploadCompleteResponse> => {
   const form = new FormData();
   form.append("upload_id", payload.upload_id);
-  form.append("output_format", payload.output_format ?? "soap_note");
+  form.append("output_format", normalizeOutputFormat(payload.output_format));
   if (payload.display_name != null && payload.display_name.trim()) {
     form.append("display_name", payload.display_name.trim());
   }

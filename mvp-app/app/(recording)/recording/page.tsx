@@ -11,7 +11,7 @@ import { Loader2, MoreVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import { initChunkedUpload } from '@/lib/api/sttMetrics';
+import { initChunkedUpload, type OutputFormat, AVAILABLE_OUTPUT_FORMATS } from '@/lib/api/sttMetrics';
 import { saveUploadSession } from '@/lib/db';
 
 
@@ -146,7 +146,8 @@ export default function RecordingPage() {
         }
 
         try {
-            const outputFormat: 'soap_note' | 'ehr' | 'to-do' = format === 'clinical' ? 'ehr' : format === 'todo' ? 'to-do' : 'soap_note';
+            const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do' };
+            const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
             const sessionId = `sess_${Date.now()}`;
             const CHUNK_SIZE = 1024 * 512;
             const totalChunksGuess = Math.ceil(recorder.audioBlob.size / CHUNK_SIZE);

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, createContext, useContext, useEffect, useMemo } from 'react';
+import { Suspense, useState, useRef, createContext, useContext, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/Header';
@@ -47,6 +47,14 @@ export default function ReviewLayout({
     const [recordData, setRecordData] = useState<SttRecord | null>(null);
     const [isLoadingRecord, setIsLoadingRecord] = useState(true);
     const [isRetrying, setIsRetrying] = useState(false);
+    const [timedOutAfterRetries, setTimedOutAfterRetries] = useState(false);
+    const pollStartTimeRef = useRef(0);
+    const autoRetryCountRef = useRef(0);
+    const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const TRANSCRIPTION_TIMEOUT_MS = 5 * 60 * 1000;
+    const POLL_INTERVAL_MS = 3000;
+    const MAX_AUTO_RETRIES = 3;
 
     useEffect(() => {
         let mounted = true;
@@ -74,27 +82,68 @@ export default function ReviewLayout({
         return () => { mounted = false; };
     }, [recordId]);
 
-    // When viewing a processing record, poll until it completes so we can show result
+    // When viewing a processing record, poll until it completes; timeout then auto-retry max 3 times, then show failed
     useEffect(() => {
-        if (!recordId || !recordData || (recordData.status !== 'processing' && recordData.status !== 'pending')) return;
-        const t = setInterval(() => {
-            getRecordById(recordId)
-                .then(data => {
-                    setRecordData(data);
-                    setRecordingName(data.display_name || 'Bản ghi không tên');
-                })
-                .catch(() => {});
-        }, 3000);
-        return () => clearInterval(t);
+        if (!recordId || !recordData || (recordData.status !== 'processing' && recordData.status !== 'pending')) {
+            setTimedOutAfterRetries(false);
+            return;
+        }
+        setTimedOutAfterRetries(false);
+        pollStartTimeRef.current = Date.now();
+        autoRetryCountRef.current = 0;
+
+        const tick = async () => {
+            try {
+                const data = await getRecordById(recordId);
+                setRecordData(data);
+                setRecordingName(data.display_name || 'Bản ghi không tên');
+                if (data.status === 'completed' || data.status === 'failed') {
+                    if (intervalIdRef.current) {
+                        clearInterval(intervalIdRef.current);
+                        intervalIdRef.current = null;
+                    }
+                    return;
+                }
+                const elapsed = Date.now() - pollStartTimeRef.current;
+                if (elapsed >= TRANSCRIPTION_TIMEOUT_MS) {
+                    if (autoRetryCountRef.current < MAX_AUTO_RETRIES) {
+                        await retryRecord(recordId);
+                        autoRetryCountRef.current += 1;
+                        pollStartTimeRef.current = Date.now();
+                        const updated = await getRecordById(recordId);
+                        setRecordData(updated);
+                        setRecordingName(updated.display_name || 'Bản ghi không tên');
+                    } else {
+                        if (intervalIdRef.current) {
+                            clearInterval(intervalIdRef.current);
+                            intervalIdRef.current = null;
+                        }
+                        setTimedOutAfterRetries(true);
+                    }
+                }
+            } catch {
+                // keep polling
+            }
+        };
+
+        intervalIdRef.current = setInterval(tick, POLL_INTERVAL_MS);
+        return () => {
+            if (intervalIdRef.current) {
+                clearInterval(intervalIdRef.current);
+                intervalIdRef.current = null;
+            }
+        };
     }, [recordId, recordData?.status]);
 
     const format = useMemo(() => {
         if (!recordData) return 'None';
-        const type = recordData.output_format ?? (recordData as { output_type?: string }).output_type;
+        const type = (recordData.output_format ?? (recordData as { output_type?: string }).output_type ?? '').trim().toLowerCase().replace(/\s/g, '_');
         switch (type) {
-            case 'soap_note': return 'Ghi chú SOAP';
+            case 'soap_note':
+            case 'soap': return 'Ghi chú SOAP';
             case 'ehr': return 'Tóm tắt lâm sàng';
             case 'to-do':
+            case 'todo':
             case 'todo-list': return 'Việc cần làm';
             default: return 'Chưa phân loại';
         }
@@ -298,28 +347,23 @@ export default function ReviewLayout({
                                 <Loader className="w-8 h-8 animate-spin text-accent-blue mb-4" />
                                 <p className="text-[16px] font-medium text-text-primary mb-2">Đang tải...</p>
                             </div>
-                        ) : record?.status === 'transcribing' ? (
-                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
-                                <div className="relative w-16 h-16 mb-6">
-                                    <div className="absolute inset-0 rounded-full border-4 border-accent-blue/20"></div>
-                                    <div className="absolute inset-0 rounded-full border-4 border-accent-blue border-t-transparent animate-spin"></div>
-                                </div>
-                                <p className="text-[16px] font-medium text-text-primary mb-2">
-                                    {t('transcribingDetail')}
-                                </p>
-                            </div>
-                        ) : record?.status === 'error' ? (
+                        ) : timedOutAfterRetries || record?.status === 'error' ? (
                             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
                                 <div className="w-16 h-16 bg-danger/10 rounded-full flex items-center justify-center mb-6">
                                     <AlertCircle className="w-8 h-8 text-danger" />
                                 </div>
                                 <h3 className="text-[18px] font-bold text-text-primary mb-2">
-                                    {t('errorDetail')}
+                                    {timedOutAfterRetries ? t('timeoutAfterRetriesDetail') : t('errorDetail')}
                                 </h3>
                                 <button
                                     onClick={async () => {
                                         if (!recordId) return;
                                         try {
+                                            if (timedOutAfterRetries) {
+                                                setTimedOutAfterRetries(false);
+                                                pollStartTimeRef.current = Date.now();
+                                                autoRetryCountRef.current = 0;
+                                            }
                                             await retryRecord(recordId);
                                             const updated = await getRecordById(recordId);
                                             setRecordData(updated);
@@ -332,6 +376,16 @@ export default function ReviewLayout({
                                     <RefreshCw className="w-4 h-4" />
                                     {t('retry')}
                                 </button>
+                            </div>
+                        ) : record?.status === 'transcribing' ? (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+                                <div className="relative w-16 h-16 mb-6">
+                                    <div className="absolute inset-0 rounded-full border-4 border-accent-blue/20"></div>
+                                    <div className="absolute inset-0 rounded-full border-4 border-accent-blue border-t-transparent animate-spin"></div>
+                                </div>
+                                <p className="text-[16px] font-medium text-text-primary mb-2">
+                                    {t('transcribingDetail')}
+                                </p>
                             </div>
                         ) : (
                             children
