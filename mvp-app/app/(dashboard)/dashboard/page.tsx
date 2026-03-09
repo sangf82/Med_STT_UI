@@ -42,7 +42,7 @@ export default function DashboardPage() {
         return 'Chưa phân loại';
     }, []);
 
-    const loadDashboardData = useCallback(async (recordsOnly = false) => {
+    const loadDashboardData = useCallback(async (recordsOnly = false, keepListOnError = false) => {
         try {
             if (recordsOnly) {
                 const recordsRes = await getMyRecords();
@@ -91,7 +91,7 @@ export default function DashboardPage() {
             }
         } catch (err) {
             console.error("Failed to fetch dashboard data", err);
-            setRecordings([]);
+            if (!keepListOnError) setRecordings([]);
         } finally {
             setIsLoading(false);
         }
@@ -107,12 +107,11 @@ export default function DashboardPage() {
         }
     }, []);
 
-    // Refetch when user returns to tab or page (visibility / bfcache) so list is not stale or empty
+    // Refetch when user returns (screen on / tab focus / bfcache). Do not set loading; on error keep current list so screen is not cleared.
     useEffect(() => {
         if (typeof window === "undefined") return;
         const refetch = () => {
-            setIsLoading(true);
-            loadDashboardDataRef.current();
+            loadDashboardDataRef.current(false, true);
         };
         const onVisible = () => {
             if (document.visibilityState === "visible") refetch();
