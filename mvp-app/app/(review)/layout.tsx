@@ -242,10 +242,9 @@ export default function ReviewLayout({
             // Fetch content from the recordData if available, fallback to empty string
             const currentContent = recordData?.content ?? recordData?.refined_text ?? recordData?.raw_text ?? "";
             
-            await updateRecord(recordId, { 
-                display_name: recordingName,
-                content: currentContent
-            });
+            const payload: { content: string; display_name?: string } = { content: currentContent };
+            if (recordingName.trim()) payload.display_name = recordingName.trim();
+            await updateRecord(recordId, payload);
             
             setSaveStatus('saved');
             setRenameOpen(false);
