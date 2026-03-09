@@ -88,13 +88,13 @@ export default function ReviewLayout({
         return () => clearInterval(t);
     }, [recordId, recordData?.status]);
 
-    // Map backend format_type to localized string for Tab logic
     const format = useMemo(() => {
         if (!recordData) return 'None';
-        const type = recordData.format_type || recordData.output_type;
+        const type = recordData.output_format ?? (recordData as { output_type?: string }).output_type;
         switch (type) {
             case 'soap_note': return 'Ghi chú SOAP';
             case 'ehr': return 'Tóm tắt lâm sàng';
+            case 'to-do':
             case 'todo-list': return 'Việc cần làm';
             default: return 'Chưa phân loại';
         }
@@ -121,12 +121,10 @@ export default function ReviewLayout({
         { id: 'soap', label: t('soapNote') },
         { id: 'ehr', label: t('ehrSummary') },
         { id: 'todo', label: t('todoList') },
-        { id: 'freetext', label: t('raw') }
     ];
 
     const tabs = useMemo(() => {
         return allTabs.filter(tab => {
-            if (tab.id === 'freetext') return true;
             if (format === 'Ghi chú SOAP' && tab.id === 'soap') return true;
             if (format === 'Tóm tắt lâm sàng' && tab.id === 'ehr') return true;
             if (format === 'Việc cần làm' && tab.id === 'todo') return true;
@@ -135,11 +133,10 @@ export default function ReviewLayout({
     }, [format, t]);
 
     const activeTab = useMemo(() => {
-        if (pathname.includes('/freetext')) return 'freetext';
         if (pathname.includes('/ehr')) return 'ehr';
         if (pathname.includes('/soap')) return 'soap';
         if (pathname.includes('/todo')) return 'todo';
-        return 'freetext';
+        return 'soap';
     }, [pathname]);
 
     const handleTabChange = (id: string) => {
@@ -154,7 +151,7 @@ export default function ReviewLayout({
         const isTodoInvalid = pathname.includes('/todo') && format !== 'Việc cần làm';
 
         if (isSoapInvalid || isEhrInvalid || isTodoInvalid) {
-            const startTab = format === 'Tóm tắt lâm sàng' ? 'ehr' : (format === 'Ghi chú SOAP' ? 'soap' : (format === 'Việc cần làm' ? 'todo' : 'freetext'));
+            const startTab = format === 'Tóm tắt lâm sàng' ? 'ehr' : (format === 'Ghi chú SOAP' ? 'soap' : (format === 'Việc cần làm' ? 'todo' : 'soap'));
             router.replace(`/${startTab}?id=${recordId}`);
         }
     }, [pathname, record, format, recordId, router]);

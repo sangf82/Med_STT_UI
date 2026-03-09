@@ -47,12 +47,11 @@ export default function DashboardPage() {
                 if (normalized.includes('soap')) return 'Ghi chú SOAP';
                 if (normalized.includes('ehr') || normalized.includes('clinical')) return 'Tóm tắt lâm sàng';
                 if (normalized.includes('todo')) return 'Việc cần làm';
-                if (normalized.includes('free') || normalized.includes('none')) return 'Văn bản tự do';
                 return 'Chưa phân loại';
             };
 
             const mappedRecords: Recording[] = recordsRes.items.map(item => {
-                const formatLabel = mapFormat(item.format_type || item.output_type || item.output_format);
+                const formatLabel = mapFormat(item.output_format ?? (item as { output_type?: string }).output_type);
                 return {
                     id: item.id,
                     title: item.display_name || 'Bản ghi không tên',
@@ -104,14 +103,14 @@ export default function DashboardPage() {
                 if (normalized.includes('soap')) return 'Ghi chú SOAP';
                 if (normalized.includes('ehr') || normalized.includes('clinical')) return 'Tóm tắt lâm sàng';
                 if (normalized.includes('todo')) return 'Việc cần làm';
-                if (normalized.includes('free') || normalized.includes('none')) return 'Văn bản tự do';
                 return 'Chưa phân loại';
             };
+            const meta = session as { output_format?: string; output_type?: string; format?: string };
             return {
                 id: session.upload_id,
                 title: session.filename || 'Bản ghi không tên',
                 patient: undefined,
-                format: mapFormat(session.format_type || session.format),
+                format: mapFormat(meta.output_format ?? meta.output_type ?? meta.format),
                 duration: '...',
                 date: new Date(session.created_at).toLocaleDateString(),
                 status: 'uploading'
@@ -131,7 +130,7 @@ export default function DashboardPage() {
         if (filter === 'Ghi chú SOAP') return r('soapNote');
         if (filter === 'Tóm tắt lâm sàng') return r('ehrSummary');
         if (filter === 'Việc cần làm') return r('todoList');
-        if (filter === 'Chưa phân loại') return r('raw');
+        if (filter === 'Chưa phân loại') return r('unclassified');
         return '';
     }, [filter, r]);
 
@@ -263,7 +262,7 @@ export default function DashboardPage() {
                                     rec.format === 'Tóm tắt lâm sàng' ? 'ehr' : 
                                     rec.format === 'Ghi chú SOAP' ? 'soap' : 
                                     rec.format === 'Việc cần làm' ? 'todo' : 
-                                    'freetext';
+                                    'soap';
                                 router.push(`/${startTab}?id=${rec.id}`);
                             }}
                         >

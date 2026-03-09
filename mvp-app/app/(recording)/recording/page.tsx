@@ -146,34 +146,23 @@ export default function RecordingPage() {
         }
 
         try {
-            let formatType = 'soap_note';
-            if (format === 'clinical') formatType = 'ehr';
-            if (format === 'todo') formatType = 'to-do';
-            if (format === 'none') formatType = 'free';
-
+            const outputFormat: 'soap_note' | 'ehr' | 'to-do' = format === 'clinical' ? 'ehr' : format === 'todo' ? 'to-do' : 'soap_note';
             const sessionId = `sess_${Date.now()}`;
             const CHUNK_SIZE = 1024 * 512;
             const totalChunksGuess = Math.ceil(recorder.audioBlob.size / CHUNK_SIZE);
 
-<<<<<<< HEAD
-            // 1. Init only (backend creates record status=uploading). Quick.
-            const initRes = await initChunkedUpload(name || 'record.webm', totalChunksGuess, sessionId, CHUNK_SIZE);
-=======
-            // 1. Init with display_name (tên ca khám) and file info; backend creates record status=uploading.
             const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE, name?.trim() || undefined);
->>>>>>> e623e1bb42ea90b8d1b2f44c79ad1214129ab35d
             const actualChunkSize = initRes.chunk_size || CHUNK_SIZE;
             const computedTotalChunks = Math.ceil(recorder.audioBlob.size / actualChunkSize);
 
-            // 2. Persist session + chunks + display_name to IndexedDB. BackgroundUploader will send display_name on complete.
             await saveUploadSession({
                 upload_id: initRes.upload_id,
                 session_id: sessionId,
                 filename: name,
                 total_chunks: computedTotalChunks,
                 chunk_size: actualChunkSize,
-                format_type: formatType,
-                format: format,
+                output_format: outputFormat,
+                format,
                 display_name: name?.trim() || undefined,
             }, recorder.audioBlob);
 

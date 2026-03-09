@@ -1,6 +1,19 @@
 import { apiClient } from "../apiClient";
 import { getAuthToken, logout } from "../auth";
 
+// AI-supported output formats only (must match backend AVAILABLE_OUTPUT_FORMATS)
+export const AVAILABLE_OUTPUT_FORMATS = ["soap_note", "ehr", "to-do"] as const;
+export type OutputFormat = (typeof AVAILABLE_OUTPUT_FORMATS)[number];
+
+export function normalizeOutputFormat(value: string | undefined): OutputFormat {
+  if (!value || !value.trim()) return "soap_note";
+  const raw = value.trim().toLowerCase().replace(/\s/g, "_");
+  if (raw === "soap_note" || raw === "soap") return "soap_note";
+  if (raw === "ehr") return "ehr";
+  if (raw === "to-do" || raw === "todo" || raw === "todolist") return "to-do";
+  return "soap_note";
+}
+
 // --- Types ---
 
 export interface SttUsage {
@@ -20,9 +33,7 @@ export interface SttRecord {
   raw_text?: string;
   refined_text?: string;
   content?: string;
-  output_type?: string;
-  format_type?: string;
-  output_format?: string;
+  output_format?: OutputFormat | string;
   status: "completed" | "failed" | "processing" | "pending";
   error_message?: string;
   elapsed_time?: number;
@@ -46,8 +57,6 @@ export interface SttTranscriptionResponse {
     record_id: string;
   };
   record_id: string;
-  output_type?: string;
-  format_type?: string;
   output_format?: string;
 }
 
@@ -175,12 +184,12 @@ export const updateDailyActualCases = (date: string, actual_cases: number) =>
   );
 
 // 3. Record Management
-export const getMyRecords = (skip = 0, limit = 50, output_type?: string) => {
+export const getMyRecords = (skip = 0, limit = 50, output_format?: string) => {
   const params: Record<string, string> = {
     skip: skip.toString(),
     limit: limit.toString(),
   };
-  if (output_type) params.output_type = output_type;
+  if (output_format) params.output_format = output_format;
   return apiClient<SttRecordsResponse>("/stt-metrics/me/records", { params });
 };
 
@@ -242,13 +251,11 @@ export const basicSttAudio = async (audioBlob: Blob, session_id: string) => {
 
 export const transcribeAudio = async (
   audioBlob: Blob,
-  output_type?: string,
-  format_type?: string,
+  output_format?: string,
 ) => {
   const formData = new FormData();
   formData.append("audio", audioBlob, "record.webm");
-  if (output_type) formData.append("output_type", output_type);
-  if (format_type) formData.append("format_type", format_type);
+  if (output_format) formData.append("output_format", output_format);
   // Note: Don't set Content-Type header manually when using FormData, browser will set it with boundaries
 
   const token =
@@ -347,20 +354,11 @@ export const completeChunkedUpload = async (payload: {
   upload_id: string;
   session_id?: string;
   output_format?: string;
-  output_type?: string;
-  format_type?: string;
   display_name?: string;
 }): Promise<ChunkedUploadCompleteResponse> => {
   const form = new FormData();
   form.append("upload_id", payload.upload_id);
-
-  const finalFormat =
-    payload.output_format ||
-    payload.format_type ||
-    payload.output_type ||
-    "soap_note";
-  form.append("output_format", finalFormat);
-
+  form.append("output_format", payload.output_format ?? "soap_note");
   if (payload.display_name != null && payload.display_name.trim()) {
     form.append("display_name", payload.display_name.trim());
   }

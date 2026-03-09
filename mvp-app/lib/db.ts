@@ -8,9 +8,9 @@ export interface UploadMetadata {
   total_chunks: number;
   chunk_size: number;
   created_at: string;
-  format_type: string;
-  format: string; // "clinical", "todo", "none", etc.
-  display_name?: string; // tên ca khám (gửi lên complete để record không bị "Bản ghi không tên")
+  output_format: string; // soap_note | ehr | to-do (AVAILABLE_OUTPUT_FORMATS)
+  format: string; // "soap" | "clinical" | "todo"
+  display_name?: string;
 }
 
 export interface UploadChunk {

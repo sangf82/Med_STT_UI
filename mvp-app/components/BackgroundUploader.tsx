@@ -68,8 +68,8 @@ export function BackgroundUploader() {
             const completeRes = await completeChunkedUpload({
               upload_id: item.upload_id,
               session_id: localMeta.session_id,
-              format_type: localMeta.format_type,
-              display_name: localMeta.filename || (localMeta as any).display_name,
+              output_format: (localMeta as { output_format?: string; output_type?: string }).output_format ?? (localMeta as { output_type?: string }).output_type ?? "soap_note",
+              display_name: localMeta.filename || (localMeta as { display_name?: string }).display_name,
             });
             // If complete succeeds, remove from IndexedDB
             await cleanupUploadSession(item.upload_id);
