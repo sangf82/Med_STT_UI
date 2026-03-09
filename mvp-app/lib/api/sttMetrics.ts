@@ -194,7 +194,10 @@ export const getMyRecords = (skip = 0, limit = 50, output_format?: string) => {
     limit: limit.toString(),
   };
   if (output_format) params.output_format = output_format;
-  return apiClient<SttRecordsResponse>("/stt-metrics/me/records", { params });
+  return apiClient<SttRecordsResponse>("/stt-metrics/me/records", {
+    params,
+    cache: "no-store",
+  });
 };
 
 export const getRecordById = (recordId: string) =>

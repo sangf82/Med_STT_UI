@@ -13,7 +13,7 @@ import { SurveyDialog } from '@/components/SurveyDialog';
 import { getMyRecords, getMyUsage } from '@/lib/api/sttMetrics';
 import type { Recording } from '@/lib/mockData';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db';
+import { db, clearStaleUploadSessions } from '@/lib/db';
 
 
 export default function DashboardPage() {
@@ -64,7 +64,7 @@ export default function DashboardPage() {
                         status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
                     };
                 });
-                setRecordings(mappedRecords);
+                if (mappedRecords.length > 0 || !keepListOnError) setRecordings(mappedRecords);
                 return;
             }
             const [recordsRes, usageRes] = await Promise.all([
@@ -84,7 +84,12 @@ export default function DashboardPage() {
                     status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
                 };
             });
-            setRecordings(mappedRecords);
+            if (mappedRecords.length > 0 || !keepListOnError) setRecordings(mappedRecords);
+            try {
+                await clearStaleUploadSessions(120_000);
+            } catch {
+                // ignore IndexedDB errors
+            }
             const remaining = usageRes?.stt_remaining ?? 0;
             const requestMore = usageRes?.stt_request_more_count ?? 0;
             if (remaining === 0 && requestMore === 0) {

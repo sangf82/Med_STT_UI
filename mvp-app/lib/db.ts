@@ -65,3 +65,16 @@ export const cleanupUploadSession = async (upload_id: string) => {
     await db.chunks.where({ upload_id }).delete();
   });
 };
+
+/** Remove upload sessions older than maxAgeMs so dashboard does not show stale "uploading" after save+redirect. */
+export const clearStaleUploadSessions = async (maxAgeMs: number = 120_000) => {
+  const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
+  const all = await db.uploads.toArray();
+  const stale = all.filter((u) => (u.created_at || "") < cutoff);
+  await db.transaction("rw", db.uploads, db.chunks, async () => {
+    for (const u of stale) {
+      await db.uploads.where("upload_id").equals(u.upload_id).delete();
+      await db.chunks.where("upload_id").equals(u.upload_id).delete();
+    }
+  });
+};
