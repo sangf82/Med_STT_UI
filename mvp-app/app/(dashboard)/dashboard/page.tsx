@@ -170,7 +170,7 @@ export default function DashboardPage() {
             const meta = session as { output_format?: string; output_type?: string; format?: string };
             return {
                 id: session.upload_id,
-                title: session.filename || 'Bản ghi không tên',
+                title: session.filename || session.display_name || 'Bản ghi không tên',
                 patient: undefined,
                 format: mapFormat(meta.output_format ?? (meta as { output_type?: string }).output_type ?? (meta as { format?: string }).format),
                 duration: '...',
@@ -180,7 +180,14 @@ export default function DashboardPage() {
         });
     }, [uploadingSessions, mapFormat]);
 
-    const allRecordings = useMemo(() => [...mappedUploading, ...recordings], [mappedUploading, recordings]);
+    // Hide "uploading" row when we already have a record from API with same title (avoid duplicate after save+redirect)
+    const uploadingToShow = useMemo(() => {
+        return mappedUploading.filter(
+            (u) => !recordings.some((r) => (r.title || '').trim() === (u.title || '').trim())
+        );
+    }, [mappedUploading, recordings]);
+
+    const allRecordings = useMemo(() => [...uploadingToShow, ...recordings], [uploadingToShow, recordings]);
 
     const filteredRecordings = allRecordings.filter(rec => {
         if (filter === null) return true;
