@@ -400,6 +400,9 @@ export default function ReviewLayout({
                                 <p className="text-[16px] font-medium text-text-primary mb-2">
                                     {t('transcribingDetail')}
                                 </p>
+                                <p className="text-[13px] text-text-muted max-w-[280px]">
+                                    {t('transcribingStuckHint')}
+                                </p>
                             </div>
                         ) : (
                             children

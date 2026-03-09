@@ -107,6 +107,27 @@ export default function DashboardPage() {
         }
     }, []);
 
+    // Refetch when user returns to tab or page (visibility / bfcache) so list is not stale or empty
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const refetch = () => {
+            setIsLoading(true);
+            loadDashboardDataRef.current();
+        };
+        const onVisible = () => {
+            if (document.visibilityState === "visible") refetch();
+        };
+        const onPageShow = (e: PageTransitionEvent) => {
+            if (e.persisted) refetch();
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        window.addEventListener("pageshow", onPageShow);
+        return () => {
+            document.removeEventListener("visibilitychange", onVisible);
+            window.removeEventListener("pageshow", onPageShow);
+        };
+    }, []);
+
     // Pre-request microphone permission when user first lands on dashboard so recording starts faster
     const micRequested = useRef(false);
     useEffect(() => {

@@ -101,6 +101,7 @@
     "wordCount": "Word count",
     "words": "words",
     "transcribingDetail": "Transcribing record...",
+    "transcribingStuckHint": "If it takes more than 10 minutes, the record will be marked as Error and you can tap Retry.",
     "errorDetail": "There was an error transcribing. Please try again.",
     "timeoutAfterRetriesDetail": "Transcription timed out after 3 attempts. Tap Retry to try again.",
     "retry": "Retry",
