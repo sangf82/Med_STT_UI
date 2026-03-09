@@ -47,6 +47,7 @@ export default function ReviewLayout({
     const [recordData, setRecordData] = useState<SttRecord | null>(null);
     const [isLoadingRecord, setIsLoadingRecord] = useState(true);
     const [isRetrying, setIsRetrying] = useState(false);
+    const [retryError, setRetryError] = useState<string | null>(null);
     const [timedOutAfterRetries, setTimedOutAfterRetries] = useState(false);
     const pollStartTimeRef = useRef(0);
     const autoRetryCountRef = useRef(0);
@@ -286,7 +287,13 @@ export default function ReviewLayout({
                         <header className="sticky top-0 z-40 flex items-center justify-between min-h-[64px] pt-4 px-4 w-full bg-bg-page text-text-primary tracking-tight">
                             <div className="flex items-center gap-1 min-w-0">
                                 <button
-                                    onClick={() => router.push('/dashboard')}
+                                    onClick={() => {
+                                        if (typeof window !== 'undefined') {
+                                            window.location.href = '/dashboard';
+                                        } else {
+                                            router.push('/dashboard');
+                                        }
+                                    }}
                                     className="w-10 h-10 -ml-2 shrink-0 rounded-full flex items-center justify-center hover:bg-bg-surface active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2"
                                     aria-label="Back"
                                 >
@@ -355,9 +362,13 @@ export default function ReviewLayout({
                                 <h3 className="text-[18px] font-bold text-text-primary mb-2">
                                     {timedOutAfterRetries ? t('timeoutAfterRetriesDetail') : t('errorDetail')}
                                 </h3>
+                                {retryError && (
+                                    <p className="text-[13px] text-danger mb-3 px-4 text-center">{retryError}</p>
+                                )}
                                 <button
                                     onClick={async () => {
                                         if (!recordId) return;
+                                        setRetryError(null);
                                         try {
                                             if (timedOutAfterRetries) {
                                                 setTimedOutAfterRetries(false);
@@ -365,10 +376,13 @@ export default function ReviewLayout({
                                                 autoRetryCountRef.current = 0;
                                             }
                                             await retryRecord(recordId);
+                                            setRetryError(null);
                                             const updated = await getRecordById(recordId);
                                             setRecordData(updated);
-                                        } catch (e) {
+                                        } catch (e: unknown) {
                                             console.error('Retry failed', e);
+                                            const err = e as { data?: { detail?: string }; message?: string };
+                                            setRetryError(err?.data?.detail ?? err?.message ?? 'Thử lại thất bại.');
                                         }
                                     }}
                                     className="mt-4 flex items-center gap-2 bg-accent-blue text-white px-6 py-2.5 rounded-full text-[14px] font-semibold shadow-md active:scale-95 transition-transform"

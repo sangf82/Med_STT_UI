@@ -134,7 +134,11 @@ export default function RecordingPage() {
     };
     const handleBack = () => {
         recorder.stop();
-        router.push('/dashboard');
+        if (typeof window !== 'undefined') {
+            window.location.href = '/dashboard';
+        } else {
+            router.push('/dashboard');
+        }
     };
     const handleSave = () => {
         recorder.pause();
@@ -172,8 +176,12 @@ export default function RecordingPage() {
                 display_name: name?.trim() || undefined,
             }, recorder.audioBlob);
 
-            // 3. Return to list immediately; upload + STT run in background
-            router.push('/dashboard');
+            // 3. Return to list immediately; upload + STT run in background. Full navigation for reliable redirect on mobile
+            if (typeof window !== 'undefined') {
+                window.location.href = '/dashboard';
+            } else {
+                router.push('/dashboard');
+            }
         } catch (error) {
             console.error("Save/init failed", error);
             setIsProcessing(true);
