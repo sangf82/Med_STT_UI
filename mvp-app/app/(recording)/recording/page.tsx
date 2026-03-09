@@ -152,9 +152,10 @@ export default function RecordingPage() {
                 return;
             }
 
-            let outputType = 'soap_note';
-            if (format === 'clinical') outputType = 'ehr';
-            if (format === 'todo') outputType = 'to-do';
+            let formatType = 'soap_note';
+            if (format === 'clinical') formatType = 'ehr';
+            if (format === 'todo') formatType = 'todo-list';
+            if (format === 'none') formatType = 'free_text';
 
             // 1. Session and init setup
             const sessionId = `sess_${Date.now()}`;
@@ -190,8 +191,7 @@ export default function RecordingPage() {
             const completeRes = await completeChunkedUpload({
                 upload_id: initRes.upload_id,
                 session_id: sessionId,
-                output_type: outputType,
-                display_name: name || undefined,
+                format_type: formatType
             });
 
             // 4. Poll job status
@@ -212,7 +212,7 @@ export default function RecordingPage() {
 
             // Optionally we should update the record's display_name via PATCH using name here, 
             // but for MVP just route to the proper review page with the record_id
-            const formatRoute = format === 'clinical' ? 'ehr' : format;
+            const formatRoute = format === 'clinical' ? 'ehr' : format === 'none' ? 'freetext' : format;
             router.push(`/${formatRoute}?id=${finishRecordId}`);
         } catch (error) {
             console.error("Transcription failed", error);

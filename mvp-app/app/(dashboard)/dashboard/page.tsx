@@ -213,7 +213,7 @@ export default function DashboardPage() {
                             key={rec.id}
                             className="cursor-pointer hover:border-border hover:bg-bg-surface transition-colors"
                             onClick={() => {
-                                const startTab = rec.format === 'Tóm tắt lâm sàng' ? 'ehr' : (rec.format === 'Việc cần làm' ? 'todo' : 'soap');
+                                const startTab = rec.format === 'Tóm tắt lâm sàng' ? 'ehr' : (rec.format === 'Ghi chú SOAP' ? 'soap' : (rec.format === 'Việc cần làm' ? 'todo' : 'freetext'));
                                 router.push(`/${startTab}?id=${rec.id}`);
                             }}
                         >
