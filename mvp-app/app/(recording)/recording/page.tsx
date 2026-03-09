@@ -32,17 +32,22 @@ export default function RecordingPage() {
     const [seekPosition, setSeekPosition] = useState(1);
     const audioElRef = useRef<HTMLAudioElement | null>(null);
     const hasStarted = useRef(false);
+    const [isStarting, setIsStarting] = useState(true);
     // Known duration in seconds — reliable unlike audio.duration which is Infinity for WebM
     const knownDurationSec = recorder.timeMs / 1000;
 
-    // Auto-start recording on mount
+    // Auto-start recording on mount (getUserMedia can take a moment)
     useEffect(() => {
         if (!hasStarted.current) {
             hasStarted.current = true;
-            recorder.start();
+            recorder.start().finally(() => setIsStarting(false));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        if (recorder.state === 'recording' && isStarting) setIsStarting(false);
+    }, [recorder.state, isStarting]);
 
     // Determine control state
     let controlState: ControlState = 'recording';
@@ -152,7 +157,7 @@ export default function RecordingPage() {
             const CHUNK_SIZE = 1024 * 512;
             const totalChunksGuess = Math.ceil(recorder.audioBlob.size / CHUNK_SIZE);
 
-            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE, name?.trim() || undefined);
+            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE, name?.trim() || undefined, outputFormat);
             const actualChunkSize = initRes.chunk_size || CHUNK_SIZE;
             const computedTotalChunks = Math.ceil(recorder.audioBlob.size / actualChunkSize);
 
@@ -197,14 +202,19 @@ export default function RecordingPage() {
         ? recorder.timeMs
         : Math.floor(seekPosition * (recorder.timeMs || 0));
 
-    // Header center: recording indicator + title
+    // Header center: recording indicator + title (show "Starting..." while getUserMedia runs)
     const isRecording = recorder.state === 'recording';
     const titleIndicator = (
         <div className="flex items-center gap-2">
-            {isRecording && (
+            {isStarting && (
+                <Loader2 className="w-4 h-4 text-accent-blue animate-spin shrink-0" />
+            )}
+            {!isStarting && isRecording && (
                 <div className="w-2.5 h-2.5 rounded-full bg-danger animate-pulse-fast" />
             )}
-            <span className="text-[17px] font-semibold">{t('newRecording')}</span>
+            <span className="text-[17px] font-semibold">
+                {isStarting ? t('startingRecording') : t('newRecording')}
+            </span>
         </div>
     );
 
@@ -222,9 +232,13 @@ export default function RecordingPage() {
 
             <div className="flex-1 flex flex-col items-center pt-6 pb-[34px]">
 
-                {/* Timer */}
+                {/* Timer (or "Starting..." while mic is being requested) */}
                 <div className="text-[52px] font-light leading-none tracking-tight text-center">
-                    {formatTimeMs(displayTimeMs)}
+                    {isStarting ? (
+                        <span className="text-[24px] text-text-muted">{t('startingRecording')}</span>
+                    ) : (
+                        formatTimeMs(displayTimeMs)
+                    )}
                 </div>
 
                 {/* Spacer */}

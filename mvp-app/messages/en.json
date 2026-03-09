@@ -55,6 +55,7 @@
   },
   "Recording": {
     "newRecording": "New Recording",
+    "startingRecording": "Starting...",
     "saveRecording": "Save Recording",
     "outputFormat": "Output Format",
     "cancel": "Cancel",

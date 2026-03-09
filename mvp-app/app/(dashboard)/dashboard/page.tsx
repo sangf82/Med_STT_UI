@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Menu, Search, Stethoscope, Loader2 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useSidebar } from '@/context/SidebarContext';
@@ -84,6 +84,19 @@ export default function DashboardPage() {
             window.dispatchEvent(new CustomEvent("stt-trigger-upload"));
         }
     }, [loadDashboardData]);
+
+    // Pre-request microphone permission when user first lands on dashboard so recording starts faster
+    const micRequested = useRef(false);
+    useEffect(() => {
+        if (micRequested.current || typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return;
+        const t = setTimeout(() => {
+            micRequested.current = true;
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then((stream) => { stream.getTracks().forEach((track) => track.stop()); })
+                .catch(() => {});
+        }, 800);
+        return () => clearTimeout(t);
+    }, []);
 
     // Poll when any record is transcribing or uploading so list updates when job completes
     useEffect(() => {

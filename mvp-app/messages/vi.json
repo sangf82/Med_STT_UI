@@ -55,6 +55,7 @@
   },
   "Recording": {
     "newRecording": "Ghi âm mới",
+    "startingRecording": "Đang bật micro...",
     "saveRecording": "Lưu bản ghi",
     "outputFormat": "Định dạng đầu ra",
     "cancel": "Hủy",

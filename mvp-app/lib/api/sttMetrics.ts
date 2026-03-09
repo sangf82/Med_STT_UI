@@ -223,10 +223,15 @@ export const deleteRecord = (recordId: string) =>
 
 // 4. AI Transcription
 
-export const basicSttAudio = async (audioBlob: Blob, session_id: string) => {
+export const basicSttAudio = async (
+  audioBlob: Blob,
+  session_id: string,
+  output_format?: OutputFormat | string,
+) => {
   const formData = new FormData();
   formData.append("audio", audioBlob, "record.webm");
   formData.append("session_id", session_id);
+  formData.append("output_format", normalizeOutputFormat(output_format));
 
   const token =
     typeof window !== "undefined"
@@ -290,6 +295,7 @@ export const initChunkedUpload = async (
   session_id: string,
   chunk_size?: number,
   display_name?: string,
+  output_format?: OutputFormat | string,
 ): Promise<ChunkedUploadInitResponse> => {
   const form = new FormData();
   form.append("session_id", session_id);
@@ -298,6 +304,7 @@ export const initChunkedUpload = async (
   if (chunk_size != null) form.append("chunk_size", chunk_size.toString());
   if (display_name != null && display_name.trim())
     form.append("display_name", display_name.trim());
+  form.append("output_format", normalizeOutputFormat(output_format));
 
   const token = getAuthToken();
   const headers: Record<string, string> = {};
