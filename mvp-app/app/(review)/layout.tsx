@@ -53,7 +53,7 @@ export default function ReviewLayout({
     const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const TRANSCRIPTION_TIMEOUT_MS = 5 * 60 * 1000;
-    const POLL_INTERVAL_MS = 3000;
+    const POLL_INTERVAL_MS = 5000; // 5s to avoid excessive requests while transcribing
     const MAX_AUTO_RETRIES = 3;
 
     useEffect(() => {
@@ -159,8 +159,8 @@ export default function ReviewLayout({
             date: new Date(recordData.created_at).toLocaleDateString(),
             status: recordData.status === 'completed' ? 'transcribed' : recordData.status === 'failed' ? 'error' : 'transcribing',
             content: recordData.content,
-            refined_text: recordData.refined_text,
-            raw_text: recordData.raw_text
+            raw_text: recordData.raw_text,
+            refined_text: recordData.refined_text
         };
     }, [recordData, format]);
 
@@ -239,7 +239,7 @@ export default function ReviewLayout({
         try {
             setSaveStatus('saving');
             // Fetch content from the recordData if available, fallback to empty string
-            const currentContent = recordData?.content || recordData?.refined_text || recordData?.raw_text || "";
+            const currentContent = recordData?.content ?? recordData?.refined_text ?? recordData?.raw_text ?? "";
             
             await updateRecord(recordId, { 
                 display_name: recordingName,

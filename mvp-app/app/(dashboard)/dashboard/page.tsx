@@ -10,7 +10,7 @@ import { Card } from '@/components/Card';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { SurveyDialog } from '@/components/SurveyDialog';
-import { getMyRecords, getMyUsage } from '@/lib/api/sttMetrics';
+import { getMyRecords, getMyUsage, getSttEventsUrl } from '@/lib/api/sttMetrics';
 import type { Recording } from '@/lib/mockData';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
@@ -34,20 +34,37 @@ export default function DashboardPage() {
         setTimeout(() => setShowDevNotice(false), 2000);
     };
 
-    const loadDashboardData = useCallback(async () => {
+    const mapFormat = useCallback((ft?: string) => {
+        const v = (ft ?? '').trim().toLowerCase().replace(/\s/g, '_');
+        if (v === 'soap_note' || v === 'soap') return 'Ghi chú SOAP';
+        if (v === 'ehr') return 'Tóm tắt lâm sàng';
+        if (v === 'to-do' || v === 'todo') return 'Việc cần làm';
+        return 'Chưa phân loại';
+    }, []);
+
+    const loadDashboardData = useCallback(async (recordsOnly = false) => {
         try {
+            if (recordsOnly) {
+                const recordsRes = await getMyRecords();
+                const mappedRecords: Recording[] = recordsRes.items.map(item => {
+                    const formatLabel = mapFormat(item.output_format ?? (item as { output_type?: string }).output_type);
+                    return {
+                        id: item.id,
+                        title: item.display_name || 'Bản ghi không tên',
+                        patient: undefined,
+                        format: formatLabel,
+                        duration: item.elapsed_time ? `${Math.floor(item.elapsed_time)}s` : '...',
+                        date: new Date(item.created_at).toLocaleDateString(),
+                        status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
+                    };
+                });
+                setRecordings(mappedRecords);
+                return;
+            }
             const [recordsRes, usageRes] = await Promise.all([
                 getMyRecords(),
                 getMyUsage()
             ]);
-            const mapFormat = (ft?: string) => {
-                const v = (ft ?? '').trim().toLowerCase().replace(/\s/g, '_');
-                if (v === 'soap_note' || v === 'soap') return 'Ghi chú SOAP';
-                if (v === 'ehr') return 'Tóm tắt lâm sàng';
-                if (v === 'to-do' || v === 'todo') return 'Việc cần làm';
-                return 'Chưa phân loại';
-            };
-
             const mappedRecords: Recording[] = recordsRes.items.map(item => {
                 const formatLabel = mapFormat(item.output_format ?? (item as { output_type?: string }).output_type);
                 return {
@@ -60,9 +77,7 @@ export default function DashboardPage() {
                     status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
                 };
             });
-
             setRecordings(mappedRecords);
-
             if (usageRes.stt_remaining === 0 && usageRes.stt_request_more_count === 0) {
                 // show survey when limit hit
             } else if (usageRes.stt_remaining <= 2) {
@@ -75,11 +90,10 @@ export default function DashboardPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [setRecordings, setShowNotificationDot]);
+    }, [mapFormat, setRecordings, setShowNotificationDot]);
 
     useEffect(() => {
         loadDashboardData();
-        // Trigger background upload immediately when opening list (retry incomplete / stuck)
         if (typeof window !== "undefined") {
             window.dispatchEvent(new CustomEvent("stt-trigger-upload"));
         }
@@ -98,36 +112,44 @@ export default function DashboardPage() {
         return () => clearTimeout(t);
     }, []);
 
-    // Poll when any record is transcribing or uploading so list updates when job completes
+    // SSE: receive record status updates from server (no polling)
     useEffect(() => {
-        const hasTranscribing = recordings.some((rec) => rec.status === 'transcribing');
-        const hasUploading = uploadingSessions.length > 0;
-        if (!hasTranscribing && !hasUploading) return;
-        const interval = setInterval(loadDashboardData, 3000);
-        return () => clearInterval(interval);
-    }, [recordings, uploadingSessions.length, loadDashboardData]);
+        const url = getSttEventsUrl();
+        if (!url) return;
+        const es = new EventSource(url);
+        const onMessage = (e: MessageEvent) => {
+            try {
+                const data = JSON.parse(e.data) as { type?: string };
+                if (data?.type === 'record_updated') loadDashboardData(true);
+            } catch {
+                // ignore ping or invalid payload
+            }
+        };
+        es.addEventListener('message', onMessage);
+        es.onerror = () => {
+            es.close();
+            // optional: reconnect after delay (EventSource often auto-reconnects)
+        };
+        return () => {
+            es.removeEventListener('message', onMessage);
+            es.close();
+        };
+    }, [loadDashboardData]);
 
     const mappedUploading: Recording[] = useMemo(() => {
-        const mapFormat = (ft?: string) => {
-            const v = (ft ?? '').trim().toLowerCase().replace(/\s/g, '_');
-            if (v === 'soap_note' || v === 'soap') return 'Ghi chú SOAP';
-            if (v === 'ehr') return 'Tóm tắt lâm sàng';
-            if (v === 'to-do' || v === 'todo') return 'Việc cần làm';
-            return 'Chưa phân loại';
-        };
         return uploadingSessions.map(session => {
             const meta = session as { output_format?: string; output_type?: string; format?: string };
             return {
                 id: session.upload_id,
                 title: session.filename || 'Bản ghi không tên',
                 patient: undefined,
-                format: mapFormat(meta.output_format ?? meta.output_type ?? meta.format),
+                format: mapFormat(meta.output_format ?? (meta as { output_type?: string }).output_type ?? (meta as { format?: string }).format),
                 duration: '...',
                 date: new Date(session.created_at).toLocaleDateString(),
                 status: 'uploading'
             };
         });
-    }, [uploadingSessions]);
+    }, [uploadingSessions, mapFormat]);
 
     const allRecordings = useMemo(() => [...mappedUploading, ...recordings], [mappedUploading, recordings]);
 

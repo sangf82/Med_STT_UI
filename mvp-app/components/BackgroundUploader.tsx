@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import {
   pingServer,
   getIncompleteUploads,
   getChunkedUploadStatus,
-  uploadChunk,
+  uploadChunkWithRetry,
   completeChunkedUpload,
   abandonUpload,
   getSttJobStatus,
@@ -17,9 +18,10 @@ import { db, cleanupUploadSession } from '@/lib/db';
 
 export function BackgroundUploader() {
   const isRunning = useRef(false);
+  const hasLocalUploads = (useLiveQuery(() => db.uploads.count(), []) ?? 0) > 0;
 
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+    let intervalId: NodeJS.Timeout | undefined;
 
     const runUploads = async () => {
       if (!getAuthToken()) return; // only call API when logged in
@@ -57,11 +59,23 @@ export function BackgroundUploader() {
           const statusRes = await getChunkedUploadStatus(item.upload_id).catch(() => null);
           if (!statusRes) continue;
 
+          let chunkFailed = false;
           for (const chunkIndex of statusRes.missing_chunk_indexes) {
             const chunkData = await db.chunks.where({ upload_id: item.upload_id, chunk_index: chunkIndex }).first();
             if (chunkData && chunkData.blob) {
-              await uploadChunk(item.upload_id, chunkIndex, chunkData.blob).catch((e) => console.error("Chunk failed", e));
+              try {
+                await uploadChunkWithRetry(item.upload_id, chunkIndex, chunkData.blob);
+              } catch (e) {
+                console.error("Chunk upload failed after retries", chunkIndex, e);
+                chunkFailed = true;
+                break;
+              }
             }
+          }
+          if (chunkFailed) {
+            await abandonUpload(item.upload_id).catch(() => null);
+            await cleanupUploadSession(item.upload_id);
+            continue;
           }
 
           // Finally try to complete
@@ -117,15 +131,17 @@ export function BackgroundUploader() {
       window.addEventListener("stt-trigger-upload", onTrigger);
     }
     runUploads();
-    intervalId = setInterval(runUploads, 5000);
+    if (hasLocalUploads) {
+      intervalId = setInterval(runUploads, 5000);
+    }
 
     return () => {
-      clearInterval(intervalId);
+      if (intervalId != null) clearInterval(intervalId);
       if (typeof window !== "undefined") {
         window.removeEventListener("stt-trigger-upload", onTrigger);
       }
     };
-  }, []);
+  }, [hasLocalUploads]);
 
   return null; // pure headless component
 }

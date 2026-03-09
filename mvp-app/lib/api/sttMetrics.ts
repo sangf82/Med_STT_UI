@@ -30,10 +30,13 @@ export interface RequestMorePayload {
 }
 
 export interface SttRecord {
-  id: string; // the backend uses id or _id depending on serialization, assuming id here or we map it
-  raw_text?: string;
-  refined_text?: string;
+  id: string;
+  /** Current text (edited or from STT). List does not return this; only get-by-id does. */
   content?: string;
+  /** AI raw STT output. Only in get-by-id response. */
+  raw_text?: string;
+  /** AI refined output. Only in get-by-id response. */
+  refined_text?: string;
   output_format?: OutputFormat | string;
   status: "completed" | "failed" | "processing" | "pending";
   error_message?: string;
@@ -323,11 +326,20 @@ export const initChunkedUpload = async (
   return res.json();
 };
 
+/** 512KB chunk: max 1 minute per request then timeout. */
+export const CHUNK_UPLOAD_TIMEOUT_MS = 60 * 1000;
+
 export const uploadChunk = async (
   uploadId: string,
   chunkIndex: number,
   chunkBlob: Blob,
+  options?: { timeoutMs?: number },
 ) => {
+  const timeoutMs = options?.timeoutMs ?? CHUNK_UPLOAD_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const signal = controller.signal;
+
   const formData = new FormData();
   formData.append("upload_id", uploadId);
   formData.append("chunk_index", chunkIndex.toString());
@@ -343,16 +355,47 @@ export const uploadChunk = async (
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const url = `${process.env.NEXT_PUBLIC_API_URL || "https://medmate-backend-k25riftvia-as.a.run.app"}/ai/stt/upload/chunk`;
-  const response = await fetch(url, {
-    method: "PUT",
-    headers,
-    body: formData,
-  });
-
-  if (!response.ok) {
-    throw { status: response.status, message: response.statusText };
+  try {
+    const response = await fetch(url, {
+      method: "PUT",
+      headers,
+      body: formData,
+      signal,
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      throw { status: response.status, message: response.statusText };
+    }
+    return response.json();
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if (e instanceof Error && e.name === "AbortError") {
+      throw { status: 408, message: "Chunk upload timeout (max 1 min)" };
+    }
+    throw e;
   }
-  return response.json();
+};
+
+/** Upload one chunk with retries (default 2 retries = 3 attempts). On final failure throws. */
+export const uploadChunkWithRetry = async (
+  uploadId: string,
+  chunkIndex: number,
+  chunkBlob: Blob,
+  maxAttempts = 3,
+): Promise<void> => {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await uploadChunk(uploadId, chunkIndex, chunkBlob);
+      return;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+      }
+    }
+  }
+  throw lastErr;
 };
 
 export const getChunkedUploadStatus = (uploadId: string) =>
@@ -402,6 +445,21 @@ export const getSttJobsList = (statusFilter?: string, limit = 50) => {
 
 export const pingServer = () =>
   apiClient<{ ok: boolean; pong: boolean }>("/ping");
+
+const STT_EVENTS_PATH = "/stt-metrics/me/events";
+
+/** SSE URL for record status updates (EventSource). Token in query because EventSource cannot send headers. */
+export function getSttEventsUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  const token = getAuthToken();
+  if (!token) return null;
+  const base = process.env.NEXT_PUBLIC_API_URL || "https://medmate-backend-k25riftvia-as.a.run.app";
+  return `${base}${STT_EVENTS_PATH}?access_token=${encodeURIComponent(token)}`;
+}
+
+export type SttEventRecordUpdated = { type: "record_updated"; record_id: string; status: string };
+export type SttEventPing = { type: "ping" };
+export type SttEvent = SttEventRecordUpdated | SttEventPing;
 
 export const getIncompleteUploads = () =>
   apiClient<IncompleteUploadsResponse>("/ai/stt/upload/incomplete");
