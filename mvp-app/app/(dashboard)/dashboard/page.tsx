@@ -46,7 +46,8 @@ export default function DashboardPage() {
         try {
             if (recordsOnly) {
                 const recordsRes = await getMyRecords();
-                const mappedRecords: Recording[] = recordsRes.items.map(item => {
+                const items = recordsRes?.items ?? [];
+                const mappedRecords: Recording[] = items.map(item => {
                     const formatLabel = mapFormat(item.output_format ?? (item as { output_type?: string }).output_type);
                     return {
                         id: item.id,
@@ -65,7 +66,8 @@ export default function DashboardPage() {
                 getMyRecords(),
                 getMyUsage()
             ]);
-            const mappedRecords: Recording[] = recordsRes.items.map(item => {
+            const items = recordsRes?.items ?? [];
+            const mappedRecords: Recording[] = items.map(item => {
                 const formatLabel = mapFormat(item.output_format ?? (item as { output_type?: string }).output_type);
                 return {
                     id: item.id,
@@ -78,26 +80,32 @@ export default function DashboardPage() {
                 };
             });
             setRecordings(mappedRecords);
-            if (usageRes.stt_remaining === 0 && usageRes.stt_request_more_count === 0) {
+            const remaining = usageRes?.stt_remaining ?? 0;
+            const requestMore = usageRes?.stt_request_more_count ?? 0;
+            if (remaining === 0 && requestMore === 0) {
                 // show survey when limit hit
-            } else if (usageRes.stt_remaining <= 2) {
+            } else if (remaining <= 2) {
                 setShowNotificationDot(true);
             } else {
                 setShowNotificationDot(false);
             }
         } catch (err) {
             console.error("Failed to fetch dashboard data", err);
+            setRecordings([]);
         } finally {
             setIsLoading(false);
         }
     }, [mapFormat, setRecordings, setShowNotificationDot]);
 
+    const loadDashboardDataRef = useRef(loadDashboardData);
+    loadDashboardDataRef.current = loadDashboardData;
+
     useEffect(() => {
-        loadDashboardData();
+        loadDashboardDataRef.current();
         if (typeof window !== "undefined") {
             window.dispatchEvent(new CustomEvent("stt-trigger-upload"));
         }
-    }, [loadDashboardData]);
+    }, []);
 
     // Pre-request microphone permission when user first lands on dashboard so recording starts faster
     const micRequested = useRef(false);
@@ -112,29 +120,58 @@ export default function DashboardPage() {
         return () => clearTimeout(t);
     }, []);
 
-    // SSE: receive record status updates from server (no polling)
+    // SSE: receive record status updates; reconnect after disconnect (e.g. deploy) with backoff to avoid breaking flows
+    const [sseReconnectKey, setSseReconnectKey] = useState(0);
+    const sseReconnectAttempts = useRef(0);
+    const sseReconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const SSE_RECONNECT_DELAY_MS = 5000;
+    const SSE_MAX_RECONNECTS = 5;
     useEffect(() => {
         const url = getSttEventsUrl();
         if (!url) return;
         const es = new EventSource(url);
+        const scheduleReconnect = () => {
+            es.close();
+            if (sseReconnectAttempts.current >= SSE_MAX_RECONNECTS) return;
+            sseReconnectAttempts.current += 1;
+            sseReconnectTimeoutRef.current = setTimeout(
+                () => setSseReconnectKey((k) => k + 1),
+                SSE_RECONNECT_DELAY_MS
+            );
+        };
         const onMessage = (e: MessageEvent) => {
             try {
                 const data = JSON.parse(e.data) as { type?: string };
-                if (data?.type === 'record_updated') loadDashboardData(true);
+                if (data?.type === 'shutdown') {
+                    scheduleReconnect();
+                    return;
+                }
+                sseReconnectAttempts.current = 0;
+                if (data?.type === 'record_updated') loadDashboardDataRef.current(true);
             } catch {
                 // ignore ping or invalid payload
             }
         };
         es.addEventListener('message', onMessage);
-        es.onerror = () => {
-            es.close();
-            // optional: reconnect after delay (EventSource often auto-reconnects)
-        };
+        es.onerror = () => { scheduleReconnect(); };
         return () => {
+            if (sseReconnectTimeoutRef.current) {
+                clearTimeout(sseReconnectTimeoutRef.current);
+                sseReconnectTimeoutRef.current = null;
+            }
             es.removeEventListener('message', onMessage);
             es.close();
         };
-    }, [loadDashboardData]);
+    }, [sseReconnectKey]);
+
+    // Only poll when there is at least one record still uploading or transcribing; stop when all done
+    useEffect(() => {
+        const hasTranscribing = recordings.some((r) => r.status === 'transcribing');
+        const hasUploading = uploadingSessions.length > 0;
+        if (!hasTranscribing && !hasUploading) return;
+        const interval = setInterval(() => loadDashboardDataRef.current(true), 5000);
+        return () => clearInterval(interval);
+    }, [recordings, uploadingSessions.length]);
 
     const mappedUploading: Recording[] = useMemo(() => {
         return uploadingSessions.map(session => {
