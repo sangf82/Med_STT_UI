@@ -10,7 +10,7 @@ import { Card } from '@/components/Card';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { SurveyDialog } from '@/components/SurveyDialog';
-import { getMyRecords, getMyUsage, getSttEventsUrl } from '@/lib/api/sttMetrics';
+import { getMyRecords, getMyUsage } from '@/lib/api/sttMetrics';
 import type { Recording } from '@/lib/mockData';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
@@ -120,51 +120,7 @@ export default function DashboardPage() {
         return () => clearTimeout(t);
     }, []);
 
-    // SSE: receive record status updates; reconnect after disconnect (e.g. deploy) with backoff to avoid breaking flows
-    const [sseReconnectKey, setSseReconnectKey] = useState(0);
-    const sseReconnectAttempts = useRef(0);
-    const sseReconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const SSE_RECONNECT_DELAY_MS = 5000;
-    const SSE_MAX_RECONNECTS = 5;
-    useEffect(() => {
-        const url = getSttEventsUrl();
-        if (!url) return;
-        const es = new EventSource(url);
-        const scheduleReconnect = () => {
-            es.close();
-            if (sseReconnectAttempts.current >= SSE_MAX_RECONNECTS) return;
-            sseReconnectAttempts.current += 1;
-            sseReconnectTimeoutRef.current = setTimeout(
-                () => setSseReconnectKey((k) => k + 1),
-                SSE_RECONNECT_DELAY_MS
-            );
-        };
-        const onMessage = (e: MessageEvent) => {
-            try {
-                const data = JSON.parse(e.data) as { type?: string };
-                if (data?.type === 'shutdown') {
-                    scheduleReconnect();
-                    return;
-                }
-                sseReconnectAttempts.current = 0;
-                if (data?.type === 'record_updated') loadDashboardDataRef.current(true);
-            } catch {
-                // ignore ping or invalid payload
-            }
-        };
-        es.addEventListener('message', onMessage);
-        es.onerror = () => { scheduleReconnect(); };
-        return () => {
-            if (sseReconnectTimeoutRef.current) {
-                clearTimeout(sseReconnectTimeoutRef.current);
-                sseReconnectTimeoutRef.current = null;
-            }
-            es.removeEventListener('message', onMessage);
-            es.close();
-        };
-    }, [sseReconnectKey]);
-
-    // Only poll when there is at least one record still uploading or transcribing; stop when all done
+    // Poll only while there is at least one record transcribing or uploading; stop when all done
     useEffect(() => {
         const hasTranscribing = recordings.some((r) => r.status === 'transcribing');
         const hasUploading = uploadingSessions.length > 0;
