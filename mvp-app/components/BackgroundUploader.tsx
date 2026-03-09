@@ -56,7 +56,7 @@ export function BackgroundUploader() {
             await completeChunkedUpload({
               upload_id: item.upload_id,
               session_id: localMeta.session_id,
-              format_type: localMeta.format_type
+              output_type: localMeta.format_type,
             });
             // If complete succeeds, remove from IndexedDB
             await cleanupUploadSession(item.upload_id);

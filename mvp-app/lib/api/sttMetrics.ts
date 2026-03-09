@@ -309,8 +309,9 @@ export const getChunkedUploadStatus = (uploadId: string) =>
 export const completeChunkedUpload = (payload: {
   upload_id: string;
   session_id?: string;
+  /** soap_note | ehr | to-do | free */
   output_type?: string;
-  format_type?: string;
+  display_name?: string;
 }) =>
   apiClient<ChunkedUploadCompleteResponse>("/ai/stt/upload/complete", {
     method: "POST",
