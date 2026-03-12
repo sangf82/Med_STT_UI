@@ -1,10 +1,10 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { CheckCircle2, ClipboardList } from 'lucide-react';
-import { updateDailyActualCases } from '@/lib/api/sttMetrics';
+import { updateDailyActualCases, getDailyActualCases } from '@/lib/api/sttMetrics';
 
 interface DailyReportDialogProps {
     onClose: () => void;
@@ -15,6 +15,26 @@ export function DailyReportDialog({ onClose }: DailyReportDialogProps) {
     const [amount, setAmount] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Sync with backend on mount (in case reported on another device)
+    useEffect(() => {
+        const syncStatus = async () => {
+            try {
+                const reportDate = localStorage.getItem('daily_report_pending_date') || new Date().toISOString().split('T')[0];
+                const res = await getDailyActualCases(reportDate, reportDate);
+                // Check if items is an array and has content, or if there's a record for this date
+                if (res && res.by_date && res.by_date[reportDate] !== undefined) {
+                    // Record exists on backend, just mark as done locally
+                    localStorage.setItem('daily_report_last_date', reportDate);
+                    localStorage.removeItem('daily_report_pending_date');
+                    onClose();
+                }
+            } catch (err) {
+                console.warn("Failed to sync daily report status", err);
+            }
+        };
+        syncStatus();
+    }, [onClose]);
 
     const handleSubmit = async () => {
         if (!amount) return;

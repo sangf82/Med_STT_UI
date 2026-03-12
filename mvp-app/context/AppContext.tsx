@@ -35,6 +35,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     useEffect(() => {
         const checkTime = () => {
+            if (!getAuthToken()) return; // Don't show if not logged in
+
             const now = new Date();
             const hour = now.getHours();
             const todayStr = now.toISOString().split('T')[0];
