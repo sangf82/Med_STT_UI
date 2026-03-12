@@ -46,16 +46,17 @@ export function BackgroundUploader() {
 
         // 2. Try to resume each incomplete upload
         for (const item of uploads) {
-          // Verify if we have this upload in local indexedDB
           const localMeta = await db.uploads.where({ upload_id: item.upload_id }).first();
           if (!localMeta) {
-            // We don't have the blob on this device, let's abandon it so it stops showing up
-            // Or maybe it's on another device? Standard flow: if we don't have it, abandon.
-            await abandonUpload(item.upload_id).catch(() => null);
+            const createdAt = (item as { created_at?: string }).created_at;
+            const ageMs = createdAt ? Date.now() - new Date(createdAt).getTime() : Infinity;
+            // Only abandon old sessions (>10min) without local data; recent ones might just be slow to index
+            if (ageMs > 10 * 60 * 1000) {
+              await abandonUpload(item.upload_id).catch(() => null);
+            }
             continue;
           }
 
-          // Fetch the missing chunk indexes
           const statusRes = await getChunkedUploadStatus(item.upload_id).catch(() => null);
           if (!statusRes) continue;
 
@@ -73,12 +74,10 @@ export function BackgroundUploader() {
             }
           }
           if (chunkFailed) {
-            await abandonUpload(item.upload_id).catch(() => null);
-            await cleanupUploadSession(item.upload_id);
+            // Don't abandon — leave for next cycle so BackgroundUploader retries automatically
             continue;
           }
 
-          // Finally try to complete
           try {
             await completeChunkedUpload({
               upload_id: item.upload_id,
