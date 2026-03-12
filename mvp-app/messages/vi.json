@@ -153,5 +153,14 @@
     "submit": "Gửi khảo sát",
     "thanks": "Cảm ơn bạn!",
     "thanksSub": "Cảm ơn phản hồi của bạn, hãy tiếp tục sử dụng ứng dụng."
+  },
+  "DailyReport": {
+    "title": "Báo cáo trong ngày",
+    "question": "Tổng số Ghi chú SOAP bạn đã thực hiện hôm nay là bao nhiêu?",
+    "submit": "Gửi báo cáo",
+    "placeholder": "Nhập số lượng...",
+    "cancel": "Hủy",
+    "thanks": "Đã ghi nhận!",
+    "thanksSub": "Cảm ơn bạn đã cập nhật thông tin."
   }
 }
