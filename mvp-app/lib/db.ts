@@ -11,6 +11,7 @@ export interface UploadMetadata {
   output_format: string; // only "soap_note" | "ehr" | "to-do" (match AI/backend)
   format: string; // UI key only: "soap" | "clinical" | "todo"
   display_name?: string;
+  record_id?: string;
 }
 
 export interface UploadChunk {
@@ -26,6 +27,11 @@ export const db = new Dexie("MedSTTDatabase") as Dexie & {
 };
 
 db.version(1).stores({
+  uploads: "++id, upload_id, session_id",
+  chunks: "++id, upload_id, [upload_id+chunk_index]",
+});
+
+db.version(2).stores({
   uploads: "++id, upload_id, session_id",
   chunks: "++id, upload_id, [upload_id+chunk_index]",
 });

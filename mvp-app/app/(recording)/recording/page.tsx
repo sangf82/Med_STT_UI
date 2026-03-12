@@ -174,6 +174,7 @@ export default function RecordingPage() {
                 output_format: outputFormat,
                 format,
                 display_name: name?.trim() || undefined,
+                record_id: initRes.record_id,
             }, recorder.audioBlob);
 
             // 3. Return to list immediately; upload + STT run in background. Full navigation for reliable redirect on mobile

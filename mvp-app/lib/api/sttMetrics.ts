@@ -72,6 +72,7 @@ export interface DailyActualCasesResponse {
 export interface ChunkedUploadInitResponse {
   upload_id: string;
   chunk_size: number;
+  record_id: string;
 }
 
 export interface ChunkedUploadStatusResponse {
@@ -408,13 +409,13 @@ export const completeChunkedUpload = async (payload: {
   upload_id: string;
   session_id?: string;
   output_format?: OutputFormat | string;
-  display_name?: string;
+  record_id?: string;
 }): Promise<ChunkedUploadCompleteResponse> => {
   const form = new FormData();
   form.append("upload_id", payload.upload_id);
   form.append("output_format", normalizeOutputFormat(payload.output_format));
-  if (payload.display_name != null && payload.display_name.trim()) {
-    form.append("display_name", payload.display_name.trim());
+  if (payload.record_id) {
+    form.append("record_id", payload.record_id);
   }
   if (payload.session_id) {
     form.append("session_id", payload.session_id);

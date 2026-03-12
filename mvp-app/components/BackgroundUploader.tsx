@@ -82,6 +82,7 @@ export function BackgroundUploader() {
               upload_id: item.upload_id,
               session_id: localMeta.session_id,
               output_format: normalizeOutputFormat((localMeta as { output_format?: string; output_type?: string }).output_format ?? (localMeta as { output_type?: string }).output_type),
+              record_id: (localMeta as { record_id?: string }).record_id,
             });
             await cleanupUploadSession(item.upload_id);
           } catch (e) {
