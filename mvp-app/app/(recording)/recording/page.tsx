@@ -11,7 +11,7 @@ import { Loader2, MoreVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import { initChunkedUpload, type OutputFormat, AVAILABLE_OUTPUT_FORMATS } from '@/lib/api/sttMetrics';
+import { initChunkedUpload, getMyUsage, type OutputFormat, AVAILABLE_OUTPUT_FORMATS } from '@/lib/api/sttMetrics';
 import { saveUploadSession } from '@/lib/db';
 import { useAppContext } from '@/context/AppContext';
 
@@ -35,17 +35,40 @@ export default function RecordingPage() {
     const audioElRef = useRef<HTMLAudioElement | null>(null);
     const hasStarted = useRef(false);
     const [isStarting, setIsStarting] = useState(true);
+    const [limitChecked, setLimitChecked] = useState(false);
+    const [canRecord, setCanRecord] = useState<boolean | null>(null);
     // Known duration in seconds — reliable unlike audio.duration which is Infinity for WebM
     const knownDurationSec = recorder.timeMs / 1000;
 
-    // Auto-start recording on mount (getUserMedia can take a moment)
+    // Check STT limit before allowing record (402 trước khi record, không phải lúc xong)
     useEffect(() => {
-        if (!hasStarted.current) {
-            hasStarted.current = true;
-            recorder.start().finally(() => setIsStarting(false));
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        let cancelled = false;
+        getMyUsage()
+            .then((usage) => {
+                if (cancelled) return;
+                const limit = usage.stt_requests_limit;
+                const remaining = usage.stt_remaining ?? 0;
+                const allowed = limit == null || limit <= 0 || remaining > 0;
+                setCanRecord(allowed);
+                if (!allowed) setShowSurvey(true);
+                setLimitChecked(true);
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setCanRecord(true);
+                    setLimitChecked(true);
+                }
+            });
+        return () => { cancelled = true; };
     }, []);
+
+    // Auto-start recording on mount only after limit check and if can record
+    useEffect(() => {
+        if (!limitChecked || canRecord !== true || hasStarted.current) return;
+        hasStarted.current = true;
+        recorder.start().finally(() => setIsStarting(false));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [limitChecked, canRecord]);
 
     useEffect(() => {
         if (recorder.state === 'recording' && isStarting) setIsStarting(false);
@@ -232,6 +255,38 @@ export default function RecordingPage() {
             </span>
         </div>
     );
+
+    if (limitChecked && canRecord === false) {
+        return (
+            <div className="flex flex-col min-h-screen fade-in relative">
+                <Header
+                    centerNode={<span className="text-[17px] font-semibold">{t('newRecording')}</span>}
+                    onBack={handleBack}
+                    rightNode={null}
+                />
+                <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+                    <p className="text-[18px] font-semibold text-text-primary mb-2">
+                        Bạn đã hết lượt ghi âm
+                    </p>
+                    <p className="text-[14px] text-text-muted mb-4">
+                        Vui lòng đánh giá để nhận thêm lượt sử dụng.
+                    </p>
+                    <p className="text-[13px] text-text-muted">
+                        (Cửa sổ đánh giá đã hiển thị bên dưới)
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!limitChecked) {
+        return (
+            <div className="flex flex-col min-h-screen bg-bg-page items-center justify-center">
+                <Loader2 className="w-10 h-10 text-accent-blue animate-spin mb-4" />
+                <p className="text-[14px] text-text-muted">Đang kiểm tra lượt sử dụng...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col min-h-screen fade-in relative">
