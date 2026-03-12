@@ -14,6 +14,8 @@ interface AppContextProps {
     setFilter: React.Dispatch<React.SetStateAction<string | null>>;
     showSurvey: boolean;
     setShowSurvey: (show: boolean) => void;
+    showDailyReport: boolean;
+    setShowDailyReport: (show: boolean) => void;
     showTrialPanel: boolean;
     setShowTrialPanel: (show: boolean) => void;
     showNotificationDot: boolean;
@@ -27,8 +29,35 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const [profile, setProfile] = useState<Profile>(doctorProfile);
     const [filter, setFilter] = useState<string | null>(null);
     const [showSurvey, setShowSurvey] = useState(false);
+    const [showDailyReport, setShowDailyReport] = useState(false);
     const [showTrialPanel, setShowTrialPanel] = useState(initialRecordings.length >= 5);
     const [showNotificationDot, setShowNotificationDot] = useState(initialRecordings.length >= 5);
+
+    useEffect(() => {
+        const checkTime = () => {
+            if (!getAuthToken()) return; // Don't show if not logged in
+
+            const now = new Date();
+            const hour = now.getHours();
+            const todayStr = now.toISOString().split('T')[0];
+            const lastReported = localStorage.getItem('daily_report_last_date');
+            const pendingDate = localStorage.getItem('daily_report_pending_date');
+
+            // If it's after 5 PM and we haven't reported for today, set it as pending
+            if (hour >= 17 && lastReported !== todayStr && !pendingDate) {
+                localStorage.setItem('daily_report_pending_date', todayStr);
+                setShowDailyReport(true);
+            }
+            
+            // If there's a pending date from any previous time/day, keep showing it
+            if (localStorage.getItem('daily_report_pending_date')) {
+                setShowDailyReport(true);
+            }
+        };
+        checkTime();
+        const interval = setInterval(checkTime, 60000);
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         // Load initially from localStorage to avoid UI flicker
@@ -78,6 +107,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             profile, setProfile,
             filter, setFilter,
             showSurvey, setShowSurvey,
+            showDailyReport, setShowDailyReport,
             showTrialPanel, setShowTrialPanel,
             showNotificationDot, setShowNotificationDot
         }}>

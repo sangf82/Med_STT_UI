@@ -153,5 +153,14 @@
     "submit": "Submit Survey",
     "thanks": "Thank you!",
     "thanksSub": "Thank you for your feedback, please continue using the app."
+  },
+  "DailyReport": {
+    "title": "Daily Report",
+    "question": "What is the total amount of SOAP notes you completed today?",
+    "submit": "Submit Report",
+    "placeholder": "Enter amount...",
+    "cancel": "Cancel",
+    "thanks": "Recorded!",
+    "thanksSub": "Thank you for updating the information."
   }
 }
