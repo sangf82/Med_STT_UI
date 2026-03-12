@@ -180,7 +180,7 @@ export default function RecordingPage() {
         }
 
         try {
-            const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do' };
+            const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'raw' };
             const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
             const sessionId = `sess_${Date.now()}`;
             const CHUNK_SIZE = 1024 * 512;

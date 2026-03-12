@@ -2,7 +2,7 @@ import { apiClient } from "../apiClient";
 import { getAuthToken, logout } from "../auth";
 
 // AI-supported output formats only (must match backend AVAILABLE_OUTPUT_FORMATS)
-export const AVAILABLE_OUTPUT_FORMATS = ["soap_note", "ehr", "to-do"] as const;
+export const AVAILABLE_OUTPUT_FORMATS = ["soap_note", "ehr", "to-do", "raw"] as const;
 export type OutputFormat = (typeof AVAILABLE_OUTPUT_FORMATS)[number];
 
 /** Normalize to one of AVAILABLE_OUTPUT_FORMATS only (matches backend/AI). */
@@ -12,6 +12,7 @@ export function normalizeOutputFormat(value: string | undefined): OutputFormat {
   if (raw === "soap_note" || raw === "soap") return "soap_note";
   if (raw === "ehr" || raw === "clinical") return "ehr";
   if (raw === "to-do" || raw === "todo" || raw === "todolist") return "to-do";
+  if (raw === "raw" || raw === "freetext" || raw === "free_text") return "raw";
   return "soap_note";
 }
 

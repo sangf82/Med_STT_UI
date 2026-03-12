@@ -9,7 +9,7 @@ export interface SaveDialogProps {
     onSave: (name: string, format: string) => void;
 }
 
-type FormatKey = 'soap' | 'clinical' | 'todo';
+type FormatKey = 'soap' | 'clinical' | 'todo' | 'raw';
 
 export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
     const t = useTranslations('Recording');
@@ -24,6 +24,7 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
         { key: 'soap', labelKey: 'formatSoap' },
         { key: 'clinical', labelKey: 'formatClinical' },
         { key: 'todo', labelKey: 'formatTodo' },
+        { key: 'raw', labelKey: 'formatRaw' },
     ];
 
     const selectedLabel = t(formatOptions.find(o => o.key === format)!.labelKey);
@@ -113,7 +114,7 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
                         {t('cancel')}
                     </button>
 
-                    <div className="w-[1px] h-5 bg-[#D0D0D0]" />
+                    <div className="w-px h-5 bg-[#D0D0D0]" />
 
                     <button
                         onClick={() => onSave(name, format)}

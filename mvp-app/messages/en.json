@@ -69,7 +69,8 @@
     "name": "Name",
     "formatSoap": "SOAP Note",
     "formatClinical": "Clinical Summary",
-    "formatTodo": "To-do List"
+    "formatTodo": "To-do List",
+    "formatRaw": "Free Text"
   },
   "Review": {
     "consultation": "Patient Consultation",
@@ -77,6 +78,7 @@
     "ehrSummary": "Clinical Summary",
     "todoList": "To-do List",
     "unclassified": "Unclassified",
+    "raw": "Free Text",
     "copySuccess": "Copied",
     "rawTranscript": "Raw Transcript",
     "edit": "Edit",
