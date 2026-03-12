@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { CheckCircle2, ClipboardList } from 'lucide-react';
+import { CheckCircle2, ClipboardList, X } from 'lucide-react';
 import { updateDailyActualCases, getDailyActualCases } from '@/lib/api/sttMetrics';
 
 interface DailyReportDialogProps {
@@ -16,25 +16,22 @@ export function DailyReportDialog({ onClose }: DailyReportDialogProps) {
     const [submitted, setSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Sync with backend on mount (in case reported on another device)
+    // Optional: sync with backend on mount to pre-fill if user already reported (e.g. on another device).
+    // Do NOT auto-close here — let the user always see and interact with the dialog; they can submit or skip.
     useEffect(() => {
         const syncStatus = async () => {
             try {
                 const reportDate = localStorage.getItem('daily_report_pending_date') || new Date().toISOString().split('T')[0];
                 const res = await getDailyActualCases(reportDate, reportDate);
-                // Check if items is an array and has content, or if there's a record for this date
-                if (res && res.by_date && res.by_date[reportDate] !== undefined) {
-                    // Record exists on backend, just mark as done locally
-                    localStorage.setItem('daily_report_last_date', reportDate);
-                    localStorage.removeItem('daily_report_pending_date');
-                    onClose();
+                if (res?.by_date?.[reportDate] !== undefined && typeof res.by_date[reportDate] === 'number') {
+                    setAmount(String(res.by_date[reportDate]));
                 }
-            } catch (err) {
-                console.warn("Failed to sync daily report status", err);
+            } catch {
+                // ignore
             }
         };
         syncStatus();
-    }, [onClose]);
+    }, []);
 
     const handleSubmit = async () => {
         if (!amount) return;
@@ -82,10 +79,17 @@ export function DailyReportDialog({ onClose }: DailyReportDialogProps) {
 
     return (
         <div className="fixed inset-0 z-200 flex items-center justify-center px-6 bg-bg-overlay animate-in fade-in duration-300">
-            {/* Backdrop - Click disabled */}
-            <div className="absolute inset-0" />
+            <div className="absolute inset-0" aria-hidden />
 
             <div className="relative bg-white dark:bg-bg-surface w-full max-w-[360px] rounded-[24px] overflow-hidden shadow-2xl flex flex-col pt-8 px-6 pb-6">
+                <button
+                    type="button"
+                    onClick={() => onClose()}
+                    className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full text-text-muted hover:bg-bg-page hover:text-text-primary transition-colors"
+                    aria-label={t('cancel')}
+                >
+                    <X className="w-5 h-5" />
+                </button>
                 <div className="text-center mb-6">
                     <div className="w-12 h-12 rounded-full bg-accent-blue/10 dark:bg-accent-blue/20 flex items-center justify-center text-accent-blue mx-auto mb-3">
                         <ClipboardList className="w-6 h-6" />
@@ -110,7 +114,7 @@ export function DailyReportDialog({ onClose }: DailyReportDialogProps) {
                         />
                     </div>
 
-                    <div className="mt-2">
+                    <div className="mt-2 flex flex-col gap-3">
                         <button
                             disabled={!amount || isSubmitting}
                             onClick={handleSubmit}
@@ -122,6 +126,13 @@ export function DailyReportDialog({ onClose }: DailyReportDialogProps) {
                             )}
                         >
                             {isSubmitting ? "..." : t('submit')}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onClose()}
+                            className="text-[14px] text-text-muted hover:text-text-primary transition-colors py-2"
+                        >
+                            {t('cancel')}
                         </button>
                     </div>
                 </div>

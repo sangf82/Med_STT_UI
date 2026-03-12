@@ -189,7 +189,7 @@ export const updateDailyActualCases = (date: string, actual_cases: number) =>
   );
 
 // 3. Record Management
-export const getMyRecords = (skip = 0, limit = 50, output_format?: string) => {
+export const getMyRecords = (skip = 0, limit = 500, output_format?: string) => {
   const params: Record<string, string> = {
     skip: skip.toString(),
     limit: limit.toString(),

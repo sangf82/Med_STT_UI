@@ -25,6 +25,7 @@ export default function DashboardPage() {
     const { recordings, setRecordings, filter, showSurvey, setShowSurvey, showNotificationDot, setShowNotificationDot } = useAppContext();
     const [showDevNotice, setShowDevNotice] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [totalRecordsFromApi, setTotalRecordsFromApi] = useState<number>(0);
     const rawUploading = useLiveQuery(() => db.uploads.toArray());
     const uploadingSessions = useMemo(() => rawUploading || [], [rawUploading]);
 
@@ -45,12 +46,16 @@ export default function DashboardPage() {
         const LOAD_TIMEOUT_MS = 20000; // stop spinner after 20s if requests hang (e.g. CORS)
         const timeoutId = setTimeout(() => {
             setIsLoading(false);
-            if (!keepListOnError) setRecordings([]);
+            if (!keepListOnError) {
+                setRecordings([]);
+                setTotalRecordsFromApi(0);
+            }
         }, LOAD_TIMEOUT_MS);
         try {
             if (recordsOnly) {
                 const recordsRes = await getMyRecords();
                 const items = recordsRes?.items ?? [];
+                setTotalRecordsFromApi(recordsRes?.total ?? 0);
                 const mappedRecords: Recording[] = items.map(item => {
                     const formatLabel = mapFormat(item.output_format ?? (item as { output_type?: string }).output_type);
                     return {
@@ -71,6 +76,7 @@ export default function DashboardPage() {
                 getMyUsage()
             ]);
             const items = recordsRes?.items ?? [];
+            setTotalRecordsFromApi(recordsRes?.total ?? 0);
             const mappedRecords: Recording[] = items.map(item => {
                 const formatLabel = mapFormat(item.output_format ?? (item as { output_type?: string }).output_type);
                 return {
@@ -103,7 +109,10 @@ export default function DashboardPage() {
             if (err?.status === 402) {
                 setShowSurvey(true);
             }
-            if (!keepListOnError) setRecordings([]);
+            if (!keepListOnError) {
+                setRecordings([]);
+                setTotalRecordsFromApi(0);
+            }
         } finally {
             clearTimeout(timeoutId);
             setIsLoading(false);
@@ -304,6 +313,9 @@ export default function DashboardPage() {
                     isScrolled ? 'opacity-100 h-auto' : 'opacity-0 h-0 overflow-hidden'
                 )}>
                     {t('myRecordings')}
+                    {!isLoading && totalRecordsFromApi >= 0 && (
+                        <span className="ml-1 font-normal">(tổng {totalRecordsFromApi} bản ghi)</span>
+                    )}
                 </h2>
 
                 {isLoading ? (
