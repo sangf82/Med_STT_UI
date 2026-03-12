@@ -4,6 +4,7 @@ import { getLocale, getMessages } from 'next-intl/server';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { AppProvider } from '@/context/AppContext';
 import { BackgroundUploader } from '@/components/BackgroundUploader';
+import { GlobalSurvey } from '@/components/GlobalSurvey';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], display: 'swap', weight: ['300', '400', '500', '600', '700'] });
@@ -28,6 +29,7 @@ export default async function RootLayout({
           <ThemeProvider>
             <AppProvider>
               <BackgroundUploader />
+              <GlobalSurvey />
               {children}
             </AppProvider>
           </ThemeProvider>

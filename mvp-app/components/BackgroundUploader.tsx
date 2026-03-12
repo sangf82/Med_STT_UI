@@ -13,8 +13,10 @@ import {
 } from '@/lib/api/sttMetrics';
 import { getAuthToken } from '@/lib/auth';
 import { db, cleanupUploadSession } from '@/lib/db';
+import { useAppContext } from '@/context/AppContext';
 
 export function BackgroundUploader() {
+  const { setShowSurvey } = useAppContext();
   const isRunning = useRef(false);
   const hasLocalUploads = (useLiveQuery(() => db.uploads.count(), []) ?? 0) > 0;
 
@@ -85,11 +87,17 @@ export function BackgroundUploader() {
               record_id: (localMeta as { record_id?: string }).record_id,
             });
             await cleanupUploadSession(item.upload_id);
-          } catch (e) {
+          } catch (e: any) {
+            if (e?.status === 402) {
+              setShowSurvey(true);
+            }
             console.error("Failed to complete resumed upload", e);
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.status === 402) {
+          setShowSurvey(true);
+        }
         console.error("Resume block error:", err);
       } finally {
         isRunning.current = false;

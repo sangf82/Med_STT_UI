@@ -13,6 +13,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { initChunkedUpload, type OutputFormat, AVAILABLE_OUTPUT_FORMATS } from '@/lib/api/sttMetrics';
 import { saveUploadSession } from '@/lib/db';
+import { useAppContext } from '@/context/AppContext';
 
 
 // C1: Active Recording
@@ -25,6 +26,7 @@ export default function RecordingPage() {
     const router = useRouter();
 
     const recorder = useAudioRecorder();
+    const { showSurvey, setShowSurvey } = useAppContext();
     const [showSave, setShowSave] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [replaying, setReplaying] = useState(false);
@@ -183,12 +185,16 @@ export default function RecordingPage() {
             } else {
                 router.push('/dashboard');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Save/init failed", error);
+            if (error?.status === 402) {
+                setShowSurvey(true);
+            }
             setIsProcessing(true);
             setTimeout(() => setIsProcessing(false), 2000);
         }
     };
+
 
     // Keep seekPosition in sync during playback
     useEffect(() => {
