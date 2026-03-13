@@ -69,7 +69,8 @@
     "name": "Tên",
     "formatSoap": "Ghi chú SOAP",
     "formatClinical": "Tóm tắt lâm sàng",
-    "formatTodo": "Việc cần làm"
+    "formatTodo": "Việc cần làm",
+    "formatRaw": "Văn bản tự do"
   },
   "Review": {
     "consultation": "Tư vấn bệnh nhân",
@@ -77,6 +78,7 @@
     "ehrSummary": "Tóm tắt lâm sàng",
     "todoList": "Việc cần làm",
     "unclassified": "Chưa phân loại",
+    "raw": "Văn bản tự do",
     "copySuccess": "Đã sao chép",
     "rawTranscript": "Bản ghi thô",
     "edit": "Chỉnh sửa",
