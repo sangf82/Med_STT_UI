@@ -202,11 +202,10 @@ export default function RecordingPage() {
                 record_id: initRes.record_id,
             }, recorder.audioBlob);
 
-            // 3. Return to list immediately; upload + STT run in background. Full navigation for reliable redirect on mobile
+            // 3. Return to list immediately; upload + STT run in background. Client-side nav để không abort request đang upload của file trước.
+            router.push('/dashboard');
             if (typeof window !== 'undefined') {
-                window.location.href = '/dashboard';
-            } else {
-                router.push('/dashboard');
+                window.dispatchEvent(new CustomEvent('stt-trigger-upload'));
             }
         } catch (error: any) {
             console.error("Save/init failed", error);

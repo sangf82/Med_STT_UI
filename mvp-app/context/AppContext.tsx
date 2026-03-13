@@ -20,6 +20,8 @@ interface AppContextProps {
     setShowTrialPanel: (show: boolean) => void;
     showNotificationDot: boolean;
     setShowNotificationDot: (show: boolean) => void;
+    isRecoveringUploads: boolean;
+    setIsRecoveringUploads: (show: boolean) => void;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -32,6 +34,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const [showDailyReport, setShowDailyReport] = useState(false);
     const [showTrialPanel, setShowTrialPanel] = useState(initialRecordings.length >= 5);
     const [showNotificationDot, setShowNotificationDot] = useState(initialRecordings.length >= 5);
+    const [isRecoveringUploads, setIsRecoveringUploads] = useState(false);
 
     useEffect(() => {
         const checkTime = () => {
@@ -102,14 +105,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }, [profile]);
 
     return (
-        <AppContext.Provider value={{
+        <        AppContext.Provider value={{
             recordings, setRecordings,
             profile, setProfile,
             filter, setFilter,
             showSurvey, setShowSurvey,
             showDailyReport, setShowDailyReport,
             showTrialPanel, setShowTrialPanel,
-            showNotificationDot, setShowNotificationDot
+            showNotificationDot, setShowNotificationDot,
+            isRecoveringUploads, setIsRecoveringUploads
         }}>
             {children}
         </AppContext.Provider>

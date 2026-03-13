@@ -22,9 +22,11 @@ export default function DashboardPage() {
     const r = useTranslations('Review');
     const router = useRouter();
     const { open: openSidebar } = useSidebar();
-    const { recordings, setRecordings, filter, showSurvey, setShowSurvey, showNotificationDot, setShowNotificationDot } = useAppContext();
+    const { recordings, setRecordings, filter, showSurvey, setShowSurvey, showNotificationDot, setShowNotificationDot, isRecoveringUploads } = useAppContext();
     const [showDevNotice, setShowDevNotice] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [currentLimit, setCurrentLimit] = useState<number>(50);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [totalRecordsFromApi, setTotalRecordsFromApi] = useState<number>(0);
     const rawUploading = useLiveQuery(() => db.uploads.toArray());
     const uploadingSessions = useMemo(() => rawUploading || [], [rawUploading]);
@@ -42,10 +44,11 @@ export default function DashboardPage() {
         return 'Chưa phân loại';
     }, []);
 
-    const loadDashboardData = useCallback(async (recordsOnly = false, keepListOnError = false) => {
+    const loadDashboardData = useCallback(async (recordsOnly = false, keepListOnError = false, fetchLimit: number = 50) => {
         const LOAD_TIMEOUT_MS = 20000; // stop spinner after 20s if requests hang (e.g. CORS)
         const timeoutId = setTimeout(() => {
-            setIsLoading(false);
+            if (fetchLimit === 50) setIsLoading(false);
+            if (fetchLimit > 50) setIsLoadingMore(false);
             if (!keepListOnError) {
                 setRecordings([]);
                 setTotalRecordsFromApi(0);
@@ -53,7 +56,7 @@ export default function DashboardPage() {
         }, LOAD_TIMEOUT_MS);
         try {
             if (recordsOnly) {
-                const recordsRes = await getMyRecords();
+                const recordsRes = await getMyRecords(0, fetchLimit);
                 const items = recordsRes?.items ?? [];
                 setTotalRecordsFromApi(recordsRes?.total ?? 0);
                 const mappedRecords: Recording[] = items.map(item => {
@@ -72,7 +75,7 @@ export default function DashboardPage() {
                 return;
             }
             const [recordsRes, usageRes] = await Promise.all([
-                getMyRecords(),
+                getMyRecords(0, fetchLimit),
                 getMyUsage()
             ]);
             const items = recordsRes?.items ?? [];
@@ -91,7 +94,7 @@ export default function DashboardPage() {
             });
             if (mappedRecords.length > 0 || !keepListOnError) setRecordings(mappedRecords);
             try {
-                await clearStaleUploadSessions(120_000);
+                await clearStaleUploadSessions();
             } catch {
                 // ignore IndexedDB errors
             }
@@ -115,7 +118,8 @@ export default function DashboardPage() {
             }
         } finally {
             clearTimeout(timeoutId);
-            setIsLoading(false);
+            if (fetchLimit === 50) setIsLoading(false);
+            if (fetchLimit > 50) setIsLoadingMore(false);
         }
     }, [mapFormat, setRecordings, setShowNotificationDot]);
 
@@ -138,7 +142,7 @@ export default function DashboardPage() {
             const now = Date.now();
             if (now - lastRefetch < REFETCH_DEBOUNCE_MS) return;
             lastRefetch = now;
-            loadDashboardDataRef.current(false, true);
+            loadDashboardDataRef.current(false, true, currentLimit);
         };
         const onVisible = () => {
             if (document.visibilityState === "visible") refetch();
@@ -172,9 +176,9 @@ export default function DashboardPage() {
         const hasTranscribing = recordings.some((r) => r.status === 'transcribing');
         const hasUploading = uploadingSessions.length > 0;
         if (!hasTranscribing && !hasUploading) return;
-        const interval = setInterval(() => loadDashboardDataRef.current(true), 5000);
+        const interval = setInterval(() => loadDashboardDataRef.current(true, false, currentLimit), 5000);
         return () => clearInterval(interval);
-    }, [recordings, uploadingSessions.length]);
+    }, [recordings, uploadingSessions.length, currentLimit]);
 
     const mappedUploading: Recording[] = useMemo(() => {
         return uploadingSessions.map(session => {
@@ -306,6 +310,13 @@ export default function DashboardPage() {
             {/* Placeholder to preserve space and prevent jump */}
             <div className="h-[180px] shrink-0 w-full" />
 
+            {isRecoveringUploads && (
+                <div className="mx-4 mb-2 flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/30 px-4 py-2.5 text-[13px] font-medium text-accent-blue">
+                    <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                    <span>Đang khôi phục bản ghi chưa tải xong...</span>
+                </div>
+            )}
+
             {/* ── Recording List ── */}
             <div className="px-4 flex flex-col gap-[10px]">
                 <h2 className={cn(
@@ -366,6 +377,25 @@ export default function DashboardPage() {
                             </div>
                         </Card>
                     ))
+                )}
+
+                {/* Nút Load More */}
+                {!isLoading && recordings.length > 0 && recordings.length < totalRecordsFromApi && (
+                    <div className="flex justify-center mt-2 mb-6">
+                        <button
+                            onClick={() => {
+                                const nextLimit = currentLimit + 50;
+                                setCurrentLimit(nextLimit);
+                                setIsLoadingMore(true);
+                                loadDashboardData(true, true, nextLimit);
+                            }}
+                            disabled={isLoadingMore}
+                            className="px-6 py-2.5 rounded-full bg-bg-surface text-[14px] font-medium text-text-primary hover:bg-divider transition-colors active:scale-95 border border-border shadow-sm flex items-center justify-center gap-2"
+                        >
+                            {isLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                            {isLoadingMore ? "Đang tải..." : "Tải thêm bản ghi"}
+                        </button>
+                    </div>
                 )}
             </div>
 

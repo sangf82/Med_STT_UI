@@ -72,8 +72,11 @@ export const cleanupUploadSession = async (upload_id: string) => {
   });
 };
 
-/** Remove upload sessions older than maxAgeMs so dashboard does not show stale "uploading" after save+redirect. */
-export const clearStaleUploadSessions = async (maxAgeMs: number = 120_000) => {
+/** Retention for local upload chunks so we can recover after mất mạng / chuyển tab / thoát trình duyệt (cùng thiết bị). */
+export const UPLOAD_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
+
+/** Remove upload sessions older than maxAgeMs. Use 24h so recovery works when user returns after closing tab/browser. */
+export const clearStaleUploadSessions = async (maxAgeMs: number = UPLOAD_SESSION_MAX_AGE_MS) => {
   const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
   const all = await db.uploads.toArray();
   const stale = all.filter((u) => (u.created_at || "") < cutoff);
