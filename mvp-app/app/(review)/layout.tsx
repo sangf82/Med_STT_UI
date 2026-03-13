@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, createContext, useContext, useEffect, useMemo } from 'react';
+import { Suspense, useState, useRef, createContext, useContext, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/Header';
@@ -13,7 +13,7 @@ import { Dialog } from '@/components/Dialog';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { useAppContext } from '@/context/AppContext';
-import { getRecordById } from '@/lib/api/sttMetrics';
+import { getRecordById, updateRecord, retryRecord, deleteRecord } from '@/lib/api/sttMetrics';
 import type { SttRecord } from '@/lib/api/sttMetrics';
 
 
@@ -46,6 +46,16 @@ export default function ReviewLayout({
     const [copySuccess, setCopySuccess] = useState(false);
     const [recordData, setRecordData] = useState<SttRecord | null>(null);
     const [isLoadingRecord, setIsLoadingRecord] = useState(true);
+    const [isRetrying, setIsRetrying] = useState(false);
+    const [retryError, setRetryError] = useState<string | null>(null);
+    const [timedOutAfterRetries, setTimedOutAfterRetries] = useState(false);
+    const pollStartTimeRef = useRef(0);
+    const autoRetryCountRef = useRef(0);
+    const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const TRANSCRIPTION_TIMEOUT_MS = 5 * 60 * 1000;
+    const POLL_INTERVAL_MS = 5000; // 5s to avoid excessive requests while transcribing
+    const MAX_AUTO_RETRIES = 3;
 
     useEffect(() => {
         let mounted = true;
@@ -54,31 +64,92 @@ export default function ReviewLayout({
             return;
         }
 
-        getRecordById(recordId)
-            .then(data => {
-                if (mounted) {
-                    setRecordData(data);
-                    setRecordingName(data.display_name || 'Bản ghi không tên');
-                }
-            })
-            .catch(err => {
-                console.error("Failed to load record:", err);
-            })
-            .finally(() => {
-                if (mounted) setIsLoadingRecord(false);
-            });
+        const fetchRecord = () =>
+            getRecordById(recordId)
+                .then(data => {
+                    if (mounted) {
+                        setRecordData(data);
+                        setRecordingName(data.display_name || 'Bản ghi không tên');
+                    }
+                })
+                .catch(err => {
+                    console.error("Failed to load record:", err);
+                })
+                .finally(() => {
+                    if (mounted) setIsLoadingRecord(false);
+                });
 
+        fetchRecord();
         return () => { mounted = false; };
     }, [recordId]);
 
-    // Map backend format_type to localized string for Tab logic
+    // When viewing a processing record, poll until it completes; timeout then auto-retry max 3 times, then show failed
+    useEffect(() => {
+        if (!recordId || !recordData || (recordData.status !== 'processing' && recordData.status !== 'pending')) {
+            setTimedOutAfterRetries(false);
+            return;
+        }
+        setTimedOutAfterRetries(false);
+        pollStartTimeRef.current = Date.now();
+        autoRetryCountRef.current = 0;
+
+        const tick = async () => {
+            try {
+                const data = await getRecordById(recordId);
+                setRecordData(data);
+                setRecordingName(data.display_name || 'Bản ghi không tên');
+                if (data.status === 'completed' || data.status === 'failed') {
+                    if (intervalIdRef.current) {
+                        clearInterval(intervalIdRef.current);
+                        intervalIdRef.current = null;
+                    }
+                    return;
+                }
+                const elapsed = Date.now() - pollStartTimeRef.current;
+                if (elapsed >= TRANSCRIPTION_TIMEOUT_MS) {
+                    if (autoRetryCountRef.current < MAX_AUTO_RETRIES) {
+                        await retryRecord(recordId);
+                        autoRetryCountRef.current += 1;
+                        pollStartTimeRef.current = Date.now();
+                        const updated = await getRecordById(recordId);
+                        setRecordData(updated);
+                        setRecordingName(updated.display_name || 'Bản ghi không tên');
+                    } else {
+                        if (intervalIdRef.current) {
+                            clearInterval(intervalIdRef.current);
+                            intervalIdRef.current = null;
+                        }
+                        setTimedOutAfterRetries(true);
+                    }
+                }
+            } catch {
+                // keep polling
+            }
+        };
+
+        intervalIdRef.current = setInterval(tick, POLL_INTERVAL_MS);
+        return () => {
+            if (intervalIdRef.current) {
+                clearInterval(intervalIdRef.current);
+                intervalIdRef.current = null;
+            }
+        };
+    }, [recordId, recordData?.status]);
+
     const format = useMemo(() => {
         if (!recordData) return 'None';
-        const type = recordData.format_type || recordData.output_type;
+        const type = (recordData.output_format ?? (recordData as { output_type?: string }).output_type ?? '').trim().toLowerCase().replace(/\s/g, '_');
         switch (type) {
-            case 'soap_note': return 'Ghi chú SOAP';
+            case 'soap_note':
+            case 'soap': return 'Ghi chú SOAP';
             case 'ehr': return 'Tóm tắt lâm sàng';
+            case 'to-do':
+            case 'todo':
+            case 'todo_list':
             case 'todo-list': return 'Việc cần làm';
+            case 'freetext':
+            case 'free':
+            case 'raw': return 'Văn bản tự do';
             default: return 'Chưa phân loại';
         }
     }, [recordData]);
@@ -93,8 +164,8 @@ export default function ReviewLayout({
             date: new Date(recordData.created_at).toLocaleDateString(),
             status: recordData.status === 'completed' ? 'transcribed' : recordData.status === 'failed' ? 'error' : 'transcribing',
             content: recordData.content,
-            refined_text: recordData.refined_text,
-            raw_text: recordData.raw_text
+            raw_text: recordData.raw_text,
+            refined_text: recordData.refined_text
         };
     }, [recordData, format]);
 
@@ -104,25 +175,25 @@ export default function ReviewLayout({
         { id: 'soap', label: t('soapNote') },
         { id: 'ehr', label: t('ehrSummary') },
         { id: 'todo', label: t('todoList') },
-        { id: 'freetext', label: t('raw') }
+        { id: 'raw', label: t('raw') },
     ];
 
     const tabs = useMemo(() => {
         return allTabs.filter(tab => {
-            if (tab.id === 'freetext') return true;
             if (format === 'Ghi chú SOAP' && tab.id === 'soap') return true;
             if (format === 'Tóm tắt lâm sàng' && tab.id === 'ehr') return true;
             if (format === 'Việc cần làm' && tab.id === 'todo') return true;
+            if (format === 'Văn bản tự do' && tab.id === 'raw') return true;
             return false;
         });
     }, [format, t]);
 
     const activeTab = useMemo(() => {
-        if (pathname.includes('/freetext')) return 'freetext';
         if (pathname.includes('/ehr')) return 'ehr';
         if (pathname.includes('/soap')) return 'soap';
         if (pathname.includes('/todo')) return 'todo';
-        return 'freetext';
+        if (pathname.includes('/raw')) return 'raw';
+        return 'soap';
     }, [pathname]);
 
     const handleTabChange = (id: string) => {
@@ -135,9 +206,10 @@ export default function ReviewLayout({
         const isSoapInvalid = pathname.includes('/soap') && format !== 'Ghi chú SOAP';
         const isEhrInvalid = pathname.includes('/ehr') && format !== 'Tóm tắt lâm sàng';
         const isTodoInvalid = pathname.includes('/todo') && format !== 'Việc cần làm';
+        const isRawInvalid = pathname.includes('/raw') && format !== 'Văn bản tự do';
 
-        if (isSoapInvalid || isEhrInvalid || isTodoInvalid) {
-            const startTab = format === 'Tóm tắt lâm sàng' ? 'ehr' : (format === 'Ghi chú SOAP' ? 'soap' : (format === 'Việc cần làm' ? 'todo' : 'freetext'));
+        if (isSoapInvalid || isEhrInvalid || isTodoInvalid || isRawInvalid) {
+            const startTab = format === 'Tóm tắt lâm sàng' ? 'ehr' : (format === 'Ghi chú SOAP' ? 'soap' : (format === 'Việc cần làm' ? 'todo' : (format === 'Văn bản tự do' ? 'raw' : 'soap')));
             router.replace(`/${startTab}?id=${recordId}`);
         }
     }, [pathname, record, format, recordId, router]);
@@ -171,8 +243,28 @@ export default function ReviewLayout({
 
 
 
-    const handleRenameConfirm = () => {
-        setRenameOpen(false);
+    const handleRenameConfirm = async () => {
+        if (!recordId) return;
+        try {
+            setSaveStatus('saving');
+            // Fetch content from the recordData if available, fallback to empty string
+            const currentContent = recordData?.content ?? recordData?.refined_text ?? recordData?.raw_text ?? "";
+            
+            const payload: { content: string; display_name?: string } = { content: currentContent };
+            if (recordingName.trim()) payload.display_name = recordingName.trim();
+            await updateRecord(recordId, payload);
+            
+            setSaveStatus('saved');
+            setRenameOpen(false);
+            
+            // Locally update the name
+            if (recordData) {
+                setRecordData({ ...recordData, display_name: recordingName });
+            }
+        } catch (e) {
+            console.error("Rename failed", e);
+            setSaveStatus('error');
+        }
     };
 
     const isEditMode = pathname.includes('/edit');
@@ -202,7 +294,13 @@ export default function ReviewLayout({
                         <header className="sticky top-0 z-40 flex items-center justify-between min-h-[64px] pt-4 px-4 w-full bg-bg-page text-text-primary tracking-tight">
                             <div className="flex items-center gap-1 min-w-0">
                                 <button
-                                    onClick={() => router.push('/dashboard')}
+                                    onClick={() => {
+                                        if (typeof window !== 'undefined') {
+                                            window.location.href = '/dashboard';
+                                        } else {
+                                            router.push('/dashboard');
+                                        }
+                                    }}
                                     className="w-10 h-10 -ml-2 shrink-0 rounded-full flex items-center justify-center hover:bg-bg-surface active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2"
                                     aria-label="Back"
                                 >
@@ -263,6 +361,43 @@ export default function ReviewLayout({
                                 <Loader className="w-8 h-8 animate-spin text-accent-blue mb-4" />
                                 <p className="text-[16px] font-medium text-text-primary mb-2">Đang tải...</p>
                             </div>
+                        ) : timedOutAfterRetries || record?.status === 'error' ? (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+                                <div className="w-16 h-16 bg-danger/10 rounded-full flex items-center justify-center mb-6">
+                                    <AlertCircle className="w-8 h-8 text-danger" />
+                                </div>
+                                <h3 className="text-[18px] font-bold text-text-primary mb-2">
+                                    {timedOutAfterRetries ? t('timeoutAfterRetriesDetail') : t('errorDetail')}
+                                </h3>
+                                {retryError && (
+                                    <p className="text-[13px] text-danger mb-3 px-4 text-center">{retryError}</p>
+                                )}
+                                <button
+                                    onClick={async () => {
+                                        if (!recordId) return;
+                                        setRetryError(null);
+                                        try {
+                                            if (timedOutAfterRetries) {
+                                                setTimedOutAfterRetries(false);
+                                                pollStartTimeRef.current = Date.now();
+                                                autoRetryCountRef.current = 0;
+                                            }
+                                            await retryRecord(recordId);
+                                            setRetryError(null);
+                                            const updated = await getRecordById(recordId);
+                                            setRecordData(updated);
+                                        } catch (e: unknown) {
+                                            console.error('Retry failed', e);
+                                            const err = e as { data?: { detail?: string }; message?: string };
+                                            setRetryError(err?.data?.detail ?? err?.message ?? 'Thử lại thất bại.');
+                                        }
+                                    }}
+                                    className="mt-4 flex items-center gap-2 bg-accent-blue text-white px-6 py-2.5 rounded-full text-[14px] font-semibold shadow-md active:scale-95 transition-transform"
+                                >
+                                    <RefreshCw className="w-4 h-4" />
+                                    {t('retry')}
+                                </button>
+                            </div>
                         ) : record?.status === 'transcribing' ? (
                             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
                                 <div className="relative w-16 h-16 mb-6">
@@ -272,22 +407,9 @@ export default function ReviewLayout({
                                 <p className="text-[16px] font-medium text-text-primary mb-2">
                                     {t('transcribingDetail')}
                                 </p>
-                            </div>
-                        ) : record?.status === 'error' ? (
-                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
-                                <div className="w-16 h-16 bg-danger/10 rounded-full flex items-center justify-center mb-6">
-                                    <AlertCircle className="w-8 h-8 text-danger" />
-                                </div>
-                                <h3 className="text-[18px] font-bold text-text-primary mb-2">
-                                    {t('errorDetail')}
-                                </h3>
-                                <button
-                                    onClick={() => window.location.reload()}
-                                    className="mt-4 flex items-center gap-2 bg-accent-blue text-white px-6 py-2.5 rounded-full text-[14px] font-semibold shadow-md active:scale-95 transition-transform"
-                                >
-                                    <RefreshCw className="w-4 h-4" />
-                                    {t('retry')}
-                                </button>
+                                <p className="text-[13px] text-text-muted max-w-[280px]">
+                                    {t('transcribingStuckHint')}
+                                </p>
                             </div>
                         ) : (
                             children
@@ -357,9 +479,16 @@ export default function ReviewLayout({
                                 <div className="w-px h-4 bg-border" />
                                 <button
                                     className="flex-1 text-center text-[15px] font-semibold text-danger active:scale-95 transition-transform py-2"
-                                    onClick={() => {
+                                    onClick={async () => {
                                         setDeleteOpen(false);
-                                        router.push('/dashboard');
+                                        if (recordId) {
+                                            try {
+                                                await deleteRecord(recordId);
+                                                router.push('/dashboard');
+                                            } catch (e) {
+                                                console.error('Delete failed', e);
+                                            }
+                                        }
                                     }}
                                 >
                                     {t('deleteAction')}

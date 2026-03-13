@@ -11,13 +11,9 @@ import { Loader2, MoreVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import { 
-    initChunkedUpload, 
-    uploadChunk, 
-    completeChunkedUpload, 
-    getSttJobStatus 
-} from '@/lib/api/sttMetrics';
-import { saveUploadSession, cleanupUploadSession } from '@/lib/db';
+import { initChunkedUpload, getMyUsage, type OutputFormat, AVAILABLE_OUTPUT_FORMATS } from '@/lib/api/sttMetrics';
+import { saveUploadSession } from '@/lib/db';
+import { useAppContext } from '@/context/AppContext';
 
 
 // C1: Active Recording
@@ -30,6 +26,7 @@ export default function RecordingPage() {
     const router = useRouter();
 
     const recorder = useAudioRecorder();
+    const { showSurvey, setShowSurvey } = useAppContext();
     const [showSave, setShowSave] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [replaying, setReplaying] = useState(false);
@@ -37,17 +34,45 @@ export default function RecordingPage() {
     const [seekPosition, setSeekPosition] = useState(1);
     const audioElRef = useRef<HTMLAudioElement | null>(null);
     const hasStarted = useRef(false);
+    const [isStarting, setIsStarting] = useState(true);
+    const [limitChecked, setLimitChecked] = useState(false);
+    const [canRecord, setCanRecord] = useState<boolean | null>(null);
     // Known duration in seconds — reliable unlike audio.duration which is Infinity for WebM
     const knownDurationSec = recorder.timeMs / 1000;
 
-    // Auto-start recording on mount
+    // Check STT limit before allowing record (402 trước khi record, không phải lúc xong)
     useEffect(() => {
-        if (!hasStarted.current) {
-            hasStarted.current = true;
-            recorder.start();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        let cancelled = false;
+        getMyUsage()
+            .then((usage) => {
+                if (cancelled) return;
+                const limit = usage.stt_requests_limit;
+                const remaining = usage.stt_remaining ?? 0;
+                const allowed = limit == null || limit <= 0 || remaining > 0;
+                setCanRecord(allowed);
+                if (!allowed) setShowSurvey(true);
+                setLimitChecked(true);
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setCanRecord(true);
+                    setLimitChecked(true);
+                }
+            });
+        return () => { cancelled = true; };
     }, []);
+
+    // Auto-start recording on mount only after limit check and if can record
+    useEffect(() => {
+        if (!limitChecked || canRecord !== true || hasStarted.current) return;
+        hasStarted.current = true;
+        recorder.start().finally(() => setIsStarting(false));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [limitChecked, canRecord]);
+
+    useEffect(() => {
+        if (recorder.state === 'recording' && isStarting) setIsStarting(false);
+    }, [recorder.state, isStarting]);
 
     // Determine control state
     let controlState: ControlState = 'recording';
@@ -134,93 +159,80 @@ export default function RecordingPage() {
     };
     const handleBack = () => {
         recorder.stop();
-        router.push('/dashboard');
+        if (typeof window !== 'undefined') {
+            window.location.href = '/dashboard';
+        } else {
+            router.push('/dashboard');
+        }
     };
     const handleSave = () => {
         recorder.pause();
         setShowSave(true);
     };
     const handleCancelSave = () => setShowSave(false);
+    const saveInProgressRef = useRef(false);
     const handleConfirmSave = async (name: string, format: string) => {
-        recorder.stop();
+        if (saveInProgressRef.current) return;
+        saveInProgressRef.current = true;
         setShowSave(false);
-        setIsProcessing(true);
-
         try {
-            if (!recorder.audioBlob) {
+            const blob = await recorder.stop();
+            if (!blob || blob.size === 0) {
                 console.error("No audio blob to transcribe");
                 return;
             }
 
-            let formatType = 'soap_note';
-            if (format === 'clinical') formatType = 'ehr';
-            if (format === 'todo') formatType = 'todo-list';
-            if (format === 'none') formatType = 'free_text';
-
-            // 1. Session and init setup
+            // Always send a display_name so we never create a record with backend fallback (e.g. "record.webm" or "Ca khám ...").
+            const displayName =
+                (name?.trim()) ||
+                `Ca khám ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '')}_${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '')}`;
+            const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'freetext' };
+            const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
             const sessionId = `sess_${Date.now()}`;
-            const CHUNK_SIZE = 1024 * 512; // 512KB default chunk size
-            const totalChunksGuess = Math.ceil(recorder.audioBlob.size / CHUNK_SIZE);
-            
-            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE);
+            const CHUNK_SIZE = 1024 * 512;
+            const totalChunks = Math.ceil(blob.size / CHUNK_SIZE);
 
-            // Use the provided chunk_size or default to CHUNK_SIZE
+            const initRes = await initChunkedUpload(
+                'record.webm',
+                totalChunks,
+                sessionId,
+                CHUNK_SIZE,
+                displayName,
+                outputFormat,
+                blob.size,
+            );
             const actualChunkSize = initRes.chunk_size || CHUNK_SIZE;
-            const computedTotalChunks = Math.ceil(recorder.audioBlob.size / actualChunkSize);
+            const computedTotalChunks = Math.ceil(blob.size / actualChunkSize);
 
-            // Save to IndexedDB (for auto-resume on crash/close)
             await saveUploadSession({
                 upload_id: initRes.upload_id,
                 session_id: sessionId,
-                filename: 'record.webm',
+                filename: name,
                 total_chunks: computedTotalChunks,
                 chunk_size: actualChunkSize,
-                format_type: formatType,
-                format: format
-            }, recorder.audioBlob);
+                output_format: outputFormat,
+                format,
+                display_name: displayName,
+                record_id: initRes.record_id,
+            }, blob);
 
-            // 2. Upload chunks
-            for (let i = 0; i < computedTotalChunks; i++) {
-                const start = i * actualChunkSize;
-                const end = Math.min(start + actualChunkSize, recorder.audioBlob.size);
-                const chunk = recorder.audioBlob.slice(start, end);
-                await uploadChunk(initRes.upload_id, i, chunk);
+            // 3. Return to list immediately; upload + STT run in background. Client-side nav để không abort request đang upload của file trước.
+            router.push('/dashboard');
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('stt-trigger-upload'));
             }
-
-            // 3. Mark complete and create job
-            const completeRes = await completeChunkedUpload({
-                upload_id: initRes.upload_id,
-                session_id: sessionId,
-                format_type: formatType
-            });
-
-            // 4. Poll job status
-            let jobStatus = await getSttJobStatus(completeRes.job_id);
-            while (jobStatus.status === 'pending' || jobStatus.status === 'processing') {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                jobStatus = await getSttJobStatus(completeRes.job_id);
+        } catch (error: any) {
+            console.error("Save/init failed", error);
+            if (error?.status === 402) {
+                setShowSurvey(true);
             }
-
-            if (jobStatus.status === 'failed') {
-               throw new Error(jobStatus.error_message || "STT Job failed");
-            }
-
-            // 5. Success, get record ID, cleanup IndexedDB, and route
-            const finishRecordId = jobStatus.result?.record_id;
-            
-            await cleanupUploadSession(initRes.upload_id);
-
-            // Optionally we should update the record's display_name via PATCH using name here, 
-            // but for MVP just route to the proper review page with the record_id
-            const formatRoute = format === 'clinical' ? 'ehr' : format === 'none' ? 'freetext' : format;
-            router.push(`/${formatRoute}?id=${finishRecordId}`);
-        } catch (error) {
-            console.error("Transcription failed", error);
-            // In a real app we'd show a toast error
+            setIsProcessing(true);
+            setTimeout(() => setIsProcessing(false), 2000);
         } finally {
-            setIsProcessing(false);
+            saveInProgressRef.current = false;
         }
     };
+
 
     // Keep seekPosition in sync during playback
     useEffect(() => {
@@ -243,16 +255,53 @@ export default function RecordingPage() {
         ? recorder.timeMs
         : Math.floor(seekPosition * (recorder.timeMs || 0));
 
-    // Header center: recording indicator + title
+    // Header center: recording indicator + title (show "Starting..." while getUserMedia runs)
     const isRecording = recorder.state === 'recording';
     const titleIndicator = (
         <div className="flex items-center gap-2">
-            {isRecording && (
+            {isStarting && (
+                <Loader2 className="w-4 h-4 text-accent-blue animate-spin shrink-0" />
+            )}
+            {!isStarting && isRecording && (
                 <div className="w-2.5 h-2.5 rounded-full bg-danger animate-pulse-fast" />
             )}
-            <span className="text-[17px] font-semibold">{t('newRecording')}</span>
+            <span className="text-[17px] font-semibold">
+                {isStarting ? t('startingRecording') : t('newRecording')}
+            </span>
         </div>
     );
+
+    if (limitChecked && canRecord === false) {
+        return (
+            <div className="flex flex-col min-h-screen fade-in relative">
+                <Header
+                    centerNode={<span className="text-[17px] font-semibold">{t('newRecording')}</span>}
+                    onBack={handleBack}
+                    rightNode={null}
+                />
+                <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+                    <p className="text-[18px] font-semibold text-text-primary mb-2">
+                        Bạn đã hết lượt ghi âm
+                    </p>
+                    <p className="text-[14px] text-text-muted mb-4">
+                        Vui lòng đánh giá để nhận thêm lượt sử dụng.
+                    </p>
+                    <p className="text-[13px] text-text-muted">
+                        (Cửa sổ đánh giá đã hiển thị bên dưới)
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!limitChecked) {
+        return (
+            <div className="flex flex-col min-h-screen bg-bg-page items-center justify-center">
+                <Loader2 className="w-10 h-10 text-accent-blue animate-spin mb-4" />
+                <p className="text-[14px] text-text-muted">Đang kiểm tra lượt sử dụng...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col min-h-screen fade-in relative">
@@ -268,9 +317,13 @@ export default function RecordingPage() {
 
             <div className="flex-1 flex flex-col items-center pt-6 pb-[34px]">
 
-                {/* Timer */}
+                {/* Timer (or "Starting..." while mic is being requested) */}
                 <div className="text-[52px] font-light leading-none tracking-tight text-center">
-                    {formatTimeMs(displayTimeMs)}
+                    {isStarting ? (
+                        <span className="text-[24px] text-text-muted">{t('startingRecording')}</span>
+                    ) : (
+                        formatTimeMs(displayTimeMs)
+                    )}
                 </div>
 
                 {/* Spacer */}

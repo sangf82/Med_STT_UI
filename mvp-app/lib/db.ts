@@ -8,8 +8,10 @@ export interface UploadMetadata {
   total_chunks: number;
   chunk_size: number;
   created_at: string;
-  format_type: string;
-  format: string; // "clinical", "todo", "none", etc.
+  output_format: string; // only "soap_note" | "ehr" | "to-do" (match AI/backend)
+  format: string; // UI key only: "soap" | "clinical" | "todo"
+  display_name?: string;
+  record_id?: string;
 }
 
 export interface UploadChunk {
@@ -25,6 +27,11 @@ export const db = new Dexie("MedSTTDatabase") as Dexie & {
 };
 
 db.version(1).stores({
+  uploads: "++id, upload_id, session_id",
+  chunks: "++id, upload_id, [upload_id+chunk_index]",
+});
+
+db.version(2).stores({
   uploads: "++id, upload_id, session_id",
   chunks: "++id, upload_id, [upload_id+chunk_index]",
 });
@@ -62,5 +69,21 @@ export const cleanupUploadSession = async (upload_id: string) => {
   await db.transaction("rw", db.uploads, db.chunks, async () => {
     await db.uploads.where({ upload_id }).delete();
     await db.chunks.where({ upload_id }).delete();
+  });
+};
+
+/** Retention for local upload chunks so we can recover after mất mạng / chuyển tab / thoát trình duyệt (cùng thiết bị). */
+export const UPLOAD_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
+
+/** Remove upload sessions older than maxAgeMs. Use 24h so recovery works when user returns after closing tab/browser. */
+export const clearStaleUploadSessions = async (maxAgeMs: number = UPLOAD_SESSION_MAX_AGE_MS) => {
+  const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
+  const all = await db.uploads.toArray();
+  const stale = all.filter((u) => (u.created_at || "") < cutoff);
+  await db.transaction("rw", db.uploads, db.chunks, async () => {
+    for (const u of stale) {
+      await db.uploads.where("upload_id").equals(u.upload_id).delete();
+      await db.chunks.where("upload_id").equals(u.upload_id).delete();
+    }
   });
 };
