@@ -22,6 +22,10 @@ interface AppContextProps {
     setShowNotificationDot: (show: boolean) => void;
     isRecoveringUploads: boolean;
     setIsRecoveringUploads: (show: boolean) => void;
+    totalRecordsFromApi: number;
+    setTotalRecordsFromApi: (n: number) => void;
+    totalByFormat: { soap: number; ehr: number; todo: number; free: number };
+    setTotalByFormat: (v: { soap: number; ehr: number; todo: number; free: number }) => void;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -35,6 +39,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const [showTrialPanel, setShowTrialPanel] = useState(initialRecordings.length >= 5);
     const [showNotificationDot, setShowNotificationDot] = useState(initialRecordings.length >= 5);
     const [isRecoveringUploads, setIsRecoveringUploads] = useState(false);
+    const [totalRecordsFromApi, setTotalRecordsFromApi] = useState(0);
+    const [totalByFormat, setTotalByFormat] = useState({ soap: 0, ehr: 0, todo: 0, free: 0 });
 
     useEffect(() => {
         const checkTime = () => {
@@ -105,7 +111,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }, [profile]);
 
     return (
-        <        AppContext.Provider value={{
+        <AppContext.Provider value={{
             recordings, setRecordings,
             profile, setProfile,
             filter, setFilter,
@@ -113,7 +119,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             showDailyReport, setShowDailyReport,
             showTrialPanel, setShowTrialPanel,
             showNotificationDot, setShowNotificationDot,
-            isRecoveringUploads, setIsRecoveringUploads
+            isRecoveringUploads, setIsRecoveringUploads,
+            totalRecordsFromApi, setTotalRecordsFromApi,
+            totalByFormat, setTotalByFormat
         }}>
             {children}
         </AppContext.Provider>

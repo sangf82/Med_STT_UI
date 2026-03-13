@@ -117,7 +117,7 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
                     <div className="w-px h-5 bg-[#D0D0D0]" />
 
                     <button
-                        onClick={() => onSave(name, format)}
+                        onClick={() => onSave((name?.trim() || defaultName), format)}
                         className="flex-1 h-full flex items-center justify-center text-[16px] font-bold text-accent-blue transition-opacity active:opacity-60"
                         title={t('save')}
                     >

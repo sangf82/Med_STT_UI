@@ -2,7 +2,7 @@ import { apiClient } from "../apiClient";
 import { getAuthToken, logout } from "../auth";
 
 // AI-supported output formats only (must match backend AVAILABLE_OUTPUT_FORMATS)
-export const AVAILABLE_OUTPUT_FORMATS = ["soap_note", "ehr", "to-do", "raw"] as const;
+export const AVAILABLE_OUTPUT_FORMATS = ["soap_note", "ehr", "to-do", "freetext"] as const;
 export type OutputFormat = (typeof AVAILABLE_OUTPUT_FORMATS)[number];
 
 /** Normalize to one of AVAILABLE_OUTPUT_FORMATS only (matches backend/AI). */
@@ -12,7 +12,7 @@ export function normalizeOutputFormat(value: string | undefined): OutputFormat {
   if (raw === "soap_note" || raw === "soap") return "soap_note";
   if (raw === "ehr" || raw === "clinical") return "ehr";
   if (raw === "to-do" || raw === "todo" || raw === "todolist") return "to-do";
-  if (raw === "raw" || raw === "freetext" || raw === "free_text") return "raw";
+  if (raw === "freetext" || raw === "free" || raw === "free_text" || raw === "raw") return "freetext";
   return "soap_note";
 }
 
@@ -304,14 +304,16 @@ export const initChunkedUpload = async (
   chunk_size?: number,
   display_name?: string,
   output_format?: OutputFormat | string,
+  file_size?: number,
 ): Promise<ChunkedUploadInitResponse> => {
   const form = new FormData();
   form.append("session_id", session_id);
   form.append("filename", filename);
   form.append("total_chunks", total_chunks.toString());
   if (chunk_size != null) form.append("chunk_size", chunk_size.toString());
-  if (display_name != null && display_name.trim())
-    form.append("display_name", display_name.trim());
+  if (file_size != null && file_size > 0) form.append("file_size", file_size.toString());
+  if (display_name != null && String(display_name).trim())
+    form.append("display_name", String(display_name).trim());
   form.append("output_format", normalizeOutputFormat(output_format));
 
   const token = getAuthToken();

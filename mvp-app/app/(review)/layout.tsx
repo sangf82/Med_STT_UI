@@ -147,6 +147,8 @@ export default function ReviewLayout({
             case 'todo':
             case 'todo_list':
             case 'todo-list': return 'Việc cần làm';
+            case 'freetext':
+            case 'free':
             case 'raw': return 'Văn bản tự do';
             default: return 'Chưa phân loại';
         }

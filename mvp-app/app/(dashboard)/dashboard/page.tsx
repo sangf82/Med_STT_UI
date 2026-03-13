@@ -22,12 +22,11 @@ export default function DashboardPage() {
     const r = useTranslations('Review');
     const router = useRouter();
     const { open: openSidebar } = useSidebar();
-    const { recordings, setRecordings, filter, showSurvey, setShowSurvey, showNotificationDot, setShowNotificationDot, isRecoveringUploads } = useAppContext();
+    const { recordings, setRecordings, filter, showSurvey, setShowSurvey, showNotificationDot, setShowNotificationDot, isRecoveringUploads, totalRecordsFromApi, setTotalRecordsFromApi, setTotalByFormat } = useAppContext();
     const [showDevNotice, setShowDevNotice] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [currentLimit, setCurrentLimit] = useState<number>(50);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
-    const [totalRecordsFromApi, setTotalRecordsFromApi] = useState<number>(0);
     const rawUploading = useLiveQuery(() => db.uploads.toArray());
     const uploadingSessions = useMemo(() => rawUploading || [], [rawUploading]);
 
@@ -41,6 +40,7 @@ export default function DashboardPage() {
         if (v === 'soap_note' || v === 'soap') return 'Ghi chú SOAP';
         if (v === 'ehr') return 'Tóm tắt lâm sàng';
         if (v === 'to-do' || v === 'todo') return 'Việc cần làm';
+        if (v === 'freetext' || v === 'free' || v === 'raw') return 'Văn bản tự do';
         return 'Chưa phân loại';
     }, []);
 
@@ -52,13 +52,25 @@ export default function DashboardPage() {
             if (!keepListOnError) {
                 setRecordings([]);
                 setTotalRecordsFromApi(0);
+                setTotalByFormat({ soap: 0, ehr: 0, todo: 0, free: 0 });
             }
         }, LOAD_TIMEOUT_MS);
         try {
             if (recordsOnly) {
-                const recordsRes = await getMyRecords(0, fetchLimit);
+                const resList = fetchLimit === 50
+                    ? await Promise.all([getMyRecords(0, fetchLimit), getMyRecords(0, 1, 'soap_note'), getMyRecords(0, 1, 'ehr'), getMyRecords(0, 1, 'to-do'), getMyRecords(0, 1, 'freetext')])
+                    : await getMyRecords(0, fetchLimit).then((r) => [r, null, null, null, null] as const);
+                const recordsRes = resList[0];
                 const items = recordsRes?.items ?? [];
                 setTotalRecordsFromApi(recordsRes?.total ?? 0);
+                if (fetchLimit === 50 && resList[1] != null) {
+                    setTotalByFormat({
+                        soap: (resList[1] as { total?: number })?.total ?? 0,
+                        ehr: (resList[2] as { total?: number })?.total ?? 0,
+                        todo: (resList[3] as { total?: number })?.total ?? 0,
+                        free: (resList[4] as { total?: number })?.total ?? 0,
+                    });
+                }
                 const mappedRecords: Recording[] = items.map(item => {
                     const formatLabel = mapFormat(item.output_format ?? (item as { output_type?: string }).output_type);
                     return {
@@ -74,12 +86,22 @@ export default function DashboardPage() {
                 if (mappedRecords.length > 0 || !keepListOnError) setRecordings(mappedRecords);
                 return;
             }
-            const [recordsRes, usageRes] = await Promise.all([
+            const [recordsRes, usageRes, soapRes, ehrRes, todoRes, freeRes] = await Promise.all([
                 getMyRecords(0, fetchLimit),
-                getMyUsage()
+                getMyUsage(),
+                getMyRecords(0, 1, 'soap_note'),
+                getMyRecords(0, 1, 'ehr'),
+                getMyRecords(0, 1, 'to-do'),
+                getMyRecords(0, 1, 'freetext'),
             ]);
             const items = recordsRes?.items ?? [];
             setTotalRecordsFromApi(recordsRes?.total ?? 0);
+            setTotalByFormat({
+                soap: soapRes?.total ?? 0,
+                ehr: ehrRes?.total ?? 0,
+                todo: todoRes?.total ?? 0,
+                free: freeRes?.total ?? 0,
+            });
             const mappedRecords: Recording[] = items.map(item => {
                 const formatLabel = mapFormat(item.output_format ?? (item as { output_type?: string }).output_type);
                 return {
@@ -115,13 +137,14 @@ export default function DashboardPage() {
             if (!keepListOnError) {
                 setRecordings([]);
                 setTotalRecordsFromApi(0);
+                setTotalByFormat({ soap: 0, ehr: 0, todo: 0, free: 0 });
             }
         } finally {
             clearTimeout(timeoutId);
             if (fetchLimit === 50) setIsLoading(false);
             if (fetchLimit > 50) setIsLoadingMore(false);
         }
-    }, [mapFormat, setRecordings, setShowNotificationDot]);
+    }, [mapFormat, setRecordings, setShowNotificationDot, setTotalRecordsFromApi, setTotalByFormat]);
 
     const loadDashboardDataRef = useRef(loadDashboardData);
     loadDashboardDataRef.current = loadDashboardData;
@@ -214,6 +237,7 @@ export default function DashboardPage() {
         if (filter === 'Ghi chú SOAP') return r('soapNote');
         if (filter === 'Tóm tắt lâm sàng') return r('ehrSummary');
         if (filter === 'Việc cần làm') return r('todoList');
+        if (filter === 'Văn bản tự do') return r('raw');
         if (filter === 'Chưa phân loại') return r('unclassified');
         return '';
     }, [filter, r]);

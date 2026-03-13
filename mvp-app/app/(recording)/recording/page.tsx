@@ -170,25 +170,39 @@ export default function RecordingPage() {
         setShowSave(true);
     };
     const handleCancelSave = () => setShowSave(false);
+    const saveInProgressRef = useRef(false);
     const handleConfirmSave = async (name: string, format: string) => {
-        recorder.stop();
+        if (saveInProgressRef.current) return;
+        saveInProgressRef.current = true;
         setShowSave(false);
-
-        if (!recorder.audioBlob) {
-            console.error("No audio blob to transcribe");
-            return;
-        }
-
         try {
-            const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'raw' };
+            const blob = await recorder.stop();
+            if (!blob || blob.size === 0) {
+                console.error("No audio blob to transcribe");
+                return;
+            }
+
+            // Always send a display_name so we never create a record with backend fallback (e.g. "record.webm" or "Ca khám ...").
+            const displayName =
+                (name?.trim()) ||
+                `Ca khám ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '')}_${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '')}`;
+            const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'freetext' };
             const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
             const sessionId = `sess_${Date.now()}`;
             const CHUNK_SIZE = 1024 * 512;
-            const totalChunksGuess = Math.ceil(recorder.audioBlob.size / CHUNK_SIZE);
+            const totalChunks = Math.ceil(blob.size / CHUNK_SIZE);
 
-            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE, name?.trim() || undefined, outputFormat);
+            const initRes = await initChunkedUpload(
+                'record.webm',
+                totalChunks,
+                sessionId,
+                CHUNK_SIZE,
+                displayName,
+                outputFormat,
+                blob.size,
+            );
             const actualChunkSize = initRes.chunk_size || CHUNK_SIZE;
-            const computedTotalChunks = Math.ceil(recorder.audioBlob.size / actualChunkSize);
+            const computedTotalChunks = Math.ceil(blob.size / actualChunkSize);
 
             await saveUploadSession({
                 upload_id: initRes.upload_id,
@@ -198,9 +212,9 @@ export default function RecordingPage() {
                 chunk_size: actualChunkSize,
                 output_format: outputFormat,
                 format,
-                display_name: name?.trim() || undefined,
+                display_name: displayName,
                 record_id: initRes.record_id,
-            }, recorder.audioBlob);
+            }, blob);
 
             // 3. Return to list immediately; upload + STT run in background. Client-side nav để không abort request đang upload của file trước.
             router.push('/dashboard');
@@ -214,6 +228,8 @@ export default function RecordingPage() {
             }
             setIsProcessing(true);
             setTimeout(() => setIsProcessing(false), 2000);
+        } finally {
+            saveInProgressRef.current = false;
         }
     };
 

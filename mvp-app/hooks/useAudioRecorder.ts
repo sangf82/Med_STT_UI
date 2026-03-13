@@ -23,8 +23,8 @@ export interface UseAudioRecorderReturn {
     pause: () => void;
     /** Resume recording */
     resume: () => void;
-    /** Stop recording and produce blob */
-    stop: () => void;
+    /** Stop recording and produce blob. Returns a Promise that resolves with the final blob when MediaRecorder has finished (use this blob for upload to avoid race). */
+    stop: () => Promise<Blob | null>;
     /** Reset all state */
     reset: () => void;
     /** Number of levels captured before the most recent pause */
@@ -51,6 +51,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const levelTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+    const stopResolveRef = useRef<((blob: Blob | null) => void) | null>(null);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -134,6 +135,11 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
                 const url = URL.createObjectURL(blob);
                 setAudioUrl(prevUrl => { if (prevUrl) URL.revokeObjectURL(prevUrl); return url; });
                 setAudioBlob(blob);
+                const resolve = stopResolveRef.current;
+                if (resolve) {
+                    stopResolveRef.current = null;
+                    resolve(blob);
+                }
             };
 
             recorder.start(200); // collect data every 200ms
@@ -184,18 +190,25 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         startTimers();
     }, [startTimers]);
 
-    const stop = useCallback(() => {
-        stopTimers();
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-        }
-        streamRef.current?.getTracks().forEach(t => t.stop());
-        if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-            audioCtxRef.current.close().catch(() => {});
-        }
-        setAudioLevel(0);
-        setState('idle');
-    }, [stopTimers]);
+    const stop = useCallback((): Promise<Blob | null> => {
+        return new Promise((resolve) => {
+            stopResolveRef.current = resolve;
+            stopTimers();
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+            } else {
+                // Already inactive: no onstop will fire, resolve with current blob
+                stopResolveRef.current = null;
+                resolve(audioBlob);
+            }
+            streamRef.current?.getTracks().forEach(t => t.stop());
+            if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+                audioCtxRef.current.close().catch(() => {});
+            }
+            setAudioLevel(0);
+            setState('idle');
+        });
+    }, [stopTimers, audioBlob]);
 
     const reset = useCallback(() => {
         stopTimers();

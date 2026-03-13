@@ -23,7 +23,7 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
     const t = useTranslations('Dashboard')
     const r = useTranslations('Review')
     const s = useTranslations('Survey')
-    const { recordings, filter, setFilter, showTrialPanel, setShowTrialPanel } = useAppContext()
+    const { recordings, filter, setFilter, showTrialPanel, setShowTrialPanel, totalRecordsFromApi, totalByFormat } = useAppContext()
 
     // Block scroll on body
     React.useEffect(() => {
@@ -69,7 +69,7 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                             <AudioLines className={cn("w-[18px] h-[18px]", filter === null ? "text-accent-orange" : "text-text-secondary")} />
                             <span className={cn("text-[14px] font-semibold", filter === null ? "text-accent-orange" : "text-text-primary")}>{t('allRecords')}</span>
                         </div>
-                        <span className={cn("text-[12px] font-bold", filter === null ? "text-accent-orange/60" : "text-text-muted")}>{recordings.length}</span>
+                        <span className={cn("text-[12px] font-bold", filter === null ? "text-accent-orange/60" : "text-text-muted")}>{totalRecordsFromApi}</span>
                     </button>
 
                     {/* Filter: Ghi chú SOAP */}
@@ -85,7 +85,7 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                             <span className={cn("text-[14px] font-medium", filter === 'Ghi chú SOAP' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('soapNote')}</span>
                         </div>
                         <span className={cn("text-[12px] font-semibold", filter === 'Ghi chú SOAP' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
-                            {recordings.filter(rec => rec.format === 'Ghi chú SOAP').length}
+                            {totalByFormat.soap}
                         </span>
                     </button>
 
@@ -102,7 +102,7 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                             <span className={cn("text-[14px] font-medium", filter === 'Tóm tắt lâm sàng' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('ehrSummary')}</span>
                         </div>
                         <span className={cn("text-[12px] font-semibold", filter === 'Tóm tắt lâm sàng' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
-                            {recordings.filter(rec => rec.format === 'Tóm tắt lâm sàng').length}
+                            {totalByFormat.ehr}
                         </span>
                     </button>
 
@@ -119,7 +119,24 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                             <span className={cn("text-[14px] font-medium", filter === 'Việc cần làm' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('todoList')}</span>
                         </div>
                         <span className={cn("text-[12px] font-semibold", filter === 'Việc cần làm' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
-                            {recordings.filter(rec => rec.format === 'Việc cần làm').length}
+                            {totalByFormat.todo}
+                        </span>
+                    </button>
+
+                    {/* Filter: Văn bản tự do (freetext) */}
+                    <button
+                        onClick={() => { setFilter('Văn bản tự do'); router.push('/dashboard'); onClose() }}
+                        className={cn(
+                            "flex items-center justify-between px-4 h-[44px] w-full text-left rounded-xl transition-colors focus-visible:outline-none shrink-0",
+                            filter === 'Văn bản tự do' ? "bg-accent-orange/15 hover:bg-accent-orange/20" : "hover:bg-bg-surface"
+                        )}
+                    >
+                        <div className="flex items-center gap-3.5">
+                            <FileCode className={cn("w-[18px] h-[18px]", filter === 'Văn bản tự do' ? "text-accent-orange" : "text-text-secondary")} />
+                            <span className={cn("text-[14px] font-medium", filter === 'Văn bản tự do' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('raw')}</span>
+                        </div>
+                        <span className={cn("text-[12px] font-semibold", filter === 'Văn bản tự do' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
+                            {totalByFormat.free}
                         </span>
                     </button>
 
@@ -133,10 +150,10 @@ export function Sidebar({ open, onClose, profile }: SidebarProps) {
                     >
                         <div className="flex items-center gap-3.5">
                             <FileCode className={cn("w-[18px] h-[18px]", filter === 'Chưa phân loại' ? "text-accent-orange" : "text-text-secondary")} />
-                            <span className={cn("text-[14px] font-medium", filter === 'Chưa phân loại' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('raw')}</span>
+                            <span className={cn("text-[14px] font-medium", filter === 'Chưa phân loại' ? "text-accent-orange font-semibold" : "text-text-primary")}>{r('unclassified')}</span>
                         </div>
                         <span className={cn("text-[12px] font-semibold", filter === 'Chưa phân loại' ? "text-accent-orange/60 font-bold" : "text-text-muted")}>
-                            {recordings.filter(rec => rec.format === 'Chưa phân loại' || !rec.format).length}
+                            {Math.max(0, totalRecordsFromApi - totalByFormat.soap - totalByFormat.ehr - totalByFormat.todo - totalByFormat.free)}
                         </span>
                     </button>
 
