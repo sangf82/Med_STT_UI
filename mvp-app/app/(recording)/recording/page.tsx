@@ -319,7 +319,7 @@ export default function RecordingPage() {
                         }
                         await streamEndUpload({
                             upload_id: uploadId,
-                            total_chunks: localChunks.length,
+                            total_chunks: totalChunks,
                             record_id: recordId ?? undefined,
                             output_format: outputFormat,
                         });
@@ -369,9 +369,10 @@ export default function RecordingPage() {
             for (const c of localChunks) {
                 if (c.blob) await uploadChunkWithRetry(uploadId, c.chunk_index, c.blob, 3).catch(() => {});
             }
+            const exactChunkCount = recorder.getChunkCount();
             await streamEndUpload({
                 upload_id: uploadId,
-                total_chunks: localChunks.length,
+                total_chunks: exactChunkCount > 0 ? exactChunkCount : localChunks.length,
                 record_id: recordId ?? undefined,
                 output_format: outputFormat,
             });
