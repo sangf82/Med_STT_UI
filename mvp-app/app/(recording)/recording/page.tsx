@@ -40,6 +40,8 @@ export default function RecordingPage() {
     const streamUploadIdRef = useRef<string | null>(null);
     const streamRecordIdRef = useRef<string | null>(null);
     const streamChunkCountRef = useRef(0);
+    /** Pending chunk upload promises — await trước khi stream/end để tránh thiếu chunk trên server. */
+    const pendingChunkUploadsRef = useRef<Promise<unknown>[]>([]);
     const [limitChecked, setLimitChecked] = useState(false);
     const [canRecord, setCanRecord] = useState<boolean | null>(null);
     // Known duration in seconds — reliable unlike audio.duration which is Infinity for WebM
@@ -83,6 +85,7 @@ export default function RecordingPage() {
                 streamUploadIdRef.current = initRes.upload_id;
                 streamRecordIdRef.current = initRes.record_id ?? null;
                 streamChunkCountRef.current = 0;
+                pendingChunkUploadsRef.current = [];
                 console.info(STT_LOG, { flow: 'stream_init', record_id: initRes.record_id, upload_id: initRes.upload_id, session_id: sessionId });
                 await saveStreamUploadMetadata({
                     upload_id: initRes.upload_id,
@@ -102,9 +105,10 @@ export default function RecordingPage() {
                         if (idx === 0 || idx % 20 === 19) {
                             console.info(STT_LOG, { flow: 'stream_chunk', upload_id: uid, chunk_index: idx, chunk_size: blob.size });
                         }
-                        uploadChunk(uid, idx, blob).catch((e) => {
+                        const uploadPromise = uploadChunk(uid, idx, blob).catch((e) => {
                             console.warn(STT_LOG, { flow: 'stream_chunk', upload_id: uid, chunk_index: idx, error: String(e?.message ?? e) });
                         });
+                        pendingChunkUploadsRef.current.push(uploadPromise);
                         addStreamChunk(uid, idx, blob).catch(() => {});
                         streamChunkCountRef.current = idx + 1;
                     },
@@ -280,6 +284,8 @@ export default function RecordingPage() {
                 console.error(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, error: 'No chunks uploaded' });
                 return;
             }
+            await Promise.allSettled(pendingChunkUploadsRef.current);
+            pendingChunkUploadsRef.current = [];
             console.info(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, total_chunks: totalChunks });
             await streamEndUpload({
                 upload_id: uploadId,
