@@ -84,14 +84,22 @@ export function BackgroundUploader() {
           let chunkFailed = false;
           for (const chunkIndex of statusRes.missing_chunk_indexes) {
             const chunkData = await db.chunks.where({ upload_id: item.upload_id, chunk_index: chunkIndex }).first();
-            if (chunkData && chunkData.blob) {
-              try {
-                await uploadChunkWithRetry(item.upload_id, chunkIndex, chunkData.blob);
-              } catch (e) {
-                console.error("Chunk upload failed after retries", chunkIndex, e);
-                chunkFailed = true;
-                break;
-              }
+            if (!chunkData || !chunkData.blob) {
+              // Chunk thiếu trên server và không còn trong IndexedDB → không khôi phục được, abandon để user ghi âm lại
+              console.warn("Missing chunk locally, cannot recover", chunkIndex, item.upload_id);
+              chunkFailed = true;
+              await abandonUpload(item.upload_id).catch(() => null);
+              await cleanupUploadSession(item.upload_id);
+              break;
+            }
+            try {
+              await uploadChunkWithRetry(item.upload_id, chunkIndex, chunkData.blob);
+            } catch (e) {
+              console.error("Chunk upload failed after retries", chunkIndex, e);
+              chunkFailed = true;
+              await abandonUpload(item.upload_id).catch(() => null);
+              await cleanupUploadSession(item.upload_id);
+              break;
             }
           }
           if (chunkFailed) {

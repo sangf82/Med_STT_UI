@@ -52,14 +52,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             const lastReported = localStorage.getItem('daily_report_last_date');
             const pendingDate = localStorage.getItem('daily_report_pending_date');
 
-            // If it's after 5 PM and we haven't reported for today, set it as pending
+            // Chỉ mở popup M3 một lần khi sau 17h và chưa báo cáo hôm nay; không gọi setShowDailyReport mỗi 60s khi đã có pending (tránh hỏi lại liên tục)
             if (hour >= 17 && lastReported !== todayStr && !pendingDate) {
                 localStorage.setItem('daily_report_pending_date', todayStr);
-                setShowDailyReport(true);
-            }
-            
-            // If there's a pending date from any previous time/day, keep showing it
-            if (localStorage.getItem('daily_report_pending_date')) {
                 setShowDailyReport(true);
             }
         };
