@@ -8,6 +8,7 @@ export interface UploadMetadata {
   total_chunks: number;
   chunk_size: number;
   created_at: string;
+  updated_at?: string;
   output_format: string; // only "soap_note" | "ehr" | "to-do" (match AI/backend)
   format: string; // UI key only: "soap" | "clinical" | "todo"
   display_name?: string;
@@ -45,6 +46,7 @@ export const saveUploadSession = async (
     await db.uploads.add({
       ...metadata,
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     });
 
     // Slice and save chunks
@@ -81,6 +83,7 @@ export const saveStreamUploadMetadata = async (
     total_chunks: metadata.total_chunks ?? 0,
     chunk_size: metadata.chunk_size ?? 1,
     created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   });
 };
 
@@ -90,7 +93,10 @@ export const addStreamChunk = async (
   chunk_index: number,
   blob: Blob,
 ) => {
-  await db.chunks.add({ upload_id, chunk_index, blob });
+  await db.transaction("rw", db.uploads, db.chunks, async () => {
+    await db.chunks.add({ upload_id, chunk_index, blob });
+    await db.uploads.where({ upload_id }).modify({ updated_at: new Date().toISOString() });
+  });
 };
 
 /** Retention for local upload chunks so we can recover after mất mạng / chuyển tab / thoát trình duyệt (cùng thiết bị). */

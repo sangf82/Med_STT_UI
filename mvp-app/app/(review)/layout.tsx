@@ -15,6 +15,7 @@ import { Button } from '@/components/Button';
 import { useAppContext } from '@/context/AppContext';
 import { getRecordById, updateRecord, retryRecord, deleteRecord } from '@/lib/api/sttMetrics';
 import type { SttRecord } from '@/lib/api/sttMetrics';
+import { formatDurationSec } from '@/lib/utils';
 
 
 export const ReviewContext = createContext<{
@@ -160,7 +161,7 @@ export default function ReviewLayout({
             id: recordData.id,
             title: recordData.display_name || 'Bản ghi',
             format,
-            duration: (recordData as any).recording_duration_sec > 0 ? `${Math.floor((recordData as any).recording_duration_sec / 60)}:${String(Math.floor((recordData as any).recording_duration_sec % 60)).padStart(2, '0')}` : '...',
+            duration: formatDurationSec((recordData as any).recording_duration_sec),
             date: new Date(recordData.created_at).toLocaleDateString(),
             status: recordData.status === 'completed' ? 'transcribed' : recordData.status === 'failed' ? 'error' : 'transcribing',
             content: recordData.content,

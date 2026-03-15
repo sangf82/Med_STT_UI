@@ -2,14 +2,14 @@
 
 import { useTranslations } from 'next-intl';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Menu, Search, Stethoscope, Loader2 } from 'lucide-react';
+import { Menu, Search, Stethoscope, Loader2, Trash2 } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useSidebar } from '@/context/SidebarContext';
 import { Badge } from '@/components/Badge';
 import { Card } from '@/components/Card';
 import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
-import { getMyRecords, getMyUsage } from '@/lib/api/sttMetrics';
+import { cn, formatDurationSec } from '@/lib/utils';
+import { getMyRecords, getMyUsage, deleteRecord, abandonUpload } from '@/lib/api/sttMetrics';
 import type { Recording } from '@/lib/mockData';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, clearStaleUploadSessions } from '@/lib/db';
@@ -79,7 +79,7 @@ export default function DashboardPage() {
                         title: item.display_name || 'Bản ghi không tên',
                         patient: undefined,
                         format: formatLabel,
-                        duration: durSec > 0 ? `${Math.floor(durSec / 60)}:${String(Math.floor(durSec % 60)).padStart(2, '0')}` : '...',
+                        duration: formatDurationSec(durSec),
                         date: new Date(item.created_at).toLocaleDateString(),
                         status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
                     };
@@ -111,7 +111,7 @@ export default function DashboardPage() {
                     title: item.display_name || 'Bản ghi không tên',
                     patient: undefined,
                     format: formatLabel,
-                    duration: durSec > 0 ? `${Math.floor(durSec / 60)}:${String(Math.floor(durSec % 60)).padStart(2, '0')}` : '...',
+                    duration: formatDurationSec(durSec),
                     date: new Date(item.created_at).toLocaleDateString(),
                     status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
                 };
@@ -259,6 +259,32 @@ export default function DashboardPage() {
     const headerHeight = Math.max(48, 180 - scrollY);
     const isScrolled = scrollY > 40;
 
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+
+    const handleDeleteRecord = async (e: React.MouseEvent, rec: Recording) => {
+        e.stopPropagation();
+        if (!confirm('Bạn có chắc chắn muốn xóa bản ghi này?')) return;
+        setDeletingId(rec.id);
+        try {
+            if (rec.status === 'uploading') {
+                await abandonUpload(rec.id).catch(() => {});
+                await db.transaction('rw', db.uploads, db.chunks, async () => {
+                    await db.uploads.where({ upload_id: rec.id }).delete();
+                    await db.chunks.where({ upload_id: rec.id }).delete();
+                });
+            } else {
+                await deleteRecord(rec.id);
+                setRecordings(prev => prev.filter(r => r.id !== rec.id));
+                setTotalRecordsFromApi(prev => Math.max(0, prev - 1));
+            }
+        } catch (err) {
+            console.error('Lỗi khi xóa bản ghi:', err);
+            alert('Không thể xóa bản ghi lúc này. Vui lòng thử lại sau.');
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
     return (
         <div className="flex flex-col min-h-screen pb-[120px] fade-in">
             {/* ── Fixed Animated Header ── */}
@@ -393,13 +419,26 @@ export default function DashboardPage() {
                                         {rec.format ?? 'None'} &middot; {rec.duration} &middot; {rec.date}
                                     </p>
                                 </div>
-                                <Badge variant={
-                                    rec.status === 'transcribed' ? 'success' :
-                                        (rec.status === 'transcribing' || rec.status === 'uploading') ? 'progress' :
-                                            rec.status === 'error' ? 'error' : 'warn'
-                                }>
-                                    {b(rec.status)}
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant={
+                                        rec.status === 'transcribed' ? 'success' :
+                                            (rec.status === 'transcribing' || rec.status === 'uploading') ? 'progress' :
+                                                rec.status === 'error' ? 'error' : 'warn'
+                                    }>
+                                        {b(rec.status)}
+                                    </Badge>
+                                    {(rec.status === 'error' || rec.status === 'uploading') && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => handleDeleteRecord(e, rec)}
+                                            disabled={deletingId === rec.id}
+                                            className="p-1.5 text-text-muted hover:text-danger rounded-full hover:bg-danger/10 transition-colors disabled:opacity-50"
+                                            title="Xóa bản ghi bị kẹt/lỗi"
+                                        >
+                                            {deletingId === rec.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </Card>
                     ))

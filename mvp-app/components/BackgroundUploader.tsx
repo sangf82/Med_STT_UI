@@ -10,6 +10,7 @@ import {
   getChunkedUploadStatus,
   uploadChunkWithRetry,
   streamEndUpload,
+  abandonUpload,
   normalizeOutputFormat,
 } from '@/lib/api/sttMetrics';
 import { getAuthToken } from '@/lib/auth';
@@ -64,13 +65,28 @@ export function BackgroundUploader() {
 
         for (const item of filteredUploads) {
           const localMeta = await db.uploads.where({ upload_id: item.upload_id }).first();
+          if (localMeta) {
+            const updatedAt = (localMeta as any).updated_at || localMeta.created_at;
+            const ageMs = updatedAt ? Date.now() - new Date(updatedAt).getTime() : Infinity;
+            if (ageMs < 15000) {
+              console.info(STT_LOG, { flow: 'recover_skip_active_tab', upload_id: item.upload_id, ageMs });
+              continue; // Actively being recorded in another tab
+            }
+          }
+
           if (!localMeta) {
             const statusRes = await getChunkedUploadStatus(item.upload_id).catch(() => null);
             const sessionStatus = (statusRes as any)?.session?.status;
             if (sessionStatus === 'complete' || sessionStatus === 'abandoned') {
               continue;
             }
-            // No local data and not complete/abandoned — skip, don't abandon (might be active on another tab)
+            // No local data, check if it's old enough to abandon (15 minutes)
+            const createdAt = (item as any).created_at;
+            const ageMs = createdAt ? Date.now() - new Date(createdAt).getTime() : Infinity;
+            if (ageMs > 15 * 60 * 1000) {
+              console.info(STT_LOG, { flow: 'recover_abandon_old', upload_id: item.upload_id, ageMs });
+              await abandonUpload(item.upload_id).catch(() => null);
+            }
             continue;
           }
 
@@ -96,7 +112,9 @@ export function BackgroundUploader() {
             const localChunks = await db.chunks.where({ upload_id: item.upload_id }).sortBy('chunk_index');
             console.info(STT_LOG, { flow: 'recover_stream', upload_id: item.upload_id, record_id: recordId, local_chunk_count: localChunks.length });
             if (localChunks.length === 0) {
-              // No local chunks to recover — just skip, leave session on server for potential other-tab recovery
+              console.warn(STT_LOG, { flow: 'recover_stream', upload_id: item.upload_id, error: 'no local chunks, abandon' });
+              await abandonUpload(item.upload_id).catch(() => null);
+              await cleanupUploadSession(item.upload_id);
               continue;
             }
             let streamChunkFailed = false;

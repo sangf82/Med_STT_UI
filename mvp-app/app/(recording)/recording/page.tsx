@@ -343,6 +343,7 @@ export default function RecordingPage() {
             } catch (bgErr: any) {
                 console.error(STT_LOG, { flow: 'stream_end_bg', upload_id: uploadId, error: String(bgErr?.message ?? bgErr) });
                 // Don't cleanup — BackgroundUploader will retry from IDB
+                removeActiveUploadId(uploadId);
             }
         })();
     };
