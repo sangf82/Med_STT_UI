@@ -106,7 +106,6 @@ export default function RecordingPage() {
                     onChunk: (blob, idx) => {
                         if (!streamUploadIdRef.current) return;
                         const uid = streamUploadIdRef.current;
-                        // idx = thứ tự stream chunk (0,1,2,...), gửi lên server làm chunk_index để BE ghép đúng thứ tự
                         if (idx === 0 || idx % 20 === 19) {
                             console.info(STT_LOG, { flow: 'stream_chunk', upload_id: uid, chunk_index: idx, chunk_size: blob.size });
                         }
@@ -114,7 +113,7 @@ export default function RecordingPage() {
                             console.warn(STT_LOG, { flow: 'stream_chunk', upload_id: uid, chunk_index: idx, error: String(e?.message ?? e) });
                         });
                         pendingChunkUploadsRef.current.push(uploadPromise);
-                        addStreamChunk(uid, idx, blob).catch(() => {});
+                        addStreamChunk(uid, idx, blob).catch(() => {}); // IDB chỉ dự phòng, không block stream
                         streamChunkCountRef.current = idx + 1;
                     },
                 });
@@ -287,10 +286,7 @@ export default function RecordingPage() {
             }
             await Promise.allSettled(pendingChunkUploadsRef.current);
             pendingChunkUploadsRef.current = [];
-            // Lấy total_chunks từ IDB (đã sync trong lúc stream), không re-upload — tránh duplicate
-            await new Promise((r) => setTimeout(r, 200));
-            const localChunks = await db.chunks.where({ upload_id: uploadId }).sortBy('chunk_index');
-            const totalChunks = localChunks.length > 0 ? localChunks.length : streamChunkCountRef.current;
+            const totalChunks = streamChunkCountRef.current;
             if (totalChunks <= 0) {
                 console.error(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, error: 'No chunks' });
                 throw new Error('Không có dữ liệu. Thử ghi lại.');
@@ -304,17 +300,22 @@ export default function RecordingPage() {
                     output_format: outputFormat,
                 });
             } catch (streamEndErr: any) {
-                if (streamEndErr?.status === 400 && localChunks.length > 0) {
-                    console.info(STT_LOG, { flow: 'stream_end_retry', upload_id: uploadId, reupload_count: localChunks.length });
-                    for (const c of localChunks) {
-                        if (c.blob) await uploadChunkWithRetry(uploadId, c.chunk_index, c.blob, 3).catch(() => {});
+                if (streamEndErr?.status === 400) {
+                    const localChunks = await db.chunks.where({ upload_id: uploadId }).sortBy('chunk_index');
+                    if (localChunks.length > 0) {
+                        console.info(STT_LOG, { flow: 'stream_end_retry_from_idb', upload_id: uploadId, reupload_count: localChunks.length });
+                        for (const c of localChunks) {
+                            if (c.blob) await uploadChunkWithRetry(uploadId, c.chunk_index, c.blob, 3).catch(() => {});
+                        }
+                        await streamEndUpload({
+                            upload_id: uploadId,
+                            total_chunks: localChunks.length,
+                            record_id: recordId ?? undefined,
+                            output_format: outputFormat,
+                        });
+                    } else {
+                        throw streamEndErr;
                     }
-                    await streamEndUpload({
-                        upload_id: uploadId,
-                        total_chunks: localChunks.length,
-                        record_id: recordId ?? undefined,
-                        output_format: outputFormat,
-                    });
                 } else {
                     throw streamEndErr;
                 }
