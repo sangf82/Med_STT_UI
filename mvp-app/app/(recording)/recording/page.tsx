@@ -74,6 +74,39 @@ export default function RecordingPage() {
         if (recorder.state === 'recording' && isStarting) setIsStarting(false);
     }, [recorder.state, isStarting]);
 
+    // Screen Wake Lock: giữ màn hình sáng khi đang ghi âm (Chrome mobile)
+    const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+    const requestWakeLock = useCallback(async () => {
+        if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
+        try {
+            wakeLockRef.current = await (navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<WakeLockSentinel> } }).wakeLock!.request('screen');
+            wakeLockRef.current.addEventListener('release', () => { wakeLockRef.current = null; });
+        } catch {
+            // Ignore (e.g. low battery, not supported)
+        }
+    }, []);
+    const releaseWakeLock = useCallback(() => {
+        if (wakeLockRef.current) {
+            wakeLockRef.current.release().catch(() => {});
+            wakeLockRef.current = null;
+        }
+    }, []);
+    useEffect(() => {
+        if (recorder.state === 'recording') {
+            requestWakeLock();
+        } else {
+            releaseWakeLock();
+        }
+        return () => releaseWakeLock();
+    }, [recorder.state, requestWakeLock, releaseWakeLock]);
+    useEffect(() => {
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && recorder.state === 'recording') requestWakeLock();
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    }, [recorder.state, requestWakeLock]);
+
     // Determine control state
     let controlState: ControlState = 'recording';
     if (recorder.state === 'paused') controlState = 'paused';

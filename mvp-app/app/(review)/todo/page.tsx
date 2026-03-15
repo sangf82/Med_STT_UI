@@ -1,11 +1,19 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { todoListMDMockEN, todoListMDMockVI } from '@/lib/mockData';
 import { useReview } from '../layout';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { updateRecord } from '@/lib/api/sttMetrics';
+
+/** Trong refined_text từ STT, " - Mục đích" và " - Trạng thái" (dấu " - " giữa dòng) có thể bị markdown parser hiểu nhầm thành list mới, dẫn đến cắt/loạn nội dung. Chuẩn hóa thành " • " để chỉ còn "- " ở đầu dòng là list. */
+function normalizeTodoMarkdownForDisplay(raw: string): string {
+    if (!raw || typeof raw !== 'string') return raw;
+    return raw
+        .replace(/ - Mục đích:/g, ' • Mục đích:')
+        .replace(/ - Trạng thái:/g, ' • Trạng thái:');
+}
 
 export default function TodoListPage() {
     const t = useTranslations('Review');
@@ -14,13 +22,15 @@ export default function TodoListPage() {
     const { setSaveStatus, record } = useReview();
 
     const mockData = locale === 'vi' ? todoListMDMockVI : todoListMDMockEN;
-    const initialContent = record?.content || record?.refined_text || record?.raw_text || mockData;
+    const rawContent = record?.content || record?.refined_text || record?.raw_text || mockData;
+    const initialContent = useMemo(() => normalizeTodoMarkdownForDisplay(rawContent), [rawContent]);
     const [content, setContent] = useState(initialContent);
     const timeoutRef = useRef<NodeJS.Timeout>(null);
 
     useEffect(() => {
         if (record) {
-            setContent(record.content || record.refined_text || record.raw_text || mockData);
+            const raw = record.content || record.refined_text || record.raw_text || mockData;
+            setContent(normalizeTodoMarkdownForDisplay(raw));
         }
     }, [record, mockData]);
 
@@ -45,11 +55,10 @@ export default function TodoListPage() {
     };
 
     return (
-        <div className="flex-1 flex flex-col min-h-0 fade-in">
+        <div className="flex-1 flex flex-col fade-in">
             <RichTextEditor
                 content={content}
                 onChange={handleChange}
-                className="min-h-0"
             />
         </div>
     );
