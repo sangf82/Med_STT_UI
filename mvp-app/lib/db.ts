@@ -72,6 +72,27 @@ export const cleanupUploadSession = async (upload_id: string) => {
   });
 };
 
+/** Stream mode: save metadata at init (total_chunks=0). Chunks added via addStreamChunk. Dự phòng recover nếu stream lỗi. */
+export const saveStreamUploadMetadata = async (
+  metadata: Omit<UploadMetadata, "id" | "created_at">,
+) => {
+  await db.uploads.add({
+    ...metadata,
+    total_chunks: metadata.total_chunks ?? 0,
+    chunk_size: metadata.chunk_size ?? 1,
+    created_at: new Date().toISOString(),
+  });
+};
+
+/** Stream mode: add one chunk to IndexedDB (backup for recovery). */
+export const addStreamChunk = async (
+  upload_id: string,
+  chunk_index: number,
+  blob: Blob,
+) => {
+  await db.chunks.add({ upload_id, chunk_index, blob });
+};
+
 /** Retention for local upload chunks so we can recover after mất mạng / chuyển tab / thoát trình duyệt (cùng thiết bị). */
 export const UPLOAD_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
 

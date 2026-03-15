@@ -11,8 +11,8 @@ import { Loader2, MoreVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import { initChunkedUpload, getMyUsage, type OutputFormat, AVAILABLE_OUTPUT_FORMATS } from '@/lib/api/sttMetrics';
-import { saveUploadSession } from '@/lib/db';
+import { getMyUsage, type OutputFormat, AVAILABLE_OUTPUT_FORMATS, initStreamUpload, streamEndUpload, uploadChunk } from '@/lib/api/sttMetrics';
+import { saveStreamUploadMetadata, addStreamChunk, cleanupUploadSession } from '@/lib/db';
 import { useAppContext } from '@/context/AppContext';
 
 
@@ -35,6 +35,9 @@ export default function RecordingPage() {
     const audioElRef = useRef<HTMLAudioElement | null>(null);
     const hasStarted = useRef(false);
     const [isStarting, setIsStarting] = useState(true);
+    const streamUploadIdRef = useRef<string | null>(null);
+    const streamRecordIdRef = useRef<string | null>(null);
+    const streamChunkCountRef = useRef(0);
     const [limitChecked, setLimitChecked] = useState(false);
     const [canRecord, setCanRecord] = useState<boolean | null>(null);
     // Known duration in seconds — reliable unlike audio.duration which is Infinity for WebM
@@ -62,11 +65,47 @@ export default function RecordingPage() {
         return () => { cancelled = true; };
     }, []);
 
-    // Auto-start recording on mount only after limit check and if can record
+    // Auto-start recording: stream init then start; chunks uploaded during recording (no IndexedDB)
     useEffect(() => {
         if (!limitChecked || canRecord !== true || hasStarted.current) return;
         hasStarted.current = true;
-        recorder.start().finally(() => setIsStarting(false));
+        const sessionId = `sess_${Date.now()}`;
+        const defaultName = `Ca khám ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '')}_${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '')}`;
+        initStreamUpload({
+            session_id: sessionId,
+            filename: 'record.webm',
+            display_name: defaultName,
+            output_format: 'soap_note',
+        })
+            .then(async (initRes) => {
+                streamUploadIdRef.current = initRes.upload_id;
+                streamRecordIdRef.current = initRes.record_id ?? null;
+                streamChunkCountRef.current = 0;
+                await saveStreamUploadMetadata({
+                    upload_id: initRes.upload_id,
+                    session_id: sessionId,
+                    filename: 'record.webm',
+                    total_chunks: 0,
+                    chunk_size: 1,
+                    output_format: 'soap_note',
+                    format: 'soap',
+                    display_name: defaultName,
+                    record_id: initRes.record_id,
+                });
+                return recorder.start({
+                    onChunk: (blob, idx) => {
+                        if (!streamUploadIdRef.current) return;
+                        uploadChunk(streamUploadIdRef.current, idx, blob).catch(() => {});
+                        addStreamChunk(streamUploadIdRef.current, idx, blob).catch(() => {});
+                        streamChunkCountRef.current = idx + 1;
+                    },
+                });
+            })
+            .catch((err) => {
+                if (err?.status === 402) setShowSurvey(true);
+                hasStarted.current = false;
+            })
+            .finally(() => setIsStarting(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [limitChecked, canRecord]);
 
@@ -190,7 +229,13 @@ export default function RecordingPage() {
         recorder.resume();
         setSeekPosition(1); // reset for next pause
     };
-    const handleBack = () => {
+    const handleBack = async () => {
+        if (streamUploadIdRef.current) {
+            const { abandonUpload } = await import('@/lib/api/sttMetrics');
+            abandonUpload(streamUploadIdRef.current).catch(() => {});
+            await cleanupUploadSession(streamUploadIdRef.current).catch(() => {});
+            streamUploadIdRef.current = null;
+        }
         recorder.stop();
         if (typeof window !== 'undefined') {
             window.location.href = '/dashboard';
@@ -209,53 +254,32 @@ export default function RecordingPage() {
         saveInProgressRef.current = true;
         setShowSave(false);
         try {
-            const blob = await recorder.stop();
-            if (!blob || blob.size === 0) {
-                console.error("No audio blob to transcribe");
+            const uploadId = streamUploadIdRef.current;
+            const recordId = streamRecordIdRef.current;
+            await recorder.stop();
+            if (!uploadId) {
+                console.error("No stream upload session");
                 return;
             }
-
-            // Always send a display_name so we never create a record with backend fallback (e.g. "record.webm" or "Ca khám ...").
-            const displayName =
-                (name?.trim()) ||
-                `Ca khám ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '')}_${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '')}`;
             const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'freetext' };
             const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
-            const sessionId = `sess_${Date.now()}`;
-            const CHUNK_SIZE = 1024 * 512;
-            const totalChunks = Math.ceil(blob.size / CHUNK_SIZE);
-
-            const initRes = await initChunkedUpload(
-                'record.webm',
-                totalChunks,
-                sessionId,
-                CHUNK_SIZE,
-                displayName,
-                outputFormat,
-                blob.size,
-            );
-            const actualChunkSize = initRes.chunk_size || CHUNK_SIZE;
-            const computedTotalChunks = Math.ceil(blob.size / actualChunkSize);
-
-            await saveUploadSession({
-                upload_id: initRes.upload_id,
-                session_id: sessionId,
-                filename: name,
-                total_chunks: computedTotalChunks,
-                chunk_size: actualChunkSize,
-                output_format: outputFormat,
-                format,
-                display_name: displayName,
-                record_id: initRes.record_id,
-            }, blob);
-
-            // 3. Return to list immediately; upload + STT run in background. Client-side nav để không abort request đang upload của file trước.
-            router.push('/dashboard');
-            if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('stt-trigger-upload'));
+            const totalChunks = streamChunkCountRef.current;
+            if (totalChunks <= 0) {
+                console.error("No chunks uploaded");
+                return;
             }
+            await streamEndUpload({
+                upload_id: uploadId,
+                total_chunks: totalChunks,
+                record_id: recordId ?? undefined,
+                output_format: outputFormat,
+            });
+            await cleanupUploadSession(uploadId).catch(() => {});
+            streamUploadIdRef.current = null;
+            streamRecordIdRef.current = null;
+            router.push('/dashboard');
         } catch (error: any) {
-            console.error("Save/init failed", error);
+            console.error("Save/stream end failed", error);
             if (error?.status === 402) {
                 setShowSurvey(true);
             }

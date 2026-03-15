@@ -408,6 +408,70 @@ export const uploadChunkWithRetry = async (
 export const getChunkedUploadStatus = (uploadId: string) =>
   apiClient<ChunkedUploadStatusResponse>(`/ai/stt/upload/status/${uploadId}`);
 
+/** Stream mode: init when recording starts; chunks uploaded during recording (no IndexedDB). */
+export const initStreamUpload = async (params: {
+  session_id: string;
+  filename?: string;
+  display_name?: string;
+  output_format?: OutputFormat | string;
+}): Promise<ChunkedUploadInitResponse> => {
+  const form = new FormData();
+  form.append("session_id", params.session_id);
+  form.append("filename", params.filename ?? "audio.webm");
+  if (params.display_name?.trim()) form.append("display_name", params.display_name.trim());
+  form.append("output_format", normalizeOutputFormat(params.output_format ?? "soap_note"));
+
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const url = `${process.env.NEXT_PUBLIC_API_URL || "https://medmate-backend-k25riftvia-as.a.run.app"}/ai/stt/upload/stream/init`;
+  const res = await fetch(url, { method: "POST", headers, body: form });
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      logout();
+      throw new Error("Unauthorized");
+    }
+    const err = await res.json().catch(() => ({}));
+    throw { status: res.status, message: err.detail || res.statusText };
+  }
+  return res.json();
+};
+
+/** Stream mode: finalize after recording stopped; enqueues STT job. */
+export const streamEndUpload = async (payload: {
+  upload_id: string;
+  total_chunks: number;
+  record_id?: string;
+  output_format?: OutputFormat | string;
+}): Promise<ChunkedUploadCompleteResponse> => {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  const url = `${process.env.NEXT_PUBLIC_API_URL || "https://medmate-backend-k25riftvia-as.a.run.app"}/ai/stt/upload/stream/end`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      upload_id: payload.upload_id,
+      total_chunks: payload.total_chunks,
+      record_id: payload.record_id,
+      output_format: payload.output_format,
+    }),
+  });
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      logout();
+      throw new Error("Unauthorized");
+    }
+    const err = await res.json().catch(() => ({}));
+    throw { status: res.status, message: err.detail || res.statusText };
+  }
+  return res.json();
+};
+
 export const completeChunkedUpload = async (payload: {
   upload_id: string;
   session_id?: string;

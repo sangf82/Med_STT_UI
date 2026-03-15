@@ -17,8 +17,8 @@ export interface UseAudioRecorderReturn {
     audioUrl: string | null;
     /** Raw audio blob */
     audioBlob: Blob | null;
-    /** Start recording (requests mic permission) */
-    start: () => Promise<void>;
+    /** Start recording (requests mic permission). options.onChunk(blob, chunkIndex) called on each dataavailable for streaming upload. */
+    start: (options?: { onChunk?: (blob: Blob, chunkIndex: number) => void }) => Promise<void>;
     /** Pause recording */
     pause: () => void;
     /** Resume recording */
@@ -52,6 +52,8 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     const levelTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
     const stopResolveRef = useRef<((blob: Blob | null) => void) | null>(null);
+    const onChunkRef = useRef<((blob: Blob, chunkIndex: number) => void) | null>(null);
+    const streamChunkIndexRef = useRef(0);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -102,7 +104,9 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         }
     }, []);
 
-    const start = useCallback(async () => {
+    const start = useCallback(async (options?: { onChunk?: (blob: Blob, chunkIndex: number) => void }) => {
+        onChunkRef.current = options?.onChunk ?? null;
+        streamChunkIndexRef.current = 0;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
@@ -127,7 +131,15 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
             chunksRef.current = [];
 
             recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) chunksRef.current.push(e.data);
+                if (e.data.size > 0) {
+                    chunksRef.current.push(e.data);
+                    const cb = onChunkRef.current;
+                    if (cb) {
+                        const idx = streamChunkIndexRef.current;
+                        cb(e.data, idx);
+                        streamChunkIndexRef.current = idx + 1;
+                    }
+                }
             };
 
             recorder.onstop = () => {
