@@ -1,5 +1,7 @@
 'use client';
 
+const STT_LOG = '[STT]';
+
 import { useTranslations } from 'next-intl';
 import { Header } from '@/components/Header';
 import { Waveform } from '@/components/Waveform';
@@ -11,13 +13,9 @@ import { Loader2, MoreVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import { 
-    initChunkedUpload, 
-    uploadChunk, 
-    completeChunkedUpload, 
-    getSttJobStatus 
-} from '@/lib/api/sttMetrics';
-import { saveUploadSession, cleanupUploadSession } from '@/lib/db';
+import { getMyUsage, type OutputFormat, AVAILABLE_OUTPUT_FORMATS, initStreamUpload, streamEndUpload, uploadChunkWithRetry } from '@/lib/api/sttMetrics';
+import { saveStreamUploadMetadata, addStreamChunk, cleanupUploadSession, db } from '@/lib/db';
+import { useAppContext } from '@/context/AppContext';
 
 
 // C1: Active Recording
@@ -30,6 +28,7 @@ export default function RecordingPage() {
     const router = useRouter();
 
     const recorder = useAudioRecorder();
+    const { showSurvey, setShowSurvey, setActiveUploadId } = useAppContext();
     const [showSave, setShowSave] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [replaying, setReplaying] = useState(false);
@@ -37,17 +36,134 @@ export default function RecordingPage() {
     const [seekPosition, setSeekPosition] = useState(1);
     const audioElRef = useRef<HTMLAudioElement | null>(null);
     const hasStarted = useRef(false);
+    const [isStarting, setIsStarting] = useState(true);
+    const streamUploadIdRef = useRef<string | null>(null);
+    const streamRecordIdRef = useRef<string | null>(null);
+    const streamChunkCountRef = useRef(0);
+    /** Pending chunk upload promises — await trước khi stream/end để tránh thiếu chunk trên server. */
+    const pendingChunkUploadsRef = useRef<Promise<unknown>[]>([]);
+    const [limitChecked, setLimitChecked] = useState(false);
+    const [canRecord, setCanRecord] = useState<boolean | null>(null);
+    /** Sau khi Save lỗi: cho phép user khôi phục từ chunk trong IDB */
+    const [uploadError, setUploadError] = useState<{ uploadId: string; recordId: string | null; outputFormat: OutputFormat; message?: string } | null>(null);
+    const [recovering, setRecovering] = useState(false);
+    const outputFormatRef = useRef<OutputFormat>('soap_note');
     // Known duration in seconds — reliable unlike audio.duration which is Infinity for WebM
     const knownDurationSec = recorder.timeMs / 1000;
 
-    // Auto-start recording on mount
+    // Check STT limit before allowing record (402 trước khi record, không phải lúc xong)
     useEffect(() => {
-        if (!hasStarted.current) {
-            hasStarted.current = true;
-            recorder.start();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        let cancelled = false;
+        getMyUsage()
+            .then((usage) => {
+                if (cancelled) return;
+                const limit = usage.stt_requests_limit;
+                const remaining = usage.stt_remaining ?? 0;
+                const allowed = limit == null || limit <= 0 || remaining > 0;
+                setCanRecord(allowed);
+                if (!allowed) setShowSurvey(true);
+                setLimitChecked(true);
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setCanRecord(true);
+                    setLimitChecked(true);
+                }
+            });
+        return () => { cancelled = true; };
     }, []);
+
+    // Auto-start recording: stream init then start; chunks uploaded during recording (no IndexedDB)
+    useEffect(() => {
+        if (!limitChecked || canRecord !== true || hasStarted.current) return;
+        hasStarted.current = true;
+        const sessionId = `sess_${Date.now()}`;
+        const defaultName = `Ca khám ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '')}_${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '')}`;
+        initStreamUpload({
+            session_id: sessionId,
+            filename: 'record.webm',
+            display_name: defaultName,
+            output_format: 'soap_note',
+        })
+            .then(async (initRes) => {
+                streamUploadIdRef.current = initRes.upload_id;
+                streamRecordIdRef.current = initRes.record_id ?? null;
+                streamChunkCountRef.current = 0;
+                setActiveUploadId(initRes.upload_id);
+                pendingChunkUploadsRef.current = [];
+                console.info(STT_LOG, { flow: 'stream_init', record_id: initRes.record_id, upload_id: initRes.upload_id, session_id: sessionId });
+                await saveStreamUploadMetadata({
+                    upload_id: initRes.upload_id,
+                    session_id: sessionId,
+                    filename: 'record.webm',
+                    total_chunks: 0,
+                    chunk_size: 1,
+                    output_format: 'soap_note',
+                    format: 'soap',
+                    display_name: defaultName,
+                    record_id: initRes.record_id,
+                });
+                return recorder.start({
+                    onChunk: (blob, idx) => {
+                        if (!streamUploadIdRef.current) return;
+                        const uid = streamUploadIdRef.current;
+                        if (idx === 0 || idx % 20 === 19) {
+                            console.info(STT_LOG, { flow: 'stream_chunk', upload_id: uid, chunk_index: idx, chunk_size: blob.size });
+                        }
+                        const uploadPromise = uploadChunkWithRetry(uid, idx, blob, 3).catch((e) => {
+                            console.warn(STT_LOG, { flow: 'stream_chunk', upload_id: uid, chunk_index: idx, error: String(e?.message ?? e) });
+                        });
+                        pendingChunkUploadsRef.current.push(uploadPromise);
+                        addStreamChunk(uid, idx, blob).catch(() => {}); // IDB chỉ dự phòng, không block stream
+                        streamChunkCountRef.current = idx + 1;
+                    },
+                });
+            })
+            .catch((err) => {
+                console.warn(STT_LOG, { flow: 'stream_init', error: String(err?.message ?? err), status: err?.status });
+                if (err?.status === 402) setShowSurvey(true);
+                hasStarted.current = false;
+            })
+            .finally(() => setIsStarting(false));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [limitChecked, canRecord]);
+
+    useEffect(() => {
+        if (recorder.state === 'recording' && isStarting) setIsStarting(false);
+    }, [recorder.state, isStarting]);
+
+    // Screen Wake Lock: giữ màn hình sáng khi đang ghi âm (Chrome mobile)
+    const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+    const requestWakeLock = useCallback(async () => {
+        if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
+        try {
+            wakeLockRef.current = await (navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<WakeLockSentinel> } }).wakeLock!.request('screen');
+            wakeLockRef.current.addEventListener('release', () => { wakeLockRef.current = null; });
+        } catch {
+            // Ignore (e.g. low battery, not supported)
+        }
+    }, []);
+    const releaseWakeLock = useCallback(() => {
+        if (wakeLockRef.current) {
+            wakeLockRef.current.release().catch(() => {});
+            wakeLockRef.current = null;
+        }
+    }, []);
+    useEffect(() => {
+        if (recorder.state === 'recording') {
+            requestWakeLock();
+        } else {
+            releaseWakeLock();
+        }
+        return () => releaseWakeLock();
+    }, [recorder.state, requestWakeLock, releaseWakeLock]);
+    useEffect(() => {
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && recorder.state === 'recording') requestWakeLock();
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    }, [recorder.state, requestWakeLock]);
 
     // Determine control state
     let controlState: ControlState = 'recording';
@@ -132,95 +248,160 @@ export default function RecordingPage() {
         recorder.resume();
         setSeekPosition(1); // reset for next pause
     };
-    const handleBack = () => {
+    const handleBack = async () => {
+        if (streamUploadIdRef.current) {
+            const uid = streamUploadIdRef.current;
+            console.info(STT_LOG, { flow: 'stream_abandon', upload_id: uid, record_id: streamRecordIdRef.current ?? undefined });
+            const { abandonUpload } = await import('@/lib/api/sttMetrics');
+            abandonUpload(uid).catch(() => {});
+            await cleanupUploadSession(uid).catch(() => {});
+            streamUploadIdRef.current = null;
+            setActiveUploadId(null);
+        }
         recorder.stop();
-        router.push('/dashboard');
+        if (typeof window !== 'undefined') {
+            window.location.href = '/dashboard';
+        } else {
+            router.push('/dashboard');
+        }
     };
     const handleSave = () => {
         recorder.pause();
         setShowSave(true);
     };
     const handleCancelSave = () => setShowSave(false);
+    const saveInProgressRef = useRef(false);
     const handleConfirmSave = async (name: string, format: string) => {
-        recorder.stop();
+        if (saveInProgressRef.current) return;
+        saveInProgressRef.current = true;
         setShowSave(false);
-        setIsProcessing(true);
-
+        const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'freetext' };
+        const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
+        outputFormatRef.current = outputFormat;
         try {
-            if (!recorder.audioBlob) {
-                console.error("No audio blob to transcribe");
+            const uploadId = streamUploadIdRef.current;
+            const recordId = streamRecordIdRef.current;
+            
+            if (!uploadId) {
+                console.error(STT_LOG, { flow: 'stream_end', error: 'No stream upload session' });
                 return;
             }
-
-            let formatType = 'soap_note';
-            if (format === 'clinical') formatType = 'ehr';
-            if (format === 'todo') formatType = 'todo-list';
-            if (format === 'none') formatType = 'free_text';
-
-            // 1. Session and init setup
-            const sessionId = `sess_${Date.now()}`;
-            const CHUNK_SIZE = 1024 * 512; // 512KB default chunk size
-            const totalChunksGuess = Math.ceil(recorder.audioBlob.size / CHUNK_SIZE);
             
-            const initRes = await initChunkedUpload('record.webm', totalChunksGuess, sessionId, CHUNK_SIZE);
-
-            // Use the provided chunk_size or default to CHUNK_SIZE
-            const actualChunkSize = initRes.chunk_size || CHUNK_SIZE;
-            const computedTotalChunks = Math.ceil(recorder.audioBlob.size / actualChunkSize);
-
-            // Save to IndexedDB (for auto-resume on crash/close)
-            await saveUploadSession({
-                upload_id: initRes.upload_id,
-                session_id: sessionId,
-                filename: 'record.webm',
-                total_chunks: computedTotalChunks,
-                chunk_size: actualChunkSize,
-                format_type: formatType,
-                format: format
-            }, recorder.audioBlob);
-
-            // 2. Upload chunks
-            for (let i = 0; i < computedTotalChunks; i++) {
-                const start = i * actualChunkSize;
-                const end = Math.min(start + actualChunkSize, recorder.audioBlob.size);
-                const chunk = recorder.audioBlob.slice(start, end);
-                await uploadChunk(initRes.upload_id, i, chunk);
-            }
-
-            // 3. Mark complete and create job
-            const completeRes = await completeChunkedUpload({
-                upload_id: initRes.upload_id,
-                session_id: sessionId,
-                format_type: formatType
-            });
-
-            // 4. Poll job status
-            let jobStatus = await getSttJobStatus(completeRes.job_id);
-            while (jobStatus.status === 'pending' || jobStatus.status === 'processing') {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                jobStatus = await getSttJobStatus(completeRes.job_id);
-            }
-
-            if (jobStatus.status === 'failed') {
-               throw new Error(jobStatus.error_message || "STT Job failed");
-            }
-
-            // 5. Success, get record ID, cleanup IndexedDB, and route
-            const finishRecordId = jobStatus.result?.record_id;
+            // stop() resolve trong onstop. Theo chuẩn MediaRecorder, ondataavailable chạy TRƯỚC onstop.
+            // Do đó khi stop() resolve, hàm onChunk đã được gọi xong đối với mọi chunk.
+            await recorder.stop();
             
-            await cleanupUploadSession(initRes.upload_id);
-
-            // Optionally we should update the record's display_name via PATCH using name here, 
-            // but for MVP just route to the proper review page with the record_id
-            const formatRoute = format === 'clinical' ? 'ehr' : format === 'none' ? 'freetext' : format;
-            router.push(`/${formatRoute}?id=${finishRecordId}`);
-        } catch (error) {
-            console.error("Transcription failed", error);
-            // In a real app we'd show a toast error
+            // Lấy chính xác số chunk mà trình duyệt ĐÃ GỌI onChunk (từ useAudioRecorder)
+            const exactChunkCount = recorder.getChunkCount();
+            
+            // Bây giờ mọi promise từ onChunk đã được đưa vào mảng pending. Await chúng hoàn tất.
+            await Promise.allSettled(pendingChunkUploadsRef.current);
+            pendingChunkUploadsRef.current = [];
+            
+            const totalChunks = exactChunkCount;
+            if (totalChunks <= 0) {
+                console.error(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, error: 'No chunks' });
+                throw new Error('Không có dữ liệu. Thử ghi lại.');
+            }
+            console.info(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, total_chunks: totalChunks });
+            try {
+                await streamEndUpload({
+                    upload_id: uploadId,
+                    total_chunks: totalChunks,
+                    record_id: recordId ?? undefined,
+                    output_format: outputFormat,
+                });
+            } catch (streamEndErr: any) {
+                if (streamEndErr?.status === 400) {
+                    const localChunks = await db.chunks.where({ upload_id: uploadId }).sortBy('chunk_index');
+                    if (localChunks.length > 0) {
+                        console.info(STT_LOG, { flow: 'stream_end_retry_from_idb', upload_id: uploadId, reupload_count: localChunks.length });
+                        for (const c of localChunks) {
+                            if (c.blob) await uploadChunkWithRetry(uploadId, c.chunk_index, c.blob, 3).catch(() => {});
+                        }
+                        await streamEndUpload({
+                            upload_id: uploadId,
+                            total_chunks: totalChunks,
+                            record_id: recordId ?? undefined,
+                            output_format: outputFormat,
+                        });
+                    } else {
+                        throw streamEndErr;
+                    }
+                } else {
+                    throw streamEndErr;
+                }
+            }
+            await cleanupUploadSession(uploadId).catch(() => {});
+            console.info(STT_LOG, { flow: 'stream_cleanup', upload_id: uploadId, record_id: recordId });
+            streamUploadIdRef.current = null;
+            streamRecordIdRef.current = null;
+            setActiveUploadId(null);
+            router.push('/dashboard');
+        } catch (error: any) {
+            console.error(STT_LOG, { flow: 'stream_end', upload_id: streamUploadIdRef.current ?? undefined, record_id: streamRecordIdRef.current ?? undefined, error: String(error?.message ?? error), status: error?.status });
+            if (error?.status === 402) {
+                setShowSurvey(true);
+            }
+            const uid = streamUploadIdRef.current;
+            const rid = streamRecordIdRef.current;
+            if (uid) {
+                setUploadError({
+                    uploadId: uid,
+                    recordId: rid ?? null,
+                    outputFormat: outputFormatRef.current,
+                    message: error?.message ?? String(error),
+                });
+            }
         } finally {
-            setIsProcessing(false);
+            saveInProgressRef.current = false;
         }
     };
+
+    const handleRecoverFromIdb = async () => {
+        if (!uploadError || recovering) return;
+        setRecovering(true);
+        const { uploadId, recordId, outputFormat } = uploadError;
+        try {
+            const localChunks = await db.chunks.where({ upload_id: uploadId }).sortBy('chunk_index');
+            if (localChunks.length === 0) {
+                setUploadError((e) => (e ? { ...e, message: 'Không có dữ liệu đã lưu để khôi phục.' } : e));
+                return;
+            }
+            console.info(STT_LOG, { flow: 'recover_from_idb', upload_id: uploadId, record_id: recordId, chunk_count: localChunks.length });
+            for (const c of localChunks) {
+                if (c.blob) await uploadChunkWithRetry(uploadId, c.chunk_index, c.blob, 3).catch(() => {});
+            }
+            const exactChunkCount = recorder.getChunkCount();
+            await streamEndUpload({
+                upload_id: uploadId,
+                total_chunks: exactChunkCount > 0 ? exactChunkCount : localChunks.length,
+                record_id: recordId ?? undefined,
+                output_format: outputFormat,
+            });
+            await cleanupUploadSession(uploadId).catch(() => {});
+            streamUploadIdRef.current = null;
+            streamRecordIdRef.current = null;
+            setActiveUploadId(null);
+            setUploadError(null);
+            router.push('/dashboard');
+        } catch (err: any) {
+            console.error(STT_LOG, { flow: 'recover_from_idb', upload_id: uploadId, error: String(err?.message ?? err) });
+            setUploadError((e) => (e ? { ...e, message: err?.message ?? 'Khôi phục thất bại. Thử lại sau.' } : e));
+            if (err?.status === 402) setShowSurvey(true);
+        } finally {
+            setRecovering(false);
+        }
+    };
+
+    const handleDismissUploadError = () => {
+        setUploadError(null);
+        setActiveUploadId(null);
+        streamUploadIdRef.current = null;
+        streamRecordIdRef.current = null;
+        router.push('/dashboard');
+    };
+
 
     // Keep seekPosition in sync during playback
     useEffect(() => {
@@ -243,16 +424,53 @@ export default function RecordingPage() {
         ? recorder.timeMs
         : Math.floor(seekPosition * (recorder.timeMs || 0));
 
-    // Header center: recording indicator + title
+    // Header center: recording indicator + title (show "Starting..." while getUserMedia runs)
     const isRecording = recorder.state === 'recording';
     const titleIndicator = (
         <div className="flex items-center gap-2">
-            {isRecording && (
+            {isStarting && (
+                <Loader2 className="w-4 h-4 text-accent-blue animate-spin shrink-0" />
+            )}
+            {!isStarting && isRecording && (
                 <div className="w-2.5 h-2.5 rounded-full bg-danger animate-pulse-fast" />
             )}
-            <span className="text-[17px] font-semibold">{t('newRecording')}</span>
+            <span className="text-[17px] font-semibold">
+                {isStarting ? t('startingRecording') : t('newRecording')}
+            </span>
         </div>
     );
+
+    if (limitChecked && canRecord === false) {
+        return (
+            <div className="flex flex-col min-h-screen fade-in relative">
+                <Header
+                    centerNode={<span className="text-[17px] font-semibold">{t('newRecording')}</span>}
+                    onBack={handleBack}
+                    rightNode={null}
+                />
+                <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+                    <p className="text-[18px] font-semibold text-text-primary mb-2">
+                        Bạn đã hết lượt ghi âm
+                    </p>
+                    <p className="text-[14px] text-text-muted mb-4">
+                        Vui lòng đánh giá để nhận thêm lượt sử dụng.
+                    </p>
+                    <p className="text-[13px] text-text-muted">
+                        (Cửa sổ đánh giá đã hiển thị bên dưới)
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!limitChecked) {
+        return (
+            <div className="flex flex-col min-h-screen bg-bg-page items-center justify-center">
+                <Loader2 className="w-10 h-10 text-accent-blue animate-spin mb-4" />
+                <p className="text-[14px] text-text-muted">Đang kiểm tra lượt sử dụng...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col min-h-screen fade-in relative">
@@ -268,9 +486,13 @@ export default function RecordingPage() {
 
             <div className="flex-1 flex flex-col items-center pt-6 pb-[34px]">
 
-                {/* Timer */}
+                {/* Timer (or "Starting..." while mic is being requested) */}
                 <div className="text-[52px] font-light leading-none tracking-tight text-center">
-                    {formatTimeMs(displayTimeMs)}
+                    {isStarting ? (
+                        <span className="text-[24px] text-text-muted">{t('startingRecording')}</span>
+                    ) : (
+                        formatTimeMs(displayTimeMs)
+                    )}
                 </div>
 
                 {/* Spacer */}
@@ -320,6 +542,50 @@ export default function RecordingPage() {
                     <p className="text-[13px] text-text-muted">
                         Vui lòng không đóng trang
                     </p>
+                </div>
+            )}
+
+            {/* Upload error: cho phép recover từ chunk trong IDB */}
+            {uploadError && (
+                <div className="fixed inset-0 z-200 flex flex-col items-center justify-center bg-black/50 p-6 animate-in fade-in duration-200">
+                    <div className="bg-bg-surface rounded-2xl shadow-xl max-w-sm w-full p-6 flex flex-col gap-4">
+                        <p className="text-[17px] font-semibold text-text-primary text-center">
+                            Upload thất bại
+                        </p>
+                        <p className="text-[14px] text-text-muted text-center">
+                            Bạn có thể thử khôi phục từ dữ liệu đã lưu trên thiết bị.
+                        </p>
+                        {uploadError.message && (
+                            <p className="text-[12px] text-text-muted truncate max-w-full" title={uploadError.message}>
+                                {uploadError.message}
+                            </p>
+                        )}
+                        <div className="flex flex-col gap-3 mt-2">
+                            <button
+                                type="button"
+                                onClick={handleRecoverFromIdb}
+                                disabled={recovering}
+                                className="w-full py-3 rounded-xl bg-accent-blue text-white font-medium text-[15px] disabled:opacity-60 flex items-center justify-center gap-2"
+                            >
+                                {recovering ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        Đang khôi phục...
+                                    </>
+                                ) : (
+                                    'Khôi phục từ dữ liệu đã lưu'
+                                )}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDismissUploadError}
+                                disabled={recovering}
+                                className="w-full py-3 rounded-xl border border-border-default text-text-primary font-medium text-[15px] disabled:opacity-60"
+                            >
+                                Về bảng điều khiển
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
