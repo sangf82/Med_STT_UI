@@ -160,7 +160,7 @@ export default function ReviewLayout({
             id: recordData.id,
             title: recordData.display_name || 'Bản ghi',
             format,
-            duration: recordData.elapsed_time ? `${Math.floor(recordData.elapsed_time)}s` : 'Unknown',
+            duration: (recordData as any).recording_duration_sec > 0 ? `${Math.floor((recordData as any).recording_duration_sec / 60)}:${String(Math.floor((recordData as any).recording_duration_sec % 60)).padStart(2, '0')}` : '...',
             date: new Date(recordData.created_at).toLocaleDateString(),
             status: recordData.status === 'completed' ? 'transcribed' : recordData.status === 'failed' ? 'error' : 'transcribing',
             content: recordData.content,

@@ -73,12 +73,13 @@ export default function DashboardPage() {
                 }
                 const mappedRecords: Recording[] = items.map(item => {
                     const formatLabel = mapFormat(item.output_format ?? (item as { output_type?: string }).output_type);
+                    const durSec = (item as any).recording_duration_sec;
                     return {
                         id: item.id,
                         title: item.display_name || 'Bản ghi không tên',
                         patient: undefined,
                         format: formatLabel,
-                        duration: item.elapsed_time ? `${Math.floor(item.elapsed_time)}s` : '...',
+                        duration: durSec > 0 ? `${Math.floor(durSec / 60)}:${String(Math.floor(durSec % 60)).padStart(2, '0')}` : '...',
                         date: new Date(item.created_at).toLocaleDateString(),
                         status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
                     };
@@ -104,12 +105,13 @@ export default function DashboardPage() {
             });
             const mappedRecords: Recording[] = items.map(item => {
                 const formatLabel = mapFormat(item.output_format ?? (item as { output_type?: string }).output_type);
+                const durSec = (item as any).recording_duration_sec;
                 return {
                     id: item.id,
                     title: item.display_name || 'Bản ghi không tên',
                     patient: undefined,
                     format: formatLabel,
-                    duration: item.elapsed_time ? `${Math.floor(item.elapsed_time)}s` : '...',
+                    duration: durSec > 0 ? `${Math.floor(durSec / 60)}:${String(Math.floor(durSec % 60)).padStart(2, '0')}` : '...',
                     date: new Date(item.created_at).toLocaleDateString(),
                     status: item.status === 'completed' ? 'transcribed' : item.status === 'failed' ? 'error' : 'transcribing'
                 };
