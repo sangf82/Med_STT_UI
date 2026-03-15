@@ -44,9 +44,6 @@ export default function RecordingPage() {
     const pendingChunkUploadsRef = useRef<Promise<unknown>[]>([]);
     const [limitChecked, setLimitChecked] = useState(false);
     const [canRecord, setCanRecord] = useState<boolean | null>(null);
-    /** Sau khi Save lỗi: cho phép user khôi phục từ chunk trong IDB */
-    const [uploadError, setUploadError] = useState<{ uploadId: string; recordId: string | null; outputFormat: OutputFormat; message?: string } | null>(null);
-    const [recovering, setRecovering] = useState(false);
     const outputFormatRef = useRef<OutputFormat>('soap_note');
     // Known duration in seconds — reliable unlike audio.duration which is Infinity for WebM
     const knownDurationSec = recorder.timeMs / 1000;
@@ -278,130 +275,77 @@ export default function RecordingPage() {
         const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'freetext' };
         const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
         outputFormatRef.current = outputFormat;
-        try {
-            const uploadId = streamUploadIdRef.current;
-            const recordId = streamRecordIdRef.current;
-            
-            if (!uploadId) {
-                console.error(STT_LOG, { flow: 'stream_end', error: 'No stream upload session' });
-                return;
-            }
-            
-            // stop() resolve trong onstop. Theo chuẩn MediaRecorder, ondataavailable chạy TRƯỚC onstop.
-            // Do đó khi stop() resolve, hàm onChunk đã được gọi xong đối với mọi chunk.
-            await recorder.stop();
-            
-            // Lấy chính xác số chunk mà trình duyệt ĐÃ GỌI onChunk (từ useAudioRecorder)
-            const exactChunkCount = recorder.getChunkCount();
-            
-            // Bây giờ mọi promise từ onChunk đã được đưa vào mảng pending. Await chúng hoàn tất.
-            await Promise.allSettled(pendingChunkUploadsRef.current);
-            pendingChunkUploadsRef.current = [];
-            
-            const totalChunks = exactChunkCount;
-            if (totalChunks <= 0) {
-                console.error(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, error: 'No chunks' });
-                throw new Error('Không có dữ liệu. Thử ghi lại.');
-            }
-            console.info(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, total_chunks: totalChunks });
+
+        const uploadId = streamUploadIdRef.current;
+        const recordId = streamRecordIdRef.current;
+
+        if (!uploadId) {
+            console.error(STT_LOG, { flow: 'stream_end', error: 'No stream upload session' });
+            saveInProgressRef.current = false;
+            return;
+        }
+
+        // Stop recorder synchronously — after this, all onChunk callbacks have fired
+        await recorder.stop();
+        const exactChunkCount = recorder.getChunkCount();
+        if (exactChunkCount <= 0) {
+            console.error(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, error: 'No chunks' });
+            saveInProgressRef.current = false;
+            return;
+        }
+
+        // Capture pending promises before navigating away (component will unmount)
+        const pendingUploads = [...pendingChunkUploadsRef.current];
+        pendingChunkUploadsRef.current = [];
+        streamUploadIdRef.current = null;
+        streamRecordIdRef.current = null;
+
+        // Navigate to dashboard IMMEDIATELY — user sees record in "processing" state
+        router.push('/dashboard');
+
+        // Fire-and-forget: finish upload in background (detached from component lifecycle)
+        // BackgroundUploader will recover if this fails
+        (async () => {
             try {
-                await streamEndUpload({
-                    upload_id: uploadId,
-                    total_chunks: totalChunks,
-                    record_id: recordId ?? undefined,
-                    output_format: outputFormat,
-                });
-            } catch (streamEndErr: any) {
-                if (streamEndErr?.status === 400) {
-                    const localChunks = await db.chunks.where({ upload_id: uploadId }).sortBy('chunk_index');
-                    if (localChunks.length > 0) {
-                        console.info(STT_LOG, { flow: 'stream_end_retry_from_idb', upload_id: uploadId, reupload_count: localChunks.length });
-                        for (const c of localChunks) {
-                            if (c.blob) await uploadChunkWithRetry(uploadId, c.chunk_index, c.blob, 3).catch(() => {});
+                await Promise.allSettled(pendingUploads);
+                console.info(STT_LOG, { flow: 'stream_end_bg', upload_id: uploadId, record_id: recordId, total_chunks: exactChunkCount });
+                try {
+                    await streamEndUpload({
+                        upload_id: uploadId,
+                        total_chunks: exactChunkCount,
+                        record_id: recordId ?? undefined,
+                        output_format: outputFormat,
+                    });
+                } catch (streamEndErr: any) {
+                    if (streamEndErr?.status === 400) {
+                        const localChunks = await db.chunks.where({ upload_id: uploadId }).sortBy('chunk_index');
+                        if (localChunks.length > 0) {
+                            console.info(STT_LOG, { flow: 'stream_end_retry_bg', upload_id: uploadId, reupload_count: localChunks.length });
+                            for (const c of localChunks) {
+                                if (c.blob) await uploadChunkWithRetry(uploadId, c.chunk_index, c.blob, 3).catch(() => {});
+                            }
+                            await streamEndUpload({
+                                upload_id: uploadId,
+                                total_chunks: exactChunkCount,
+                                record_id: recordId ?? undefined,
+                                output_format: outputFormat,
+                            });
+                        } else {
+                            throw streamEndErr;
                         }
-                        await streamEndUpload({
-                            upload_id: uploadId,
-                            total_chunks: totalChunks,
-                            record_id: recordId ?? undefined,
-                            output_format: outputFormat,
-                        });
                     } else {
                         throw streamEndErr;
                     }
-                } else {
-                    throw streamEndErr;
                 }
+                await cleanupUploadSession(uploadId).catch(() => {});
+                removeActiveUploadId(uploadId);
+                console.info(STT_LOG, { flow: 'stream_end_bg_done', upload_id: uploadId, record_id: recordId });
+            } catch (bgErr: any) {
+                console.error(STT_LOG, { flow: 'stream_end_bg', upload_id: uploadId, error: String(bgErr?.message ?? bgErr) });
+                // Don't cleanup — BackgroundUploader will retry from IDB
             }
-            await cleanupUploadSession(uploadId).catch(() => {});
-            console.info(STT_LOG, { flow: 'stream_cleanup', upload_id: uploadId, record_id: recordId });
-            removeActiveUploadId(uploadId);
-            streamUploadIdRef.current = null;
-            streamRecordIdRef.current = null;
-            router.push('/dashboard');
-        } catch (error: any) {
-            console.error(STT_LOG, { flow: 'stream_end', upload_id: streamUploadIdRef.current ?? undefined, record_id: streamRecordIdRef.current ?? undefined, error: String(error?.message ?? error), status: error?.status });
-            if (error?.status === 402) {
-                setShowSurvey(true);
-            }
-            const uid = streamUploadIdRef.current;
-            const rid = streamRecordIdRef.current;
-            if (uid) {
-                setUploadError({
-                    uploadId: uid,
-                    recordId: rid ?? null,
-                    outputFormat: outputFormatRef.current,
-                    message: error?.message ?? String(error),
-                });
-            }
-        } finally {
-            saveInProgressRef.current = false;
-        }
+        })();
     };
-
-    const handleRecoverFromIdb = async () => {
-        if (!uploadError || recovering) return;
-        setRecovering(true);
-        const { uploadId, recordId, outputFormat } = uploadError;
-        try {
-            const localChunks = await db.chunks.where({ upload_id: uploadId }).sortBy('chunk_index');
-            if (localChunks.length === 0) {
-                setUploadError((e) => (e ? { ...e, message: 'Không có dữ liệu đã lưu để khôi phục.' } : e));
-                return;
-            }
-            console.info(STT_LOG, { flow: 'recover_from_idb', upload_id: uploadId, record_id: recordId, chunk_count: localChunks.length });
-            for (const c of localChunks) {
-                if (c.blob) await uploadChunkWithRetry(uploadId, c.chunk_index, c.blob, 3).catch(() => {});
-            }
-            const exactChunkCount = recorder.getChunkCount();
-            await streamEndUpload({
-                upload_id: uploadId,
-                total_chunks: exactChunkCount > 0 ? exactChunkCount : localChunks.length,
-                record_id: recordId ?? undefined,
-                output_format: outputFormat,
-            });
-            await cleanupUploadSession(uploadId).catch(() => {});
-            removeActiveUploadId(uploadId);
-            streamUploadIdRef.current = null;
-            streamRecordIdRef.current = null;
-            setUploadError(null);
-            router.push('/dashboard');
-        } catch (err: any) {
-            console.error(STT_LOG, { flow: 'recover_from_idb', upload_id: uploadId, error: String(err?.message ?? err) });
-            setUploadError((e) => (e ? { ...e, message: err?.message ?? 'Khôi phục thất bại. Thử lại sau.' } : e));
-            if (err?.status === 402) setShowSurvey(true);
-        } finally {
-            setRecovering(false);
-        }
-    };
-
-    const handleDismissUploadError = () => {
-        setUploadError(null);
-        if (streamUploadIdRef.current) removeActiveUploadId(streamUploadIdRef.current);
-        streamUploadIdRef.current = null;
-        streamRecordIdRef.current = null;
-        router.push('/dashboard');
-    };
-
 
     // Keep seekPosition in sync during playback
     useEffect(() => {
@@ -545,49 +489,6 @@ export default function RecordingPage() {
                 </div>
             )}
 
-            {/* Upload error: cho phép recover từ chunk trong IDB */}
-            {uploadError && (
-                <div className="fixed inset-0 z-200 flex flex-col items-center justify-center bg-black/50 p-6 animate-in fade-in duration-200">
-                    <div className="bg-bg-surface rounded-2xl shadow-xl max-w-sm w-full p-6 flex flex-col gap-4">
-                        <p className="text-[17px] font-semibold text-text-primary text-center">
-                            Upload thất bại
-                        </p>
-                        <p className="text-[14px] text-text-muted text-center">
-                            Bạn có thể thử khôi phục từ dữ liệu đã lưu trên thiết bị.
-                        </p>
-                        {uploadError.message && (
-                            <p className="text-[12px] text-text-muted truncate max-w-full" title={uploadError.message}>
-                                {uploadError.message}
-                            </p>
-                        )}
-                        <div className="flex flex-col gap-3 mt-2">
-                            <button
-                                type="button"
-                                onClick={handleRecoverFromIdb}
-                                disabled={recovering}
-                                className="w-full py-3 rounded-xl bg-accent-blue text-white font-medium text-[15px] disabled:opacity-60 flex items-center justify-center gap-2"
-                            >
-                                {recovering ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        Đang khôi phục...
-                                    </>
-                                ) : (
-                                    'Khôi phục từ dữ liệu đã lưu'
-                                )}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleDismissUploadError}
-                                disabled={recovering}
-                                className="w-full py-3 rounded-xl border border-border-default text-text-primary font-medium text-[15px] disabled:opacity-60"
-                            >
-                                Về bảng điều khiển
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
