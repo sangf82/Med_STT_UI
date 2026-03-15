@@ -275,7 +275,7 @@ export default function DashboardPage() {
             } else {
                 await deleteRecord(rec.id);
                 setRecordings(prev => prev.filter(r => r.id !== rec.id));
-                setTotalRecordsFromApi((prev: number) => Math.max(0, prev - 1));
+                setTotalRecordsFromApi(Math.max(0, totalRecordsFromApi - 1));
             }
         } catch (err) {
             console.error('Lỗi khi xóa bản ghi:', err);
