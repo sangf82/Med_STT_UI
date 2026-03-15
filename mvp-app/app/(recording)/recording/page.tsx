@@ -13,8 +13,8 @@ import { Loader2, MoreVertical } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import { getMyUsage, type OutputFormat, AVAILABLE_OUTPUT_FORMATS, initStreamUpload, streamEndUpload, uploadChunk } from '@/lib/api/sttMetrics';
-import { saveStreamUploadMetadata, addStreamChunk, cleanupUploadSession } from '@/lib/db';
+import { getMyUsage, type OutputFormat, AVAILABLE_OUTPUT_FORMATS, initStreamUpload, streamEndUpload, uploadChunkWithRetry } from '@/lib/api/sttMetrics';
+import { saveStreamUploadMetadata, addStreamChunk, cleanupUploadSession, db } from '@/lib/db';
 import { useAppContext } from '@/context/AppContext';
 
 
@@ -44,6 +44,10 @@ export default function RecordingPage() {
     const pendingChunkUploadsRef = useRef<Promise<unknown>[]>([]);
     const [limitChecked, setLimitChecked] = useState(false);
     const [canRecord, setCanRecord] = useState<boolean | null>(null);
+    /** Sau khi Save lỗi: cho phép user khôi phục từ chunk trong IDB */
+    const [uploadError, setUploadError] = useState<{ uploadId: string; recordId: string | null; outputFormat: OutputFormat; message?: string } | null>(null);
+    const [recovering, setRecovering] = useState(false);
+    const outputFormatRef = useRef<OutputFormat>('soap_note');
     // Known duration in seconds — reliable unlike audio.duration which is Infinity for WebM
     const knownDurationSec = recorder.timeMs / 1000;
 
@@ -102,10 +106,11 @@ export default function RecordingPage() {
                     onChunk: (blob, idx) => {
                         if (!streamUploadIdRef.current) return;
                         const uid = streamUploadIdRef.current;
+                        // idx = thứ tự stream chunk (0,1,2,...), gửi lên server làm chunk_index để BE ghép đúng thứ tự
                         if (idx === 0 || idx % 20 === 19) {
                             console.info(STT_LOG, { flow: 'stream_chunk', upload_id: uid, chunk_index: idx, chunk_size: blob.size });
                         }
-                        const uploadPromise = uploadChunk(uid, idx, blob).catch((e) => {
+                        const uploadPromise = uploadChunkWithRetry(uid, idx, blob, 3).catch((e) => {
                             console.warn(STT_LOG, { flow: 'stream_chunk', upload_id: uid, chunk_index: idx, error: String(e?.message ?? e) });
                         });
                         pendingChunkUploadsRef.current.push(uploadPromise);
@@ -269,6 +274,9 @@ export default function RecordingPage() {
         if (saveInProgressRef.current) return;
         saveInProgressRef.current = true;
         setShowSave(false);
+        const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'freetext' };
+        const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
+        outputFormatRef.current = outputFormat;
         try {
             const uploadId = streamUploadIdRef.current;
             const recordId = streamRecordIdRef.current;
@@ -277,22 +285,40 @@ export default function RecordingPage() {
                 console.error(STT_LOG, { flow: 'stream_end', error: 'No stream upload session' });
                 return;
             }
-            const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'freetext' };
-            const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
-            const totalChunks = streamChunkCountRef.current;
-            if (totalChunks <= 0) {
-                console.error(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, error: 'No chunks uploaded' });
-                return;
-            }
             await Promise.allSettled(pendingChunkUploadsRef.current);
             pendingChunkUploadsRef.current = [];
+            // Lấy total_chunks từ IDB (đã sync trong lúc stream), không re-upload — tránh duplicate
+            await new Promise((r) => setTimeout(r, 200));
+            const localChunks = await db.chunks.where({ upload_id: uploadId }).sortBy('chunk_index');
+            const totalChunks = localChunks.length > 0 ? localChunks.length : streamChunkCountRef.current;
+            if (totalChunks <= 0) {
+                console.error(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, error: 'No chunks' });
+                throw new Error('Không có dữ liệu. Thử ghi lại.');
+            }
             console.info(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, total_chunks: totalChunks });
-            await streamEndUpload({
-                upload_id: uploadId,
-                total_chunks: totalChunks,
-                record_id: recordId ?? undefined,
-                output_format: outputFormat,
-            });
+            try {
+                await streamEndUpload({
+                    upload_id: uploadId,
+                    total_chunks: totalChunks,
+                    record_id: recordId ?? undefined,
+                    output_format: outputFormat,
+                });
+            } catch (streamEndErr: any) {
+                if (streamEndErr?.status === 400 && localChunks.length > 0) {
+                    console.info(STT_LOG, { flow: 'stream_end_retry', upload_id: uploadId, reupload_count: localChunks.length });
+                    for (const c of localChunks) {
+                        if (c.blob) await uploadChunkWithRetry(uploadId, c.chunk_index, c.blob, 3).catch(() => {});
+                    }
+                    await streamEndUpload({
+                        upload_id: uploadId,
+                        total_chunks: localChunks.length,
+                        record_id: recordId ?? undefined,
+                        output_format: outputFormat,
+                    });
+                } else {
+                    throw streamEndErr;
+                }
+            }
             await cleanupUploadSession(uploadId).catch(() => {});
             console.info(STT_LOG, { flow: 'stream_cleanup', upload_id: uploadId, record_id: recordId });
             streamUploadIdRef.current = null;
@@ -303,11 +329,60 @@ export default function RecordingPage() {
             if (error?.status === 402) {
                 setShowSurvey(true);
             }
-            setIsProcessing(true);
-            setTimeout(() => setIsProcessing(false), 2000);
+            const uid = streamUploadIdRef.current;
+            const rid = streamRecordIdRef.current;
+            if (uid) {
+                setUploadError({
+                    uploadId: uid,
+                    recordId: rid ?? null,
+                    outputFormat: outputFormatRef.current,
+                    message: error?.message ?? String(error),
+                });
+            }
         } finally {
             saveInProgressRef.current = false;
         }
+    };
+
+    const handleRecoverFromIdb = async () => {
+        if (!uploadError || recovering) return;
+        setRecovering(true);
+        const { uploadId, recordId, outputFormat } = uploadError;
+        try {
+            const localChunks = await db.chunks.where({ upload_id: uploadId }).sortBy('chunk_index');
+            if (localChunks.length === 0) {
+                setUploadError((e) => (e ? { ...e, message: 'Không có dữ liệu đã lưu để khôi phục.' } : e));
+                return;
+            }
+            console.info(STT_LOG, { flow: 'recover_from_idb', upload_id: uploadId, record_id: recordId, chunk_count: localChunks.length });
+            for (const c of localChunks) {
+                if (c.blob) await uploadChunkWithRetry(uploadId, c.chunk_index, c.blob, 3).catch(() => {});
+            }
+            await streamEndUpload({
+                upload_id: uploadId,
+                total_chunks: localChunks.length,
+                record_id: recordId ?? undefined,
+                output_format: outputFormat,
+            });
+            await cleanupUploadSession(uploadId).catch(() => {});
+            streamUploadIdRef.current = null;
+            streamRecordIdRef.current = null;
+            setUploadError(null);
+            router.push('/dashboard');
+        } catch (err: any) {
+            console.error(STT_LOG, { flow: 'recover_from_idb', upload_id: uploadId, error: String(err?.message ?? err) });
+            setUploadError((e) => (e ? { ...e, message: err?.message ?? 'Khôi phục thất bại. Thử lại sau.' } : e));
+            if (err?.status === 402) setShowSurvey(true);
+        } finally {
+            setRecovering(false);
+        }
+    };
+
+    const handleDismissUploadError = () => {
+        setUploadError(null);
+        streamUploadIdRef.current = null;
+        streamRecordIdRef.current = null;
+        router.push('/dashboard');
     };
 
 
@@ -450,6 +525,50 @@ export default function RecordingPage() {
                     <p className="text-[13px] text-text-muted">
                         Vui lòng không đóng trang
                     </p>
+                </div>
+            )}
+
+            {/* Upload error: cho phép recover từ chunk trong IDB */}
+            {uploadError && (
+                <div className="fixed inset-0 z-200 flex flex-col items-center justify-center bg-black/50 p-6 animate-in fade-in duration-200">
+                    <div className="bg-bg-surface rounded-2xl shadow-xl max-w-sm w-full p-6 flex flex-col gap-4">
+                        <p className="text-[17px] font-semibold text-text-primary text-center">
+                            Upload thất bại
+                        </p>
+                        <p className="text-[14px] text-text-muted text-center">
+                            Bạn có thể thử khôi phục từ dữ liệu đã lưu trên thiết bị.
+                        </p>
+                        {uploadError.message && (
+                            <p className="text-[12px] text-text-muted truncate max-w-full" title={uploadError.message}>
+                                {uploadError.message}
+                            </p>
+                        )}
+                        <div className="flex flex-col gap-3 mt-2">
+                            <button
+                                type="button"
+                                onClick={handleRecoverFromIdb}
+                                disabled={recovering}
+                                className="w-full py-3 rounded-xl bg-accent-blue text-white font-medium text-[15px] disabled:opacity-60 flex items-center justify-center gap-2"
+                            >
+                                {recovering ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        Đang khôi phục...
+                                    </>
+                                ) : (
+                                    'Khôi phục từ dữ liệu đã lưu'
+                                )}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDismissUploadError}
+                                disabled={recovering}
+                                className="w-full py-3 rounded-xl border border-border-default text-text-primary font-medium text-[15px] disabled:opacity-60"
+                            >
+                                Về bảng điều khiển
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
