@@ -29,6 +29,8 @@ export interface UseAudioRecorderReturn {
     reset: () => void;
     /** Number of levels captured before the most recent pause */
     prePauseLevels: number;
+    /** Get exact count of chunks generated */
+    getChunkCount: () => number;
 }
 
 const LEVEL_INTERVAL = 60; // ms between level samples
@@ -247,6 +249,8 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         dataArrayRef.current = null;
     }, [stopTimers, audioUrl]);
 
+    const getChunkCount = useCallback(() => streamChunkIndexRef.current, []);
+
     return {
         state,
         timeMs,
@@ -260,5 +264,6 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         stop,
         reset,
         prePauseLevels,
+        getChunkCount,
     };
 }

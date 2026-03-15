@@ -279,14 +279,24 @@ export default function RecordingPage() {
         try {
             const uploadId = streamUploadIdRef.current;
             const recordId = streamRecordIdRef.current;
-            await recorder.stop();
+            
             if (!uploadId) {
                 console.error(STT_LOG, { flow: 'stream_end', error: 'No stream upload session' });
                 return;
             }
+            
+            // stop() resolve trong onstop. Theo chuẩn MediaRecorder, ondataavailable chạy TRƯỚC onstop.
+            // Do đó khi stop() resolve, hàm onChunk đã được gọi xong đối với mọi chunk.
+            await recorder.stop();
+            
+            // Lấy chính xác số chunk mà trình duyệt ĐÃ GỌI onChunk (từ useAudioRecorder)
+            const exactChunkCount = recorder.getChunkCount();
+            
+            // Bây giờ mọi promise từ onChunk đã được đưa vào mảng pending. Await chúng hoàn tất.
             await Promise.allSettled(pendingChunkUploadsRef.current);
             pendingChunkUploadsRef.current = [];
-            const totalChunks = streamChunkCountRef.current;
+            
+            const totalChunks = exactChunkCount;
             if (totalChunks <= 0) {
                 console.error(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, error: 'No chunks' });
                 throw new Error('Không có dữ liệu. Thử ghi lại.');
