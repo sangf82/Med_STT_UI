@@ -21,6 +21,8 @@ import { useAppContext } from '@/context/AppContext';
 export function BackgroundUploader() {
   const { setShowSurvey, setIsRecoveringUploads, activeUploadId } = useAppContext();
   const isRunning = useRef(false);
+  const activeUploadIdRef = useRef(activeUploadId);
+  activeUploadIdRef.current = activeUploadId;
   const hasLocalUploads = (useLiveQuery(() => db.uploads.count(), []) ?? 0) > 0;
 
   useEffect(() => {
@@ -55,7 +57,7 @@ export function BackgroundUploader() {
           return;
         }
 
-        const currentActiveId = activeUploadId;
+        const currentActiveId = activeUploadIdRef.current;
         const filteredUploads = uploads.filter((u: { upload_id?: string }) => u.upload_id !== currentActiveId);
         if (filteredUploads.length === 0) {
           isRunning.current = false;
