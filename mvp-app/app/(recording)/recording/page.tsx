@@ -28,7 +28,7 @@ export default function RecordingPage() {
     const router = useRouter();
 
     const recorder = useAudioRecorder();
-    const { showSurvey, setShowSurvey, setActiveUploadId } = useAppContext();
+    const { showSurvey, setShowSurvey, addActiveUploadId, removeActiveUploadId } = useAppContext();
     const [showSave, setShowSave] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [replaying, setReplaying] = useState(false);
@@ -89,7 +89,7 @@ export default function RecordingPage() {
                 streamUploadIdRef.current = initRes.upload_id;
                 streamRecordIdRef.current = initRes.record_id ?? null;
                 streamChunkCountRef.current = 0;
-                setActiveUploadId(initRes.upload_id);
+                addActiveUploadId(initRes.upload_id);
                 pendingChunkUploadsRef.current = [];
                 console.info(STT_LOG, { flow: 'stream_init', record_id: initRes.record_id, upload_id: initRes.upload_id, session_id: sessionId });
                 await saveStreamUploadMetadata({
@@ -255,8 +255,8 @@ export default function RecordingPage() {
             const { abandonUpload } = await import('@/lib/api/sttMetrics');
             abandonUpload(uid).catch(() => {});
             await cleanupUploadSession(uid).catch(() => {});
+            removeActiveUploadId(uid);
             streamUploadIdRef.current = null;
-            setActiveUploadId(null);
         }
         recorder.stop();
         if (typeof window !== 'undefined') {
@@ -334,9 +334,9 @@ export default function RecordingPage() {
             }
             await cleanupUploadSession(uploadId).catch(() => {});
             console.info(STT_LOG, { flow: 'stream_cleanup', upload_id: uploadId, record_id: recordId });
+            removeActiveUploadId(uploadId);
             streamUploadIdRef.current = null;
             streamRecordIdRef.current = null;
-            setActiveUploadId(null);
             router.push('/dashboard');
         } catch (error: any) {
             console.error(STT_LOG, { flow: 'stream_end', upload_id: streamUploadIdRef.current ?? undefined, record_id: streamRecordIdRef.current ?? undefined, error: String(error?.message ?? error), status: error?.status });
@@ -380,9 +380,9 @@ export default function RecordingPage() {
                 output_format: outputFormat,
             });
             await cleanupUploadSession(uploadId).catch(() => {});
+            removeActiveUploadId(uploadId);
             streamUploadIdRef.current = null;
             streamRecordIdRef.current = null;
-            setActiveUploadId(null);
             setUploadError(null);
             router.push('/dashboard');
         } catch (err: any) {
@@ -396,7 +396,7 @@ export default function RecordingPage() {
 
     const handleDismissUploadError = () => {
         setUploadError(null);
-        setActiveUploadId(null);
+        if (streamUploadIdRef.current) removeActiveUploadId(streamUploadIdRef.current);
         streamUploadIdRef.current = null;
         streamRecordIdRef.current = null;
         router.push('/dashboard');

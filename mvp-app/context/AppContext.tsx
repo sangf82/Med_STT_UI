@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { initialRecordings, doctorProfile, type Profile, type Recording } from '@/lib/mockData';
 import { apiClient } from '@/lib/apiClient';
 import { getAuthToken } from '@/lib/auth';
@@ -22,8 +22,9 @@ interface AppContextProps {
     setShowNotificationDot: (show: boolean) => void;
     isRecoveringUploads: boolean;
     setIsRecoveringUploads: (show: boolean) => void;
-    activeUploadId: string | null;
-    setActiveUploadId: (id: string | null) => void;
+    activeUploadIds: Set<string>;
+    addActiveUploadId: (id: string) => void;
+    removeActiveUploadId: (id: string) => void;
     totalRecordsFromApi: number;
     setTotalRecordsFromApi: (n: number) => void;
     totalByFormat: { soap: number; ehr: number; todo: number; free: number };
@@ -41,7 +42,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const [showTrialPanel, setShowTrialPanel] = useState(initialRecordings.length >= 5);
     const [showNotificationDot, setShowNotificationDot] = useState(initialRecordings.length >= 5);
     const [isRecoveringUploads, setIsRecoveringUploads] = useState(false);
-    const [activeUploadId, setActiveUploadId] = useState<string | null>(null);
+    const activeUploadIdsRef = useRef(new Set<string>());
+    const [activeUploadIds, setActiveUploadIds] = useState<Set<string>>(new Set());
+    const addActiveUploadId = useCallback((id: string) => {
+        activeUploadIdsRef.current.add(id);
+        setActiveUploadIds(new Set(activeUploadIdsRef.current));
+    }, []);
+    const removeActiveUploadId = useCallback((id: string) => {
+        activeUploadIdsRef.current.delete(id);
+        setActiveUploadIds(new Set(activeUploadIdsRef.current));
+    }, []);
     const [totalRecordsFromApi, setTotalRecordsFromApi] = useState(0);
     const [totalByFormat, setTotalByFormat] = useState({ soap: 0, ehr: 0, todo: 0, free: 0 });
 
@@ -118,7 +128,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             showTrialPanel, setShowTrialPanel,
             showNotificationDot, setShowNotificationDot,
             isRecoveringUploads, setIsRecoveringUploads,
-            activeUploadId, setActiveUploadId,
+            activeUploadIds, addActiveUploadId, removeActiveUploadId,
             totalRecordsFromApi, setTotalRecordsFromApi,
             totalByFormat, setTotalByFormat
         }}>
