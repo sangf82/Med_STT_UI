@@ -161,9 +161,9 @@ export function RichTextEditor({ content, onChange, className, minHeight = "none
                 </div>
             )}
 
-            {/* Editor content — z-0 ensures it's below the toolbar's z-50 so dropdowns aren't clipped */}
+            {/* Editor content — min-h-0 so parent overflow-y-auto can scroll when content is long (full todo list) */}
             <div
-                className="flex-1 cursor-text px-4 py-4 relative z-0"
+                className="flex-1 min-h-0 cursor-text px-4 py-4 relative z-0 overflow-y-auto"
                 onClick={(e) => {
                     // Only focus when clicking on the wrapper itself (the empty space),
                     // not when clicking on content nodes (e.g. checkbox)

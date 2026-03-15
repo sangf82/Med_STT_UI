@@ -45,10 +45,11 @@ export default function TodoListPage() {
     };
 
     return (
-        <div className="flex-1 flex flex-col fade-in">
+        <div className="flex-1 flex flex-col min-h-0 fade-in">
             <RichTextEditor
                 content={content}
                 onChange={handleChange}
+                className="min-h-0"
             />
         </div>
     );

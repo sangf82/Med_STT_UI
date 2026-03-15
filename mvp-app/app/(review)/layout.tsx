@@ -354,8 +354,8 @@ export default function ReviewLayout({
                         </div>
                     )}
 
-                    {/* Dynamic Content */}
-                    <div className="flex-1 relative flex flex-col min-h-0">
+                    {/* Dynamic Content — overflow-y-auto + min-h-0 so long todo/list content scrolls and shows full result */}
+                    <div className="flex-1 relative flex flex-col min-h-0 overflow-y-auto">
                         {isLoadingRecord ? (
                             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
                                 <Loader className="w-8 h-8 animate-spin text-accent-blue mb-4" />
