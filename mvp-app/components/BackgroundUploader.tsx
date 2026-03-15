@@ -19,7 +19,7 @@ import { db, cleanupUploadSession } from '@/lib/db';
 import { useAppContext } from '@/context/AppContext';
 
 export function BackgroundUploader() {
-  const { setShowSurvey, setIsRecoveringUploads } = useAppContext();
+  const { setShowSurvey, setIsRecoveringUploads, activeUploadId } = useAppContext();
   const isRunning = useRef(false);
   const hasLocalUploads = (useLiveQuery(() => db.uploads.count(), []) ?? 0) > 0;
 
@@ -55,10 +55,16 @@ export function BackgroundUploader() {
           return;
         }
 
-        console.info(STT_LOG, { flow: 'recover_start', upload_count: uploads.length, upload_ids: uploads.map((u: { upload_id?: string }) => u.upload_id) });
+        const currentActiveId = activeUploadId;
+        const filteredUploads = uploads.filter((u: { upload_id?: string }) => u.upload_id !== currentActiveId);
+        if (filteredUploads.length === 0) {
+          isRunning.current = false;
+          return;
+        }
+        console.info(STT_LOG, { flow: 'recover_start', upload_count: filteredUploads.length, upload_ids: filteredUploads.map((u: { upload_id?: string }) => u.upload_id), skipped_active: currentActiveId });
         setIsRecoveringUploads(true);
-        // 2. Try to resume each incomplete upload
-        for (const item of uploads) {
+        // 2. Try to resume each incomplete upload (skip active recording session)
+        for (const item of filteredUploads) {
           const localMeta = await db.uploads.where({ upload_id: item.upload_id }).first();
           if (!localMeta) {
             // No local chunks — check server session status before deciding

@@ -22,6 +22,8 @@ interface AppContextProps {
     setShowNotificationDot: (show: boolean) => void;
     isRecoveringUploads: boolean;
     setIsRecoveringUploads: (show: boolean) => void;
+    activeUploadId: string | null;
+    setActiveUploadId: (id: string | null) => void;
     totalRecordsFromApi: number;
     setTotalRecordsFromApi: (n: number) => void;
     totalByFormat: { soap: number; ehr: number; todo: number; free: number };
@@ -39,6 +41,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     const [showTrialPanel, setShowTrialPanel] = useState(initialRecordings.length >= 5);
     const [showNotificationDot, setShowNotificationDot] = useState(initialRecordings.length >= 5);
     const [isRecoveringUploads, setIsRecoveringUploads] = useState(false);
+    const [activeUploadId, setActiveUploadId] = useState<string | null>(null);
     const [totalRecordsFromApi, setTotalRecordsFromApi] = useState(0);
     const [totalByFormat, setTotalByFormat] = useState({ soap: 0, ehr: 0, todo: 0, free: 0 });
 
@@ -115,6 +118,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             showTrialPanel, setShowTrialPanel,
             showNotificationDot, setShowNotificationDot,
             isRecoveringUploads, setIsRecoveringUploads,
+            activeUploadId, setActiveUploadId,
             totalRecordsFromApi, setTotalRecordsFromApi,
             totalByFormat, setTotalByFormat
         }}>
