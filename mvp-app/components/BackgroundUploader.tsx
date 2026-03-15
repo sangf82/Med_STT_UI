@@ -1,5 +1,7 @@
 'use client';
 
+const STT_LOG = '[STT]';
+
 import { useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -8,6 +10,7 @@ import {
   getChunkedUploadStatus,
   uploadChunkWithRetry,
   completeChunkedUpload,
+  streamEndUpload,
   abandonUpload,
   normalizeOutputFormat,
 } from '@/lib/api/sttMetrics';
@@ -52,6 +55,7 @@ export function BackgroundUploader() {
           return;
         }
 
+        console.info(STT_LOG, { flow: 'recover_start', upload_count: uploads.length, upload_ids: uploads.map((u: { upload_id?: string }) => u.upload_id) });
         setIsRecoveringUploads(true);
         // 2. Try to resume each incomplete upload
         for (const item of uploads) {
@@ -74,19 +78,65 @@ export function BackgroundUploader() {
 
           const statusRes = await getChunkedUploadStatus(item.upload_id).catch(() => null);
           if (!statusRes) continue;
-          const sessionStatus = (statusRes as any)?.session?.status;
+          const session = (statusRes as { session?: { status?: string; total_chunks?: number } }).session;
+          const sessionStatus = session?.status;
           if (sessionStatus === 'complete') {
-            // Already completed — job should exist. Just clean up local data.
+            console.info(STT_LOG, { flow: 'recover_cleanup', upload_id: item.upload_id, reason: 'session_complete' });
             await cleanupUploadSession(item.upload_id);
             continue;
           }
 
+          const isStreamSession = session?.total_chunks === 0;
+          const recordId = (localMeta as { record_id?: string }).record_id;
+
+          if (isStreamSession) {
+            const localChunks = await db.chunks.where({ upload_id: item.upload_id }).sortBy('chunk_index');
+            console.info(STT_LOG, { flow: 'recover_stream', upload_id: item.upload_id, record_id: recordId, local_chunk_count: localChunks.length });
+            if (localChunks.length === 0) {
+              console.warn(STT_LOG, { flow: 'recover_stream', upload_id: item.upload_id, error: 'no local chunks, abandon' });
+              await abandonUpload(item.upload_id).catch(() => null);
+              await cleanupUploadSession(item.upload_id);
+              continue;
+            }
+            let streamChunkFailed = false;
+            for (const c of localChunks) {
+              if (!c.blob) {
+                streamChunkFailed = true;
+                break;
+              }
+              try {
+                await uploadChunkWithRetry(item.upload_id, c.chunk_index, c.blob);
+              } catch (e) {
+                console.error(STT_LOG, { flow: 'recover_stream', upload_id: item.upload_id, record_id: recordId, chunk_index: c.chunk_index, error: String((e as Error)?.message ?? e) });
+                streamChunkFailed = true;
+                await abandonUpload(item.upload_id).catch(() => null);
+                await cleanupUploadSession(item.upload_id);
+                break;
+              }
+            }
+            if (streamChunkFailed) continue;
+            try {
+              await streamEndUpload({
+                upload_id: item.upload_id,
+                total_chunks: localChunks.length,
+                record_id: recordId,
+                output_format: normalizeOutputFormat((localMeta as { output_format?: string }).output_format ?? 'soap_note'),
+              });
+              await cleanupUploadSession(item.upload_id);
+              console.info(STT_LOG, { flow: 'recover_stream', upload_id: item.upload_id, record_id: recordId, total_chunks: localChunks.length, status: 'ok' });
+            } catch (e: any) {
+              if (e?.status === 402) setShowSurvey(true);
+              console.error(STT_LOG, { flow: 'recover_stream', upload_id: item.upload_id, record_id: recordId, error: String(e?.message ?? e), status: e?.status });
+            }
+            continue;
+          }
+
+          console.info(STT_LOG, { flow: 'recover_chunked', upload_id: item.upload_id, record_id: (localMeta as { record_id?: string }).record_id, missing_count: statusRes.missing_chunk_indexes?.length ?? 0 });
           let chunkFailed = false;
           for (const chunkIndex of statusRes.missing_chunk_indexes) {
             const chunkData = await db.chunks.where({ upload_id: item.upload_id, chunk_index: chunkIndex }).first();
             if (!chunkData || !chunkData.blob) {
-              // Chunk thiếu trên server và không còn trong IndexedDB → không khôi phục được, abandon để user ghi âm lại
-              console.warn("Missing chunk locally, cannot recover", chunkIndex, item.upload_id);
+              console.warn(STT_LOG, { flow: 'recover_chunked', upload_id: item.upload_id, chunk_index: chunkIndex, error: 'missing chunk locally' });
               chunkFailed = true;
               await abandonUpload(item.upload_id).catch(() => null);
               await cleanupUploadSession(item.upload_id);
@@ -95,16 +145,14 @@ export function BackgroundUploader() {
             try {
               await uploadChunkWithRetry(item.upload_id, chunkIndex, chunkData.blob);
             } catch (e) {
-              console.error("Chunk upload failed after retries", chunkIndex, e);
+              console.error(STT_LOG, { flow: 'recover_chunked', upload_id: item.upload_id, chunk_index: chunkIndex, error: String((e as Error)?.message ?? e) });
               chunkFailed = true;
               await abandonUpload(item.upload_id).catch(() => null);
               await cleanupUploadSession(item.upload_id);
               break;
             }
           }
-          if (chunkFailed) {
-            continue;
-          }
+          if (chunkFailed) continue;
 
           try {
             await completeChunkedUpload({
@@ -114,18 +162,15 @@ export function BackgroundUploader() {
               record_id: (localMeta as { record_id?: string }).record_id,
             });
             await cleanupUploadSession(item.upload_id);
+            console.info(STT_LOG, { flow: 'recover_chunked', upload_id: item.upload_id, record_id: (localMeta as { record_id?: string }).record_id, status: 'ok' });
           } catch (e: any) {
-            if (e?.status === 402) {
-              setShowSurvey(true);
-            }
-            console.error("Failed to complete resumed upload", e);
+            if (e?.status === 402) setShowSurvey(true);
+            console.error(STT_LOG, { flow: 'recover_chunked', upload_id: item.upload_id, error: String(e?.message ?? e), status: e?.status });
           }
         }
       } catch (err: any) {
-        if (err?.status === 402) {
-          setShowSurvey(true);
-        }
-        console.error("Resume block error:", err);
+        if (err?.status === 402) setShowSurvey(true);
+        console.error(STT_LOG, { flow: 'recover', error: String(err?.message ?? err) });
       } finally {
         isRunning.current = false;
         setIsRecoveringUploads(false);

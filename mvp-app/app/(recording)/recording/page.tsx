@@ -1,5 +1,7 @@
 'use client';
 
+const STT_LOG = '[STT]';
+
 import { useTranslations } from 'next-intl';
 import { Header } from '@/components/Header';
 import { Waveform } from '@/components/Waveform';
@@ -81,6 +83,7 @@ export default function RecordingPage() {
                 streamUploadIdRef.current = initRes.upload_id;
                 streamRecordIdRef.current = initRes.record_id ?? null;
                 streamChunkCountRef.current = 0;
+                console.info(STT_LOG, { flow: 'stream_init', record_id: initRes.record_id, upload_id: initRes.upload_id, session_id: sessionId });
                 await saveStreamUploadMetadata({
                     upload_id: initRes.upload_id,
                     session_id: sessionId,
@@ -95,13 +98,20 @@ export default function RecordingPage() {
                 return recorder.start({
                     onChunk: (blob, idx) => {
                         if (!streamUploadIdRef.current) return;
-                        uploadChunk(streamUploadIdRef.current, idx, blob).catch(() => {});
-                        addStreamChunk(streamUploadIdRef.current, idx, blob).catch(() => {});
+                        const uid = streamUploadIdRef.current;
+                        if (idx === 0 || idx % 20 === 19) {
+                            console.info(STT_LOG, { flow: 'stream_chunk', upload_id: uid, chunk_index: idx, chunk_size: blob.size });
+                        }
+                        uploadChunk(uid, idx, blob).catch((e) => {
+                            console.warn(STT_LOG, { flow: 'stream_chunk', upload_id: uid, chunk_index: idx, error: String(e?.message ?? e) });
+                        });
+                        addStreamChunk(uid, idx, blob).catch(() => {});
                         streamChunkCountRef.current = idx + 1;
                     },
                 });
             })
             .catch((err) => {
+                console.warn(STT_LOG, { flow: 'stream_init', error: String(err?.message ?? err), status: err?.status });
                 if (err?.status === 402) setShowSurvey(true);
                 hasStarted.current = false;
             })
@@ -231,9 +241,11 @@ export default function RecordingPage() {
     };
     const handleBack = async () => {
         if (streamUploadIdRef.current) {
+            const uid = streamUploadIdRef.current;
+            console.info(STT_LOG, { flow: 'stream_abandon', upload_id: uid, record_id: streamRecordIdRef.current ?? undefined });
             const { abandonUpload } = await import('@/lib/api/sttMetrics');
-            abandonUpload(streamUploadIdRef.current).catch(() => {});
-            await cleanupUploadSession(streamUploadIdRef.current).catch(() => {});
+            abandonUpload(uid).catch(() => {});
+            await cleanupUploadSession(uid).catch(() => {});
             streamUploadIdRef.current = null;
         }
         recorder.stop();
@@ -258,16 +270,17 @@ export default function RecordingPage() {
             const recordId = streamRecordIdRef.current;
             await recorder.stop();
             if (!uploadId) {
-                console.error("No stream upload session");
+                console.error(STT_LOG, { flow: 'stream_end', error: 'No stream upload session' });
                 return;
             }
             const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'freetext' };
             const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
             const totalChunks = streamChunkCountRef.current;
             if (totalChunks <= 0) {
-                console.error("No chunks uploaded");
+                console.error(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, error: 'No chunks uploaded' });
                 return;
             }
+            console.info(STT_LOG, { flow: 'stream_end', upload_id: uploadId, record_id: recordId, total_chunks: totalChunks });
             await streamEndUpload({
                 upload_id: uploadId,
                 total_chunks: totalChunks,
@@ -275,11 +288,12 @@ export default function RecordingPage() {
                 output_format: outputFormat,
             });
             await cleanupUploadSession(uploadId).catch(() => {});
+            console.info(STT_LOG, { flow: 'stream_cleanup', upload_id: uploadId, record_id: recordId });
             streamUploadIdRef.current = null;
             streamRecordIdRef.current = null;
             router.push('/dashboard');
         } catch (error: any) {
-            console.error("Save/stream end failed", error);
+            console.error(STT_LOG, { flow: 'stream_end', upload_id: streamUploadIdRef.current ?? undefined, record_id: streamRecordIdRef.current ?? undefined, error: String(error?.message ?? error), status: error?.status });
             if (error?.status === 402) {
                 setShowSurvey(true);
             }
