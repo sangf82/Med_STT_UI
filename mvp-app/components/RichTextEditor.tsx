@@ -17,9 +17,74 @@ interface RichTextEditorProps {
     placeholder?: string;
     className?: string;
     minHeight?: string;
+    coerceTaskListOnLoad?: boolean;
 }
 
-export function RichTextEditor({ content, onChange, className, minHeight = "none" }: RichTextEditorProps) {
+function escapeHtml(input: string): string {
+    return input
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function toInlineHtml(text: string): string {
+    const escaped = escapeHtml(text);
+    return escaped
+        .replace(/&lt;mark&gt;(.*?)&lt;\/mark&gt;/g, '<mark>$1</mark>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>');
+}
+
+function normalizeLegacyTodoLine(line: string): string {
+    const match = line.match(/^\s*[-*•]?\s*\[([^\]]+)\]\s*(?:Công việc|Task)\s*:\s*(.*?)\s*(?:•|-)\s*(Mục đích|Purpose)\s*:\s*(.*?)\s*(?:•|-)\s*(?:Trạng thái|Status)\s*:\s*\[\s*([xX]?)\s*\]\s*$/i);
+    if (!match) return line;
+
+    const [, priority, taskText, purposeLabel, purposeText, checked] = match;
+    const status = checked?.toLowerCase() === 'x' ? 'x' : ' ';
+    return `- [${status}] **${priority.trim()}**: ${taskText.trim()} (*${purposeLabel}: ${purposeText.trim()}*)`;
+}
+
+function coerceTaskMarkdownToHtml(content: string): string {
+    const sourceLines = content.split('\n').map((line) => normalizeLegacyTodoLine(line));
+    const hasTaskLine = sourceLines.some((line) => /^\s*[-*]\s*\[\s*[xX ]\s*\]\s+/.test(line));
+    if (!hasTaskLine) return content;
+
+    const html: string[] = [];
+    let inTaskList = false;
+
+    for (const line of sourceLines) {
+        const taskMatch = line.match(/^\s*[-*]\s*\[\s*([xX ]?)\s*\]\s+(.*)$/);
+        if (taskMatch) {
+            if (!inTaskList) {
+                html.push('<ul data-type="taskList">');
+                inTaskList = true;
+            }
+            const checked = taskMatch[1]?.toLowerCase() === 'x';
+            const taskText = taskMatch[2]?.trim() ?? '';
+            html.push(`<li data-type="taskItem" data-checked="${checked ? 'true' : 'false'}"><p>${toInlineHtml(taskText)}</p></li>`);
+            continue;
+        }
+
+        if (inTaskList) {
+            html.push('</ul>');
+            inTaskList = false;
+        }
+
+        if (line.trim().length > 0) {
+            html.push(`<p>${toInlineHtml(line)}</p>`);
+        }
+    }
+
+    if (inTaskList) {
+        html.push('</ul>');
+    }
+
+    return html.join('');
+}
+
+export function RichTextEditor({ content, onChange, className, minHeight = "none", coerceTaskListOnLoad = false }: RichTextEditorProps) {
     const [mounted, setMounted] = useState(false);
     const [isKeyboardActive, setIsKeyboardActive] = useState(false);
 
@@ -48,7 +113,7 @@ export function RichTextEditor({ content, onChange, className, minHeight = "none
             Color,
             FontSize,
         ],
-        content: content,
+        content: coerceTaskListOnLoad ? coerceTaskMarkdownToHtml(content) : content,
         onUpdate: ({ editor }) => {
             const markdown = (editor.storage as any).markdown?.getMarkdown() ?? '';
             onChange(markdown);
@@ -137,9 +202,10 @@ export function RichTextEditor({ content, onChange, className, minHeight = "none
 
     useEffect(() => {
         if (editor && content !== (editor.storage as any).markdown?.getMarkdown() && !editor.isFocused) {
-            editor.commands.setContent(content);
+            const nextContent = coerceTaskListOnLoad ? coerceTaskMarkdownToHtml(content) : content;
+            editor.commands.setContent(nextContent);
         }
-    }, [content, editor]);
+    }, [content, editor, coerceTaskListOnLoad]);
 
     if (!mounted) {
         return (
