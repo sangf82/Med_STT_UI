@@ -189,7 +189,15 @@ export default function DashboardPage() {
         if (micRequested.current || typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return;
         const t = setTimeout(() => {
             micRequested.current = true;
-            navigator.mediaDevices.getUserMedia({ audio: true })
+            navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    sampleRate: 16000,
+                    channelCount: 1,
+                }
+            })
                 .then((stream) => { stream.getTracks().forEach((track) => track.stop()); })
                 .catch(() => {});
         }, 800);
