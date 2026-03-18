@@ -298,10 +298,11 @@ export default function RecordingPage() {
 
         console.info(STT_LOG, { flow: 'stream_end_start', upload_id: uploadId, exactChunkCount, format: outputFormat, duration_sec: knownDuration });
 
-        // Save duration & total chunks to IndexedDB so BackgroundUploader has it if we fail here
+        // Save duration, name & total chunks to IndexedDB so BackgroundUploader has it if we fail here
         await db.uploads.where({ upload_id: uploadId }).modify({ 
             duration_sec: knownDuration, 
-            total_chunks: exactChunkCount 
+            total_chunks: exactChunkCount,
+            display_name: name
         }).catch(() => {});
 
         // Capture pending promises before navigating away (component will unmount)
@@ -318,7 +319,7 @@ export default function RecordingPage() {
         (async () => {
             try {
                 await Promise.allSettled(pendingUploads);
-                console.info(STT_LOG, { flow: 'stream_end_bg', upload_id: uploadId, record_id: recordId, total_chunks: exactChunkCount });
+                console.info(STT_LOG, { flow: 'stream_end_bg', upload_id: uploadId, record_id: recordId, total_chunks: exactChunkCount, display_name: name });
                 try {
                     await streamEndUpload({
                         upload_id: uploadId,
@@ -326,6 +327,7 @@ export default function RecordingPage() {
                         record_id: recordId ?? undefined,
                         output_format: outputFormat,
                         recording_duration_sec: knownDurationSec > 0 ? knownDurationSec : undefined,
+                        display_name: name,
                     });
                 } catch (streamEndErr: any) {
                     if (streamEndErr?.status === 400) {
@@ -341,6 +343,7 @@ export default function RecordingPage() {
                                 record_id: recordId ?? undefined,
                                 output_format: outputFormat,
                                 recording_duration_sec: knownDurationSec > 0 ? knownDurationSec : undefined,
+                                display_name: name,
                             });
                         } else {
                             throw streamEndErr;
