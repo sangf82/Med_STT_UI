@@ -10,6 +10,7 @@ import { Markdown } from 'tiptap-markdown';
 import { FontSize } from '@/lib/tiptap-extensions/fontSize';
 import { EditorToolbar } from './EditorToolbar';
 import { useEffect, useState } from 'react';
+import { normalizeSoapPlanMarkdownForDisplay } from '@/lib/utils';
 
 interface RichTextEditorProps {
     content: string;
@@ -18,23 +19,6 @@ interface RichTextEditorProps {
     className?: string;
     minHeight?: string;
     coerceTaskListOnLoad?: boolean;
-}
-
-function escapeHtml(input: string): string {
-    return input
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function toInlineHtml(text: string): string {
-    const escaped = escapeHtml(text);
-    return escaped
-        .replace(/&lt;mark&gt;(.*?)&lt;\/mark&gt;/g, '<mark>$1</mark>')
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>');
 }
 
 function normalizeLegacyTodoLine(line: string): string {
@@ -47,41 +31,12 @@ function normalizeLegacyTodoLine(line: string): string {
 }
 
 function coerceTaskMarkdownToHtml(content: string): string {
-    const sourceLines = content.split('\n').map((line) => normalizeLegacyTodoLine(line));
+    const normalizedContent = normalizeSoapPlanMarkdownForDisplay(content);
+    const sourceLines = normalizedContent.split('\n').map((line) => normalizeLegacyTodoLine(line));
     const hasTaskLine = sourceLines.some((line) => /^\s*[-*]\s*\[\s*[xX ]\s*\]\s+/.test(line));
-    if (!hasTaskLine) return content;
+    if (!hasTaskLine) return normalizedContent;
 
-    const html: string[] = [];
-    let inTaskList = false;
-
-    for (const line of sourceLines) {
-        const taskMatch = line.match(/^\s*[-*]\s*\[\s*([xX ]?)\s*\]\s+(.*)$/);
-        if (taskMatch) {
-            if (!inTaskList) {
-                html.push('<ul data-type="taskList">');
-                inTaskList = true;
-            }
-            const checked = taskMatch[1]?.toLowerCase() === 'x';
-            const taskText = taskMatch[2]?.trim() ?? '';
-            html.push(`<li data-type="taskItem" data-checked="${checked ? 'true' : 'false'}"><p>${toInlineHtml(taskText)}</p></li>`);
-            continue;
-        }
-
-        if (inTaskList) {
-            html.push('</ul>');
-            inTaskList = false;
-        }
-
-        if (line.trim().length > 0) {
-            html.push(`<p>${toInlineHtml(line)}</p>`);
-        }
-    }
-
-    if (inTaskList) {
-        html.push('</ul>');
-    }
-
-    return html.join('');
+    return sourceLines.join('\n');
 }
 
 export function RichTextEditor({ content, onChange, className, minHeight = "none", coerceTaskListOnLoad = false }: RichTextEditorProps) {

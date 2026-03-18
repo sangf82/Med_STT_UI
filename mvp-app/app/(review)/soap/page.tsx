@@ -3,7 +3,7 @@
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { soapNoteMockEN, soapNoteMockVI } from '@/lib/mockData';
-import { parseSoapSections } from '@/lib/utils';
+import { normalizeSoapPlanMarkdownForDisplay } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
 import { useReview } from '../layout';
 import { updateRecord } from '@/lib/api/sttMetrics';
@@ -16,25 +16,28 @@ export default function SoapNotePage() {
     const { setSaveStatus, record } = useReview();
 
     const mockData = locale === 'vi' ? soapNoteMockVI : soapNoteMockEN;
-    const initialContent = record?.content || record?.refined_text || record?.raw_text || mockData;
+    const initialRawContent = record?.content || record?.refined_text || record?.raw_text || mockData;
+    const initialContent = normalizeSoapPlanMarkdownForDisplay(initialRawContent);
     const [content, setContent] = useState(initialContent);
     const timeoutRef = useRef<NodeJS.Timeout>(null);
 
     useEffect(() => {
         if (record) {
-            setContent(record.content || record.refined_text || record.raw_text || mockData);
+            const raw = record.content || record.refined_text || record.raw_text || mockData;
+            setContent(normalizeSoapPlanMarkdownForDisplay(raw));
         }
     }, [record, mockData]);
 
     const handleChange = (newContent: string) => {
-        setContent(newContent);
+        const normalizedContent = normalizeSoapPlanMarkdownForDisplay(newContent);
+        setContent(normalizedContent);
         setSaveStatus('saving');
 
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(async () => {
             if (record?.id) {
                 try {
-                    await updateRecord(record.id, { content: newContent });
+                    await updateRecord(record.id, { content: normalizedContent });
                     setSaveStatus('saved');
                 } catch (e) {
                     console.error("Save failed", e);
@@ -51,6 +54,7 @@ export default function SoapNotePage() {
             <RichTextEditor
                 content={content}
                 onChange={handleChange}
+                coerceTaskListOnLoad
             />
         </div>
     );
