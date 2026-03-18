@@ -158,7 +158,7 @@
   },
   "DailyReport": {
     "title": "Báo cáo trong ngày",
-    "question": "Tổng số Ghi chú SOAP bạn đã thực hiện hôm nay là bao nhiêu?",
+    "question": "Hôm nay bạn cần hoàn thành bao nhiêu Ghi chú SOAP?",
     "submit": "Gửi báo cáo",
     "placeholder": "Nhập số lượng...",
     "cancel": "Hủy",
