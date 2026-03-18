@@ -138,6 +138,7 @@ export function BackgroundUploader() {
                 total_chunks: localChunks.length,
                 record_id: recordId,
                 output_format: normalizeOutputFormat((localMeta as { output_format?: string }).output_format ?? 'soap_note'),
+                recording_duration_sec: (localMeta as any).duration_sec,
               });
               await cleanupUploadSession(item.upload_id);
               console.info(STT_LOG, { flow: 'recover_stream', upload_id: item.upload_id, record_id: recordId, total_chunks: localChunks.length, status: 'ok' });

@@ -294,6 +294,16 @@ export default function RecordingPage() {
             return;
         }
 
+        const knownDuration = knownDurationSec > 0 ? knownDurationSec : (audioElRef.current?.duration && Number.isFinite(audioElRef.current.duration) ? audioElRef.current.duration : 0);
+
+        console.info(STT_LOG, { flow: 'stream_end_start', upload_id: uploadId, exactChunkCount, format: outputFormat, duration_sec: knownDuration });
+
+        // Save duration & total chunks to IndexedDB so BackgroundUploader has it if we fail here
+        await db.uploads.where({ upload_id: uploadId }).modify({ 
+            duration_sec: knownDuration, 
+            total_chunks: exactChunkCount 
+        }).catch(() => {});
+
         // Capture pending promises before navigating away (component will unmount)
         const pendingUploads = [...pendingChunkUploadsRef.current];
         pendingChunkUploadsRef.current = [];
@@ -315,6 +325,7 @@ export default function RecordingPage() {
                         total_chunks: exactChunkCount,
                         record_id: recordId ?? undefined,
                         output_format: outputFormat,
+                        recording_duration_sec: knownDurationSec > 0 ? knownDurationSec : undefined,
                     });
                 } catch (streamEndErr: any) {
                     if (streamEndErr?.status === 400) {
@@ -329,6 +340,7 @@ export default function RecordingPage() {
                                 total_chunks: exactChunkCount,
                                 record_id: recordId ?? undefined,
                                 output_format: outputFormat,
+                                recording_duration_sec: knownDurationSec > 0 ? knownDurationSec : undefined,
                             });
                         } else {
                             throw streamEndErr;

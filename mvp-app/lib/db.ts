@@ -13,6 +13,7 @@ export interface UploadMetadata {
   format: string; // UI key only: "soap" | "clinical" | "todo"
   display_name?: string;
   record_id?: string;
+  duration_sec?: number;
 }
 
 export interface UploadChunk {

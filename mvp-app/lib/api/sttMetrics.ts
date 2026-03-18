@@ -444,6 +444,7 @@ export const streamEndUpload = async (payload: {
   total_chunks: number;
   record_id?: string;
   output_format?: OutputFormat | string;
+  recording_duration_sec?: number;
 }): Promise<ChunkedUploadCompleteResponse> => {
   const token = getAuthToken();
   const headers: Record<string, string> = {
@@ -459,6 +460,7 @@ export const streamEndUpload = async (payload: {
       total_chunks: payload.total_chunks,
       record_id: payload.record_id,
       output_format: payload.output_format,
+      recording_duration_sec: payload.recording_duration_sec,
     }),
   });
   if (!res.ok) {
