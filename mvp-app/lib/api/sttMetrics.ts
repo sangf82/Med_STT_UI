@@ -45,6 +45,11 @@ export interface SttRecord {
   created_at: string;
   updated_at: string;
   display_name?: string;
+  patient_name?: string;
+  context_record_id?: string;
+  context_status?: "available" | "empty" | "unknown_patient" | string;
+  context_text?: string;
+  context_conflicts?: string[];
 }
 
 export interface SttRecordsResponse {
@@ -68,6 +73,23 @@ export interface SttTranscriptionResponse {
 export interface DailyActualCasesResponse {
   by_date: Record<string, number>;
   items: any[];
+}
+
+export interface LatestSoapContextResponse {
+  has_context: boolean;
+  is_empty_context: boolean;
+  context: {
+    id: string;
+    case_id?: string;
+    patient_id?: string;
+    note_date?: string;
+    subjective?: string;
+    objective?: string;
+    assessment?: string;
+    plan?: string;
+    others?: string;
+    management_plan?: Record<string, unknown>;
+  } | null;
 }
 
 export interface ChunkedUploadInitResponse {
@@ -180,6 +202,14 @@ export const getDailyActualCases = (fromDate?: string, toDate?: string) => {
   );
 };
 
+export const getLatestSoapContext = (params: { case_id?: string; patient_id?: string }) =>
+  apiClient<LatestSoapContextResponse>("/soap-notes/context/latest", {
+    params: {
+      ...(params.case_id ? { case_id: params.case_id } : {}),
+      ...(params.patient_id ? { patient_id: params.patient_id } : {}),
+    },
+  });
+
 export const updateDailyActualCases = (date: string, actual_cases: number) =>
   apiClient<{ date: string; actual_cases: number }>(
     "/stt-metrics/me/daily-actual-cases",
@@ -207,7 +237,7 @@ export const getRecordById = (recordId: string) =>
 
 export const updateRecord = (
   recordId: string,
-  payload: { content?: string; display_name?: string },
+  payload: { content?: string; display_name?: string; patient_name?: string },
 ) => {
   // NOTE: The backend requires "content" field in the PATCH body.
   // Ensure all callers provide it. If you only want to update display_name,
@@ -446,6 +476,7 @@ export const streamEndUpload = async (payload: {
   output_format?: OutputFormat | string;
   recording_duration_sec?: number;
   display_name?: string;
+  patient_name?: string;
 }): Promise<ChunkedUploadCompleteResponse> => {
   const token = getAuthToken();
   const headers: Record<string, string> = {
@@ -463,6 +494,7 @@ export const streamEndUpload = async (payload: {
       output_format: payload.output_format,
       recording_duration_sec: payload.recording_duration_sec,
       display_name: payload.display_name,
+      patient_name: payload.patient_name,
     }),
   });
   if (!res.ok) {

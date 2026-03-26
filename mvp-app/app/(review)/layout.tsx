@@ -166,7 +166,8 @@ export default function ReviewLayout({
             status: recordData.status === 'completed' ? 'transcribed' : recordData.status === 'failed' ? 'error' : 'transcribing',
             content: recordData.content,
             raw_text: recordData.raw_text,
-            refined_text: recordData.refined_text
+            refined_text: recordData.refined_text,
+            patient_name: recordData.patient_name,
         };
     }, [recordData, format]);
 

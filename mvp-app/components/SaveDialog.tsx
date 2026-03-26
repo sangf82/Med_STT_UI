@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 
 export interface SaveDialogProps {
     onCancel: () => void;
-    onSave: (name: string, format: string) => void;
+    onSave: (name: string, format: string, patientName: string) => void;
 }
 
 type FormatKey = 'soap' | 'clinical' | 'todo' | 'raw';
@@ -16,6 +16,7 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
     const defaultName = `Ca khám ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '')}` +
         `_${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '')}`;
     const [name, setName] = useState(defaultName);
+    const [patientName, setPatientName] = useState('');
     const [format, setFormat] = useState<FormatKey>('soap');
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -69,6 +70,18 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
 
                 <div className="h-5" />
 
+                <span className="text-[13px] text-text-muted">Bệnh nhân</span>
+                <div className="h-1" />
+                <input
+                    type="text"
+                    value={patientName}
+                    onChange={(e) => setPatientName(e.target.value)}
+                    placeholder="Nhập tên bệnh nhân"
+                    className="w-full text-[15px] text-text-primary bg-transparent border-b border-b-[#CCCCCC] pb-2 outline-none focus:border-b-accent-blue transition-colors"
+                />
+
+                <div className="h-5" />
+
                 <span className="text-[13px] text-text-muted">
                     {t('outputFormat')}
                 </span>
@@ -117,7 +130,7 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
                     <div className="w-px h-5 bg-[#D0D0D0]" />
 
                     <button
-                        onClick={() => onSave((name?.trim() || defaultName), format)}
+                        onClick={() => onSave((name?.trim() || defaultName), format, patientName.trim())}
                         className="flex-1 h-full flex items-center justify-center text-[16px] font-bold text-accent-blue transition-opacity active:opacity-60"
                         title={t('save')}
                     >

@@ -44,7 +44,14 @@ export default function RecordingPage() {
     const pendingChunkUploadsRef = useRef<Promise<unknown>[]>([]);
     const [limitChecked, setLimitChecked] = useState(false);
     const [canRecord, setCanRecord] = useState<boolean | null>(null);
+    const [durationWarning, setDurationWarning] = useState<string | null>(null);
+    const [recordingError, setRecordingError] = useState<string | null>(null);
     const outputFormatRef = useRef<OutputFormat>('soap_note');
+    const MAX_RECORDING_MS = 30 * 60 * 1000;
+    const WARN_RECORDING_MS = 27 * 60 * 1000;
+    const warned27MinRef = useRef(false);
+    const autoStoppedRef = useRef(false);
+    const [autoStopNotice, setAutoStopNotice] = useState<string | null>(null);
     // Known duration in seconds — reliable unlike audio.duration which is Infinity for WebM
     const knownDurationSec = recorder.timeMs / 1000;
 
@@ -129,6 +136,20 @@ export default function RecordingPage() {
         if (recorder.state === 'recording' && isStarting) setIsStarting(false);
     }, [recorder.state, isStarting]);
 
+    useEffect(() => {
+        if (recorder.state !== 'recording') return;
+        const sec = recorder.timeMs / 1000;
+        if (sec >= 27 * 60 && sec < 30 * 60) {
+            setDurationWarning('Còn 3 phút ghi âm. Hệ thống sẽ tự động dừng lúc 30 phút.');
+        } else if (sec >= 30 * 60) {
+            setDurationWarning('Đã đạt giới hạn thời gian ghi âm (30 phút). File đã được lưu tạm.');
+            recorder.pause();
+            setShowSave(true);
+        } else {
+            setDurationWarning(null);
+        }
+    }, [recorder.timeMs, recorder.state, recorder]);
+
     // Screen Wake Lock: giữ màn hình sáng khi đang ghi âm (Chrome mobile)
     const wakeLockRef = useRef<WakeLockSentinel | null>(null);
     const requestWakeLock = useCallback(async () => {
@@ -161,6 +182,39 @@ export default function RecordingPage() {
         document.addEventListener('visibilitychange', onVisibilityChange);
         return () => document.removeEventListener('visibilitychange', onVisibilityChange);
     }, [recorder.state, requestWakeLock]);
+
+    // Guard against accidental close while recording/uploading/processing.
+    useEffect(() => {
+        const onBeforeUnload = (e: BeforeUnloadEvent) => {
+            const hasUnsavedWork =
+                recorder.state === 'recording' ||
+                recorder.state === 'paused' ||
+                isProcessing ||
+                showSave;
+            if (!hasUnsavedWork) return;
+            e.preventDefault();
+            e.returnValue = '';
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, [recorder.state, isProcessing, showSave]);
+
+    // Recording time guard: warn at 27 min, auto-stop at 30 min.
+    useEffect(() => {
+        if (recorder.state !== 'recording') return;
+        if (!warned27MinRef.current && recorder.timeMs >= WARN_RECORDING_MS) {
+            warned27MinRef.current = true;
+            window.alert('Con 3 phut ghi am. He thong se tu dong dung luc 30 phut.');
+        }
+        if (!autoStoppedRef.current && recorder.timeMs >= MAX_RECORDING_MS) {
+            autoStoppedRef.current = true;
+            (async () => {
+                await recorder.pause();
+                setAutoStopNotice('Da dat gioi han ghi am (30 phut). File da duoc luu tam.');
+                setShowSave(true);
+            })();
+        }
+    }, [recorder.state, recorder.timeMs, recorder]);
 
     // Determine control state
     let controlState: ControlState = 'recording';
@@ -268,9 +322,10 @@ export default function RecordingPage() {
     };
     const handleCancelSave = () => setShowSave(false);
     const saveInProgressRef = useRef(false);
-    const handleConfirmSave = async (name: string, format: string) => {
+    const handleConfirmSave = async (name: string, format: string, patientName: string) => {
         if (saveInProgressRef.current) return;
         saveInProgressRef.current = true;
+        setRecordingError(null);
         setShowSave(false);
         const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'freetext' };
         const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
@@ -295,6 +350,16 @@ export default function RecordingPage() {
         }
 
         const knownDuration = knownDurationSec > 0 ? knownDurationSec : (audioElRef.current?.duration && Number.isFinite(audioElRef.current.duration) ? audioElRef.current.duration : 0);
+        if (knownDuration > 0 && knownDuration < 2) {
+            setRecordingError('Không nhận diện được nội dung âm thanh. Vui lòng kiểm tra lại microphone.');
+            saveInProgressRef.current = false;
+            return;
+        }
+        if (knownDuration > 0 && knownDuration < 2) {
+            window.alert('Khong nhan dien duoc noi dung am thanh. Vui long kiem tra lai microphone hoac ghi am lai.');
+            saveInProgressRef.current = false;
+            return;
+        }
 
         console.info(STT_LOG, { flow: 'stream_end_start', upload_id: uploadId, exactChunkCount, format: outputFormat, duration_sec: knownDuration });
 
@@ -328,6 +393,7 @@ export default function RecordingPage() {
                         output_format: outputFormat,
                         recording_duration_sec: knownDurationSec > 0 ? knownDurationSec : undefined,
                         display_name: name,
+                        patient_name: patientName,
                     });
                 } catch (streamEndErr: any) {
                     if (streamEndErr?.status === 400) {
@@ -344,6 +410,7 @@ export default function RecordingPage() {
                                 output_format: outputFormat,
                                 recording_duration_sec: knownDurationSec > 0 ? knownDurationSec : undefined,
                                 display_name: name,
+                                patient_name: patientName,
                             });
                         } else {
                             throw streamEndErr;
@@ -491,6 +558,22 @@ export default function RecordingPage() {
                     onCancel={handleCancelSave}
                     onSave={handleConfirmSave}
                 />
+            )}
+            {durationWarning && (
+                <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-[90%] rounded-xl bg-warning/15 text-warning px-4 py-2 text-[13px] font-semibold text-center">
+                    {durationWarning}
+                </div>
+            )}
+            {recordingError && (
+                <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-[90%] rounded-xl bg-danger/15 text-danger px-4 py-2 text-[13px] font-semibold text-center">
+                    {recordingError}
+                </div>
+            )}
+
+            {autoStopNotice && (
+                <div className="fixed top-16 left-1/2 -translate-x-1/2 z-200 px-4 py-2 rounded-lg bg-amber-100 border border-amber-300 text-amber-900 text-sm">
+                    {autoStopNotice}
+                </div>
             )}
 
             {isProcessing && (
