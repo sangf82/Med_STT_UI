@@ -18,6 +18,11 @@ import { normalizeOutputFormatToken } from '@/lib/outputFormat';
 type TabKey = 'soap' | 'ehr' | 'todo';
 
 const TAB_ORDER: TabKey[] = ['soap', 'ehr', 'todo'];
+const TRANSCRIBING_POLL_MS = 5000;
+
+function isRecordTranscribing(status?: string | null): boolean {
+  return status === 'processing' || status === 'pending';
+}
 
 function getRecordTimestamp(record: SttRecord): number {
   const created = Date.parse(record.created_at ?? '');
@@ -94,6 +99,10 @@ export default function PatientFolderPage() {
   );
 
   const activeRecord = recordsByTab[activeTab];
+  const isActiveRecordTranscribing = useMemo(
+    () => isRecordTranscribing(activeRecord?.status),
+    [activeRecord?.status]
+  );
 
   const loadFolder = useCallback(async () => {
     setLoadingFolder(true);
@@ -148,6 +157,12 @@ export default function PatientFolderPage() {
         return;
       }
 
+      if (isRecordTranscribing(activeRecord.status)) {
+        if (!isMounted) return;
+        setSaveStatus('idle');
+        return;
+      }
+
       setLoadingRecord(true);
       try {
         const detail = await getRecordById(activeRecord.id);
@@ -171,10 +186,42 @@ export default function PatientFolderPage() {
     return () => {
       isMounted = false;
     };
-  }, [activeRecord?.id, activeTab, t]);
+  }, [activeRecord?.id, activeRecord?.status, activeTab, t]);
+
+  useEffect(() => {
+    if (!activeRecord?.id || !isRecordTranscribing(activeRecord.status)) return;
+
+    let stopped = false;
+    const tabKey = activeTab;
+    const recordId = activeRecord.id;
+
+    const tick = async () => {
+      try {
+        const detail = await getRecordById(recordId);
+        if (stopped) return;
+        setRecordsByTab((prev) => {
+          if (prev[tabKey]?.id !== recordId) return prev;
+          return { ...prev, [tabKey]: detail };
+        });
+      } catch {
+        // Keep polling; transient API errors should not break the transcribing state.
+      }
+    };
+
+    void tick();
+    const interval = setInterval(() => {
+      void tick();
+    }, TRANSCRIBING_POLL_MS);
+
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }, [activeRecord?.id, activeRecord?.status, activeTab]);
 
   useEffect(() => {
     if (!activeRecord?.id) return;
+    if (isRecordTranscribing(activeRecord.status)) return;
     if (content === lastLoadedContentRef.current) return;
 
     setSaveStatus('saving');
@@ -189,7 +236,7 @@ export default function PatientFolderPage() {
     }, 900);
 
     return () => clearTimeout(timer);
-  }, [activeRecord?.id, content]);
+  }, [activeRecord?.id, activeRecord?.status, content]);
 
   const subtitle = useMemo(() => {
     const d = activeRecord?.created_at ? new Date(activeRecord.created_at) : null;
@@ -237,6 +284,7 @@ export default function PatientFolderPage() {
           <div className="mt-1 flex border-b border-border/80">
             {availableTabs.map((tab) => {
               const isActive = activeTab === tab;
+              const tabIsTranscribing = isRecordTranscribing(recordsByTab[tab]?.status);
               return (
                 <button
                   key={tab}
@@ -248,7 +296,10 @@ export default function PatientFolderPage() {
                       : 'border-transparent text-text-muted'
                   }`}
                 >
-                  {tabLabels[tab]}
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>{tabLabels[tab]}</span>
+                    {tabIsTranscribing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  </span>
                 </button>
               );
             })}
@@ -272,6 +323,12 @@ export default function PatientFolderPage() {
               <p className="text-[16px] font-semibold text-text-primary">{t('emptyTitle')}</p>
               <p className="mt-2 text-[13px] text-text-muted">{t('emptySubtitle')}</p>
               
+            </div>
+          ) : isActiveRecordTranscribing ? (
+            <div className="flex h-full flex-col items-center justify-center px-6 text-center text-text-muted">
+              <Loader2 className="mb-3 h-7 w-7 animate-spin text-accent-blue" />
+              <p className="text-[15px] font-semibold text-text-primary">Đang chuyển giọng nói thành văn bản...</p>
+              <p className="mt-1 text-[13px]">Nội dung sẽ tự động hiển thị sau khi hoàn tất.</p>
             </div>
           ) : (
             <RichTextEditor
