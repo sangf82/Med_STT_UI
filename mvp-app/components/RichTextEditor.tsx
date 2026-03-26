@@ -1,4 +1,4 @@
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
@@ -18,6 +18,8 @@ interface RichTextEditorProps {
     className?: string;
     minHeight?: string;
     coerceTaskListOnLoad?: boolean;
+    showToolbar?: boolean;
+    onEditorReady?: (editor: Editor | null) => void;
 }
 
 function escapeHtml(input: string): string {
@@ -84,7 +86,15 @@ function coerceTaskMarkdownToHtml(content: string): string {
     return html.join('');
 }
 
-export function RichTextEditor({ content, onChange, className, minHeight = "none", coerceTaskListOnLoad = false }: RichTextEditorProps) {
+export function RichTextEditor({
+    content,
+    onChange,
+    className,
+    minHeight = "none",
+    coerceTaskListOnLoad = false,
+    showToolbar = true,
+    onEditorReady,
+}: RichTextEditorProps) {
     const [mounted, setMounted] = useState(false);
     const [isKeyboardActive, setIsKeyboardActive] = useState(false);
 
@@ -207,6 +217,11 @@ export function RichTextEditor({ content, onChange, className, minHeight = "none
         }
     }, [content, editor, coerceTaskListOnLoad]);
 
+    useEffect(() => {
+        onEditorReady?.(editor ?? null);
+        return () => onEditorReady?.(null);
+    }, [editor, onEditorReady]);
+
     if (!mounted) {
         return (
             <div className={`flex flex-col ${className}`} style={{ minHeight }}>
@@ -218,7 +233,7 @@ export function RichTextEditor({ content, onChange, className, minHeight = "none
     return (
         <div className={`flex flex-col flex-1 ${className ?? ''}`}>
             {/* Toolbar at top — only when keyboard is intentionally activated */}
-            {isKeyboardActive && (
+            {showToolbar && isKeyboardActive && (
                 <div
                     id="editor-toolbar"
                     className="sticky top-0 z-50 bg-bg-card border-b border-border shadow-sm"

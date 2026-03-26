@@ -4,26 +4,28 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
 import {
-  Bold,
   ChevronLeft,
   History,
-  Italic,
-  Link as LinkIcon,
-  List,
-  ListOrdered,
   Mic,
-  Redo2,
-  Underline,
-  Undo2,
 } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
+import { type Editor } from '@tiptap/react';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { EditorToolbar } from '@/components/EditorToolbar';
 import { getPatientFolderRecords, getRecordById, updateRecord, type SttRecord } from '@/lib/api/sttMetrics';
 import { normalizeOutputFormatToken } from '@/lib/outputFormat';
 
 type TabKey = 'soap' | 'ehr' | 'todo';
 
 const TAB_ORDER: TabKey[] = ['soap', 'ehr', 'todo'];
+
+function getRecordTimestamp(record: SttRecord): number {
+  const created = Date.parse(record.created_at ?? '');
+  if (Number.isFinite(created)) return created;
+  const updated = Date.parse(record.updated_at ?? '');
+  if (Number.isFinite(updated)) return updated;
+  return 0;
+}
 
 function getTemplateForTab(tab: TabKey, t: ReturnType<typeof useTranslations<'PatientFolder'>>) {
   if (tab === 'soap') {
@@ -73,6 +75,7 @@ export default function PatientFolderPage() {
   });
   const [content, setContent] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
 
   const lastLoadedContentRef = useRef('');
 
@@ -101,7 +104,7 @@ export default function PatientFolderPage() {
           next[key] = item;
           continue;
         }
-        if (new Date(item.updated_at).getTime() > new Date(next[key]!.updated_at).getTime()) {
+        if (getRecordTimestamp(item) > getRecordTimestamp(next[key]!)) {
           next[key] = item;
         }
       }
@@ -239,20 +242,11 @@ export default function PatientFolderPage() {
               );
             })}
           </div>
-          <div className="flex h-11 items-center gap-0.5 border-b border-border/80 px-1 text-text-secondary">
-            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><Bold className="h-3.5 w-3.5" /></button>
-            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><Italic className="h-3.5 w-3.5" /></button>
-            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><Underline className="h-3.5 w-3.5" /></button>
-            <span className="mx-1 h-5 w-px bg-border" />
-            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><List className="h-3.5 w-3.5" /></button>
-            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><ListOrdered className="h-3.5 w-3.5" /></button>
-            <span className="text-[12px] text-text-muted">H1</span>
-            <span className="text-[12px] text-text-muted">H2</span>
-            <span className="mx-1 h-5 w-px bg-border" />
-            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><LinkIcon className="h-3.5 w-3.5" /></button>
-            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><Undo2 className="h-3.5 w-3.5" /></button>
-            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><Redo2 className="h-3.5 w-3.5" /></button>
-            <div className="ml-auto pr-1">{saveBadge}</div>
+          <div id="editor-toolbar" className="flex items-center border-b border-border/80 bg-bg-page">
+            <div className="min-w-0 flex-1">
+              <EditorToolbar editor={editorInstance} />
+            </div>
+            <div className="ml-2 shrink-0 pr-2">{saveBadge}</div>
           </div>
         </header>
 
@@ -268,6 +262,8 @@ export default function PatientFolderPage() {
               onChange={setContent}
               minHeight="320px"
               coerceTaskListOnLoad={activeTab === 'todo'}
+              showToolbar={false}
+              onEditorReady={setEditorInstance}
             />
           )}
         </main>

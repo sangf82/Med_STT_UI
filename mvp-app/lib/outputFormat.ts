@@ -3,10 +3,36 @@ export type ReviewRoute = 'soap' | 'ehr' | 'todo' | 'raw';
 
 export function normalizeOutputFormatToken(value?: string): CanonicalOutputFormat {
   const normalized = (value ?? '').trim().toLowerCase().replace(/\s/g, '_');
-  if (normalized === 'soap_note' || normalized === 'soap') return 'soap_note';
-  if (normalized === 'ehr' || normalized === 'clinical') return 'ehr';
-  if (normalized === 'to-do' || normalized === 'todo' || normalized === 'todo_list' || normalized === 'todo-list') return 'to-do';
-  if (normalized === 'freetext' || normalized === 'free' || normalized === 'free_text' || normalized === 'raw') return 'freetext';
+  const ascii = normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  if (
+    normalized === 'soap_note' ||
+    normalized === 'soap' ||
+    ascii === 'ghi_chu_soap'
+  ) return 'soap_note';
+
+  if (
+    normalized === 'ehr' ||
+    normalized === 'clinical' ||
+    ascii === 'tom_tat_lam_sang'
+  ) return 'ehr';
+
+  if (
+    normalized === 'to-do' ||
+    normalized === 'todo' ||
+    normalized === 'todo_list' ||
+    normalized === 'todo-list' ||
+    ascii === 'viec_can_lam'
+  ) return 'to-do';
+
+  if (
+    normalized === 'freetext' ||
+    normalized === 'free' ||
+    normalized === 'free_text' ||
+    normalized === 'raw' ||
+    ascii === 'van_ban_tu_do'
+  ) return 'freetext';
+
   return 'unknown';
 }
 
