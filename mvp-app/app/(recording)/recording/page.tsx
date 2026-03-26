@@ -51,7 +51,6 @@ export default function RecordingPage() {
     const WARN_RECORDING_MS = 27 * 60 * 1000;
     const warned27MinRef = useRef(false);
     const autoStoppedRef = useRef(false);
-    const [autoStopNotice, setAutoStopNotice] = useState<string | null>(null);
     // Known duration in seconds — reliable unlike audio.duration which is Infinity for WebM
     const knownDurationSec = recorder.timeMs / 1000;
 
@@ -136,20 +135,6 @@ export default function RecordingPage() {
         if (recorder.state === 'recording' && isStarting) setIsStarting(false);
     }, [recorder.state, isStarting]);
 
-    useEffect(() => {
-        if (recorder.state !== 'recording') return;
-        const sec = recorder.timeMs / 1000;
-        if (sec >= 27 * 60 && sec < 30 * 60) {
-            setDurationWarning('Còn 3 phút ghi âm. Hệ thống sẽ tự động dừng lúc 30 phút.');
-        } else if (sec >= 30 * 60) {
-            setDurationWarning('Đã đạt giới hạn thời gian ghi âm (30 phút). File đã được lưu tạm.');
-            recorder.pause();
-            setShowSave(true);
-        } else {
-            setDurationWarning(null);
-        }
-    }, [recorder.timeMs, recorder.state, recorder]);
-
     // Screen Wake Lock: giữ màn hình sáng khi đang ghi âm (Chrome mobile)
     const wakeLockRef = useRef<WakeLockSentinel | null>(null);
     const requestWakeLock = useCallback(async () => {
@@ -204,13 +189,13 @@ export default function RecordingPage() {
         if (recorder.state !== 'recording') return;
         if (!warned27MinRef.current && recorder.timeMs >= WARN_RECORDING_MS) {
             warned27MinRef.current = true;
-            window.alert('Con 3 phut ghi am. He thong se tu dong dung luc 30 phut.');
+            setDurationWarning('Còn 3 phút ghi âm. Hệ thống sẽ tự động dừng lúc 30 phút.');
         }
         if (!autoStoppedRef.current && recorder.timeMs >= MAX_RECORDING_MS) {
             autoStoppedRef.current = true;
             (async () => {
                 await recorder.pause();
-                setAutoStopNotice('Da dat gioi han ghi am (30 phut). File da duoc luu tam.');
+                setDurationWarning('Đã đạt giới hạn thời gian ghi âm (30 phút). File đã được lưu tạm.');
                 setShowSave(true);
             })();
         }
@@ -352,11 +337,6 @@ export default function RecordingPage() {
         const knownDuration = knownDurationSec > 0 ? knownDurationSec : (audioElRef.current?.duration && Number.isFinite(audioElRef.current.duration) ? audioElRef.current.duration : 0);
         if (knownDuration > 0 && knownDuration < 2) {
             setRecordingError('Không nhận diện được nội dung âm thanh. Vui lòng kiểm tra lại microphone.');
-            saveInProgressRef.current = false;
-            return;
-        }
-        if (knownDuration > 0 && knownDuration < 2) {
-            window.alert('Khong nhan dien duoc noi dung am thanh. Vui long kiem tra lai microphone hoac ghi am lai.');
             saveInProgressRef.current = false;
             return;
         }
@@ -567,12 +547,6 @@ export default function RecordingPage() {
             {recordingError && (
                 <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-[90%] rounded-xl bg-danger/15 text-danger px-4 py-2 text-[13px] font-semibold text-center">
                     {recordingError}
-                </div>
-            )}
-
-            {autoStopNotice && (
-                <div className="fixed top-16 left-1/2 -translate-x-1/2 z-200 px-4 py-2 rounded-lg bg-amber-100 border border-amber-300 text-amber-900 text-sm">
-                    {autoStopNotice}
                 </div>
             )}
 

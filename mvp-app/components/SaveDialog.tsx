@@ -70,13 +70,13 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
 
                 <div className="h-5" />
 
-                <span className="text-[13px] text-text-muted">Bệnh nhân</span>
+                <span className="text-[13px] text-text-muted">Assign to Patient</span>
                 <div className="h-1" />
                 <input
                     type="text"
                     value={patientName}
                     onChange={(e) => setPatientName(e.target.value)}
-                    placeholder="Nhập tên bệnh nhân"
+                    placeholder="Assign to Patient"
                     className="w-full text-[15px] text-text-primary bg-transparent border-b border-b-[#CCCCCC] pb-2 outline-none focus:border-b-accent-blue transition-colors"
                 />
 
