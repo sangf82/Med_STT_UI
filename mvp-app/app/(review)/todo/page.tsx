@@ -6,6 +6,7 @@ import { todoListMDMockEN, todoListMDMockVI } from '@/lib/mockData';
 import { useReview } from '../layout';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { updateRecord } from '@/lib/api/sttMetrics';
+import { Loader2 } from 'lucide-react';
 
 type TodoItem = {
     priority: string;
@@ -109,6 +110,7 @@ export default function TodoListPage() {
     const [content, setContent] = useState(initialContent);
     const [items, setItems] = useState<TodoItem[]>(() => parseTodoItems(rawContent));
     const timeoutRef = useRef<NodeJS.Timeout>(null);
+    const isTranscribing = record?.status === 'transcribing';
 
     useEffect(() => {
         if (record) {
@@ -156,7 +158,13 @@ export default function TodoListPage() {
 
     return (
         <div className="flex-1 flex flex-col fade-in">
-            {items.length > 0 ? (
+            {isTranscribing ? (
+                <div className="flex-1 flex flex-col items-center justify-center px-6 text-center text-text-muted">
+                    <Loader2 className="w-7 h-7 animate-spin mb-3 text-accent-blue" />
+                    <p className="text-[15px] font-semibold text-text-primary">Đang chuyển giọng nói thành văn bản...</p>
+                    <p className="text-[13px] mt-1">Vui lòng chờ trong giây lát.</p>
+                </div>
+            ) : items.length > 0 ? (
                 <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
                     {items.map((item, index) => (
                         <label key={`${item.priority}-${index}`} className="flex items-start gap-3 cursor-pointer">

@@ -358,8 +358,12 @@ export default function RecordingPage() {
         streamUploadIdRef.current = null;
         streamRecordIdRef.current = null;
 
-        // Navigate to dashboard IMMEDIATELY — user sees record in "processing" state
-        router.push('/dashboard');
+        // Navigate to the selected patient page immediately; fallback to patients list when missing name.
+        const trimmedPatientName = patientName.trim();
+        const destination = trimmedPatientName
+            ? `/patients/${encodeURIComponent(trimmedPatientName)}`
+            : '/patients';
+        router.push(destination);
 
         // Fire-and-forget: finish upload in background (detached from component lifecycle)
         // BackgroundUploader will recover if this fails

@@ -6,6 +6,7 @@ import { ehrSummaryMockEN, ehrSummaryMockVI } from '@/lib/mockData';
 import { useReview } from '../layout';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { updateRecord } from '@/lib/api/sttMetrics';
+import { Loader2 } from 'lucide-react';
 
 export default function EhrSummaryPage() {
     const locale = useLocale();
@@ -16,6 +17,7 @@ export default function EhrSummaryPage() {
     const initialContent = record?.content || record?.refined_text || record?.raw_text || data;
     const [content, setContent] = useState(initialContent);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isTranscribing = record?.status === 'transcribing';
 
     useEffect(() => {
         if (record) {
@@ -53,10 +55,18 @@ export default function EhrSummaryPage() {
 
     return (
         <div className="flex-1 flex flex-col fade-in">
-            <RichTextEditor
-                content={content}
-                onChange={handleChange}
-            />
+            {isTranscribing ? (
+                <div className="flex-1 flex flex-col items-center justify-center px-6 text-center text-text-muted">
+                    <Loader2 className="w-7 h-7 animate-spin mb-3 text-accent-blue" />
+                    <p className="text-[15px] font-semibold text-text-primary">Đang chuyển giọng nói thành văn bản...</p>
+                    <p className="text-[13px] mt-1">Vui lòng chờ trong giây lát.</p>
+                </div>
+            ) : (
+                <RichTextEditor
+                    content={content}
+                    onChange={handleChange}
+                />
+            )}
         </div>
     );
 }

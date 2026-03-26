@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useReview } from '../layout';
 import { updateRecord } from '@/lib/api/sttMetrics';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { Loader2 } from 'lucide-react';
 
 export default function SoapNotePage() {
     const locale = useLocale();
@@ -18,6 +19,7 @@ export default function SoapNotePage() {
     const [isLoadingContext, setIsLoadingContext] = useState(false);
     const [contextText, setContextText] = useState('');
     const [contextStatus, setContextStatus] = useState<string>('');
+    const isTranscribing = record?.status === 'transcribing';
 
     useEffect(() => {
         if (record) {
@@ -81,6 +83,14 @@ export default function SoapNotePage() {
 
     return (
         <div className="flex-1 flex flex-col fade-in">
+            {isTranscribing ? (
+                <div className="flex-1 flex flex-col items-center justify-center px-6 text-center text-text-muted">
+                    <Loader2 className="w-7 h-7 animate-spin mb-3 text-accent-blue" />
+                    <p className="text-[15px] font-semibold text-text-primary">Đang chuyển giọng nói thành văn bản...</p>
+                    <p className="text-[13px] mt-1">Vui lòng chờ trong giây lát.</p>
+                </div>
+            ) : (
+                <>
             <div className="px-4 py-2">
                 {isLoadingContext ? (
                     <div className="h-14 animate-pulse rounded-xl bg-bg-surface" />
@@ -111,6 +121,8 @@ export default function SoapNotePage() {
                 content={content}
                 onChange={handleChange}
             />
+                </>
+            )}
         </div>
     );
 }
