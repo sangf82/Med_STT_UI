@@ -2,27 +2,23 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Header } from '@/components/Header';
-import { getMyRecords, getRecordById, type SttRecord } from '@/lib/api/sttMetrics';
+import { getMyRecords, type SttRecord } from '@/lib/api/sttMetrics';
+import { outputFormatToReviewRoute } from '@/lib/outputFormat';
 import { Loader2, FileText, AlertCircle } from 'lucide-react';
-
-const STATUS_LABEL: Record<string, string> = {
-  processing: 'Đang xử lý',
-  completed: 'Hoàn thành',
-  failed: 'Thất bại',
-  pending: 'Đang chờ',
-};
 
 function formatDate(created_at: string) {
   try {
     const d = new Date(created_at);
-    return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   } catch {
     return created_at;
   }
 }
 
 export default function RecordsPage() {
+  const t = useTranslations('Records');
   const router = useRouter();
   const searchParams = useSearchParams();
   const highlightId = searchParams.get('highlight');
@@ -39,13 +35,13 @@ export default function RecordsPage() {
       setItems(res.items ?? []);
       setTotal(res.total ?? 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Không tải được danh sách');
+      setError(e instanceof Error ? e.message : t('loadError'));
       setItems([]);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -61,28 +57,35 @@ export default function RecordsPage() {
 
   const openRecord = (r: SttRecord) => {
     if (r.status === 'processing' || r.status === 'pending') return;
-    const raw = (r.output_format ?? (r as { output_type?: string }).output_type ?? '').trim().toLowerCase();
-    const formatRoute = raw === 'to-do' || raw === 'todo' ? 'todo' : 'ehr';
+    const raw = r.output_format ?? (r as { output_type?: string }).output_type;
+    const formatRoute = outputFormatToReviewRoute(raw);
     router.push(`/${formatRoute}?id=${r.id}`);
+  };
+
+  const statusLabel: Record<string, string> = {
+    processing: t('status.processing'),
+    completed: t('status.completed'),
+    failed: t('status.failed'),
+    pending: t('status.pending'),
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-bg-page">
       <Header
-        title="Danh sách bản ghi"
-        subtitle={`${total} bản ghi`}
+        title={t('title')}
+        subtitle={t('subtitle', { total })}
         onBack={() => router.back()}
       />
       <div className="flex-1 px-4 pb-6">
         {loading && items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <Loader2 className="w-10 h-10 text-accent-blue animate-spin mb-3" />
-            <p className="text-text-muted text-sm">Đang tải...</p>
+            <p className="text-text-muted text-sm">{t('loading')}</p>
           </div>
         ) : error ? (
           <div className="py-8 text-center text-red-500">{error}</div>
         ) : items.length === 0 ? (
-          <div className="py-12 text-center text-text-muted text-sm">Chưa có bản ghi nào.</div>
+          <div className="py-12 text-center text-text-muted text-sm">{t('empty')}</div>
         ) : (
           <ul className="space-y-2">
             {items.map((r) => {
@@ -108,10 +111,10 @@ export default function RecordsPage() {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-text-primary truncate">
-                          {r.display_name || `Bản ghi ${r.id.slice(-6)}`}
+                          {r.display_name || t('recordFallback', { idSuffix: r.id.slice(-6) })}
                         </p>
                         <p className="text-xs text-text-muted mt-0.5">
-                          {formatDate(r.created_at)} · {STATUS_LABEL[r.status] ?? r.status}
+                          {formatDate(r.created_at)} · {statusLabel[r.status] ?? r.status}
                         </p>
                       </div>
                     </div>

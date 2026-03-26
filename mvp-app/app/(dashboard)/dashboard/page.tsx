@@ -10,6 +10,7 @@ import { Card } from '@/components/Card';
 import { useRouter } from 'next/navigation';
 import { cn, formatDurationSec } from '@/lib/utils';
 import { getMyRecords, getMyUsage, deleteRecord, abandonUpload, getMyPatientFolders, createMyPatientFolder, renameMyPatientFolder, deleteMyPatientFolder } from '@/lib/api/sttMetrics';
+import { outputFormatToViLabel, recordLabelToReviewRoute } from '@/lib/outputFormat';
 import type { Recording } from '@/lib/mockData';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, clearStaleUploadSessions } from '@/lib/db';
@@ -56,14 +57,7 @@ export default function DashboardPage() {
         }
     }, []);
 
-    const mapFormat = useCallback((ft?: string) => {
-        const v = (ft ?? '').trim().toLowerCase().replace(/\s/g, '_');
-        if (v === 'soap_note' || v === 'soap') return 'Ghi chú SOAP';
-        if (v === 'ehr') return 'Tóm tắt lâm sàng';
-        if (v === 'to-do' || v === 'todo') return 'Việc cần làm';
-        if (v === 'freetext' || v === 'free' || v === 'raw') return 'Văn bản tự do';
-        return 'Chưa phân loại';
-    }, []);
+    const mapFormat = useCallback((ft?: string) => outputFormatToViLabel(ft), []);
 
     const loadDashboardData = useCallback(async (recordsOnly = false, keepListOnError = false, fetchLimit: number = 50) => {
         const LOAD_TIMEOUT_MS = 20000; // stop spinner after 20s if requests hang (e.g. CORS)
@@ -299,20 +293,7 @@ export default function DashboardPage() {
         return '';
     }, [filter, r]);
 
-    const [scrollY, setScrollY] = useState(0);
-
-    useEffect(() => {
-        const handleScroll = () => {
-            requestAnimationFrame(() => setScrollY(window.scrollY));
-        };
-        handleScroll();
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
-
-    const progress = Math.min(Math.max(scrollY / 132, 0), 1);
-    const headerHeight = Math.max(48, 180 - scrollY);
-    const isScrolled = scrollY > 40;
+    const isFilterView = Boolean(headerTitle);
 
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -389,81 +370,20 @@ export default function DashboardPage() {
     };
 
     return (
-        <div className="flex flex-col min-h-screen pb-[120px] fade-in">
-            {/* ── Fixed Animated Header ── */}
-            <div
-                className="fixed top-0 left-0 right-0 z-40 bg-bg-page overflow-hidden"
-                style={{ height: `${headerHeight}px` }}
-            >
-                <div className="max-w-md mx-auto w-full h-full relative">
-
-                    {/* Hamburger Menu */}
-                    <button
-                        onClick={openSidebar}
-                        className="absolute left-3 w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 text-text-primary"
-                        style={{ bottom: `${12 - progress * 8}px` }}
-                        aria-label="Open menu"
-                    >
-                        <div className="relative">
-                            <Menu className="w-6 h-6" />
-                            {showNotificationDot && (
-                                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-danger border-2 border-bg-page rounded-full" />
-                            )}
-                        </div>
-                    </button>
-
-                    {/* Search Icon */}
-                    <button
-                        onClick={handleSearchClick}
-                        className="absolute right-3 w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 text-text-primary"
-                        style={{ bottom: `${12 - progress * 8}px` }}
-                        aria-label="Search"
-                    >
-                        <Search className="w-5 h-5" />
-                    </button>
-
-                    {/* Collapsed Header Small Logo (Fades in) */}
-                    <div
-                        className="absolute left-[52px] flex items-center gap-[6px] pointer-events-none"
-                        style={{
-                            top: '12px',
-                            opacity: progress,
-                            transform: `translateY(${10 - (progress * 10)}px)`
-                        }}
-                    >
-                        <Stethoscope className="w-[22px] h-[22px] text-accent-blue" />
-                        {headerTitle ? (
-                            <span className="text-[18px] font-bold text-text-primary leading-none pt-[2px]">{headerTitle}</span>
-                        ) : (
-                            <span className="text-[18px] font-bold leading-none pt-[2px]"><span className="text-accent-blue">Med</span><span className="text-accent-orange">Mate</span></span>
-                        )}
-                    </div>
-
-                    {/* Expanded Hero Big Logo (Fades out) */}
-                    <div
-                        className="absolute w-full flex flex-col items-center justify-center text-center px-5 pointer-events-none"
-                        style={{
-                            top: '32px',
-                            opacity: 1 - Math.min(progress * 1.5, 1),
-                            transform: `translateY(${-progress * 20}px) scale(${1 - progress * 0.1})`
-                        }}
-                    >
-                        <Stethoscope className="w-[48px] h-[48px] text-accent-blue mb-2" />
-                        {headerTitle ? (
-                            <h1 className="text-[28px] font-bold leading-tight text-text-primary">{headerTitle}</h1>
-                        ) : (
-                            <>
-                                <h1 className="text-[28px] font-bold leading-tight"><span className="text-accent-blue">Med</span><span className="text-accent-orange">Mate</span></h1>
-                                <p className="text-[14px] text-text-muted mt-[2px]">{a('subtitle')}</p>
-                            </>
-                        )}
-                    </div>
-
+        <div className="flex flex-col min-h-screen pb-30 fade-in">
+            <div className="px-5 pt-2">
+                <div className="flex flex-col items-center gap-2 py-6">
+                    <Stethoscope className="w-12 h-12 text-accent-blue" />
+                    {isFilterView ? (
+                        <h1 className="text-[28px] font-bold leading-tight text-text-primary text-center">{headerTitle}</h1>
+                    ) : (
+                        <>
+                            <h1 className="text-[28px] font-bold leading-tight"><span className="text-accent-blue">Med</span><span className="text-accent-orange">Mate</span></h1>
+                            <p className="text-[14px] text-text-muted">{a('subtitle')}</p>
+                        </>
+                    )}
                 </div>
             </div>
-
-            {/* Placeholder to preserve space and prevent jump */}
-            <div className="h-[180px] shrink-0 w-full" />
 
             {isRecoveringUploads && (
                 <div className="mx-4 mb-2 flex items-center gap-2 rounded-xl bg-accent-blue/10 border border-accent-blue/30 px-4 py-2.5 text-[13px] font-medium text-accent-blue">
@@ -474,6 +394,28 @@ export default function DashboardPage() {
 
             {/* ── Recording List ── */}
             <div className="px-4 flex flex-col gap-[10px]">
+                <div className="flex items-center justify-between py-2 px-1">
+                    <button
+                        onClick={openSidebar}
+                        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 text-text-primary"
+                        aria-label="Open menu"
+                    >
+                        <div className="relative">
+                            <Menu className="w-6 h-6" />
+                            {showNotificationDot && (
+                                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-danger border-2 border-bg-page rounded-full" />
+                            )}
+                        </div>
+                    </button>
+                    <button
+                        onClick={handleSearchClick}
+                        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 text-text-primary"
+                        aria-label="Search"
+                    >
+                        <Search className="w-5 h-5" />
+                    </button>
+                </div>
+
                 <div className="rounded-2xl border border-border bg-bg-surface p-3">
                     <div className="mb-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -581,10 +523,7 @@ export default function DashboardPage() {
                     )}
                 </div>
 
-                <h2 className={cn(
-                    "text-[13px] font-semibold text-text-muted mb-1 px-1 transition-all duration-300",
-                    isScrolled ? 'opacity-100 h-auto' : 'opacity-0 h-0 overflow-hidden'
-                )}>
+                <h2 className="text-[13px] font-semibold text-text-muted mb-1 px-1">
                     {t('myRecordings')}
                     {!isLoading && totalRecordsFromApi >= 0 && (
                         <span className="ml-1 font-normal">(tổng {totalRecordsFromApi} bản ghi)</span>
@@ -614,11 +553,7 @@ export default function DashboardPage() {
                             )}
                             onClick={() => {
                                 if (rec.status === 'uploading') return;
-                                const startTab = 
-                                    rec.format === 'Tóm tắt lâm sàng' ? 'ehr' : 
-                                    rec.format === 'Ghi chú SOAP' ? 'soap' : 
-                                    rec.format === 'Việc cần làm' ? 'todo' : 
-                                    'soap';
+                                const startTab = recordLabelToReviewRoute(rec.format ?? undefined);
                                 router.push(`/${startTab}?id=${rec.id}`);
                             }}
                         >
