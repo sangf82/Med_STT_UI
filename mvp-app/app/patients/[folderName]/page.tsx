@@ -1,136 +1,290 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
-import { Header } from '@/components/Header';
-import { Loader2, Mic, FileText, AlertCircle } from 'lucide-react';
-import { getPatientFolderRecords, type SttRecord } from '@/lib/api/sttMetrics';
+import {
+  Bold,
+  ChevronLeft,
+  History,
+  Italic,
+  Link as LinkIcon,
+  List,
+  ListOrdered,
+  Mic,
+  Redo2,
+  Underline,
+  Undo2,
+} from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { RichTextEditor } from '@/components/RichTextEditor';
+import { getPatientFolderRecords, getRecordById, updateRecord, type SttRecord } from '@/lib/api/sttMetrics';
+import { normalizeOutputFormatToken } from '@/lib/outputFormat';
 
-const STATUS_LABEL: Record<string, string> = {
-  processing: 'Đang xử lý',
-  pending: 'Đang chờ',
-  completed: 'Hoàn thành',
-  failed: 'Thất bại',
-};
+type TabKey = 'soap' | 'ehr' | 'todo';
 
-function openRouteByFormat(record: SttRecord): string {
-  const raw = (record.output_format ?? '').trim().toLowerCase();
-  if (raw === 'soap_note' || raw === 'soap') return `/soap?id=${record.id}`;
-  if (raw === 'ehr' || raw === 'clinical') return `/ehr?id=${record.id}`;
-  if (raw === 'to-do' || raw === 'todo') return `/todo?id=${record.id}`;
-  return `/soap?id=${record.id}`;
+const TAB_ORDER: TabKey[] = ['soap', 'ehr', 'todo'];
+
+function getTemplateForTab(tab: TabKey, t: ReturnType<typeof useTranslations<'PatientFolder'>>) {
+  if (tab === 'soap') {
+    return [
+      `S — ${t('subjective')}`,
+      t('subjectivePlaceholder'),
+      '',
+      `O — ${t('objective')}`,
+      t('objectivePlaceholder'),
+      '',
+      `A — ${t('assessment')}`,
+      t('assessmentPlaceholder'),
+      '',
+      `P — ${t('plan')}`,
+      t('planPlaceholder'),
+    ].join('\n');
+  }
+  if (tab === 'ehr') {
+    return [
+      `# ${t('ehrSummary')}`,
+      '',
+      t('ehrPlaceholder'),
+    ].join('\n');
+  }
+  return [
+    `# ${t('todoList')}`,
+    '',
+    `- [ ] ${t('todoPlaceholder1')}`,
+    `- [ ] ${t('todoPlaceholder2')}`,
+  ].join('\n');
 }
 
-export default function PatientDetailPage() {
+export default function PatientFolderPage() {
+  const t = useTranslations('PatientFolder');
+  const locale = useLocale();
   const router = useRouter();
   const params = useParams<{ folderName: string }>();
-  const folderName = decodeURIComponent(params?.folderName || '');
-  const [items, setItems] = useState<SttRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
+  const folderName = decodeURIComponent(params.folderName ?? '');
 
-  const load = useCallback(async () => {
-    if (!folderName) return;
-    setLoading(true);
+  const [loadingFolder, setLoadingFolder] = useState(true);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>('soap');
+  const [recordsByTab, setRecordsByTab] = useState<Record<TabKey, SttRecord | null>>({
+    soap: null,
+    ehr: null,
+    todo: null,
+  });
+  const [content, setContent] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  const lastLoadedContentRef = useRef('');
+
+  const tabLabels = useMemo(
+    () => ({
+      soap: t('soapNote'),
+      ehr: t('ehrSummary'),
+      todo: t('todoList'),
+    }),
+    [t]
+  );
+
+  const activeRecord = recordsByTab[activeTab];
+
+  const loadFolder = useCallback(async () => {
+    setLoadingFolder(true);
     try {
-      const res = await getPatientFolderRecords(folderName, 0, 100);
-      setItems(Array.isArray(res?.items) ? res.items : []);
-      setTotal(res?.total ?? 0);
+      const res = await getPatientFolderRecords(folderName, 0, 50);
+      const next: Record<TabKey, SttRecord | null> = { soap: null, ehr: null, todo: null };
+
+      for (const item of res.items ?? []) {
+        const normalized = normalizeOutputFormatToken(item.output_format ?? undefined);
+        const key: TabKey | null = normalized === 'soap_note' ? 'soap' : normalized === 'ehr' ? 'ehr' : normalized === 'to-do' ? 'todo' : null;
+        if (!key) continue;
+        if (!next[key]) {
+          next[key] = item;
+          continue;
+        }
+        if (new Date(item.updated_at).getTime() > new Date(next[key]!.updated_at).getTime()) {
+          next[key] = item;
+        }
+      }
+
+      setRecordsByTab(next);
+      const firstAvailable = TAB_ORDER.find((k) => Boolean(next[k])) ?? 'soap';
+      setActiveTab(firstAvailable);
     } catch {
-      setItems([]);
-      setTotal(0);
+      setRecordsByTab({ soap: null, ehr: null, todo: null });
+      setActiveTab('soap');
     } finally {
-      setLoading(false);
+      setLoadingFolder(false);
     }
   }, [folderName]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadFolder();
+  }, [loadFolder]);
 
-  const hasAnyContext = useMemo(
-    () => items.some((r) => (r.context_text || '').trim().length > 0 || r.context_status === 'available'),
-    [items]
-  );
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadTabContent = async () => {
+      if (!activeRecord?.id) {
+        const fallback = getTemplateForTab(activeTab, t);
+        if (!isMounted) return;
+        setContent(fallback);
+        lastLoadedContentRef.current = fallback;
+        setSaveStatus('idle');
+        return;
+      }
+
+      setLoadingRecord(true);
+      try {
+        const detail = await getRecordById(activeRecord.id);
+        const nextContent = detail.content || detail.refined_text || detail.raw_text || getTemplateForTab(activeTab, t);
+        if (!isMounted) return;
+        setContent(nextContent);
+        lastLoadedContentRef.current = nextContent;
+        setSaveStatus('idle');
+      } catch {
+        if (!isMounted) return;
+        const fallback = getTemplateForTab(activeTab, t);
+        setContent(fallback);
+        lastLoadedContentRef.current = fallback;
+        setSaveStatus('error');
+      } finally {
+        if (isMounted) setLoadingRecord(false);
+      }
+    };
+
+    loadTabContent();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeRecord?.id, activeTab, t]);
+
+  useEffect(() => {
+    if (!activeRecord?.id) return;
+    if (content === lastLoadedContentRef.current) return;
+
+    setSaveStatus('saving');
+    const timer = setTimeout(async () => {
+      try {
+        await updateRecord(activeRecord.id, { content });
+        lastLoadedContentRef.current = content;
+        setSaveStatus('saved');
+      } catch {
+        setSaveStatus('error');
+      }
+    }, 900);
+
+    return () => clearTimeout(timer);
+  }, [activeRecord?.id, content]);
+
+  const subtitle = useMemo(() => {
+    const d = activeRecord?.created_at ? new Date(activeRecord.created_at) : null;
+    const formattedDate = d ? new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d) : '--';
+    const mrn = activeRecord?.id ? activeRecord.id.slice(-6).toUpperCase() : '------';
+    return `${t('dobLabel')}: ${formattedDate}  ·  ${t('mrnLabel')}: ${mrn}`;
+  }, [activeRecord?.created_at, activeRecord?.id, locale, t]);
+
+  const saveBadge = useMemo(() => {
+    if (!activeRecord?.id) return null;
+    if (saveStatus === 'saving') return <span className="text-[11px] text-accent-blue">{t('saving')}</span>;
+    if (saveStatus === 'saved') return <span className="text-[11px] text-green-600 dark:text-green-400">{t('saved')}</span>;
+    if (saveStatus === 'error') return <span className="text-[11px] text-red-500">{t('saveError')}</span>;
+    return null;
+  }, [activeRecord?.id, saveStatus, t]);
 
   return (
     <div className="min-h-screen bg-bg-page">
-      <Header
-        title={folderName || 'Folder bệnh nhân'}
-        subtitle={`${total} bản ghi`}
-        onBack={() => router.back()}
-        rightNode={
-          <button
-            type="button"
-            onClick={() => router.push(`/recording?patient=${encodeURIComponent(folderName)}`)}
-            className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-bg-surface"
-            title="Tạo voice mới"
-          >
-            <Mic className="w-5 h-5" />
-          </button>
-        }
-      />
-
-      <div className="px-4 pb-8">
-        {!loading && !hasAnyContext && (
-          <div className="mb-3 rounded-xl border border-border bg-bg-surface px-3 py-2">
-            <p className="text-[12px] font-semibold text-text-primary mb-1">Context cũ</p>
-            <p className="text-[13px] text-text-muted">
-              Chưa có dữ liệu khám cũ. Bản SOAP này sẽ được khởi tạo mới hoàn toàn.
-            </p>
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-bg-page">
+        <header className="border-b border-border/80 bg-bg-page px-4 pb-2 pt-1.25">
+          <div className="flex h-14 items-center justify-between">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg-surface"
+                aria-label={t('back')}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="min-w-0">
+                <p className="truncate text-[15px] font-semibold text-text-primary">{folderName}</p>
+                <p className="truncate text-[10px] text-text-muted">{subtitle}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push(`/patients/${encodeURIComponent(folderName)}/records`)}
+              className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg-surface"
+              aria-label={t('refresh')}
+            >
+              <History className="h-4 w-4 text-text-muted" />
+            </button>
           </div>
-        )}
-
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 text-text-muted">
-            <Loader2 className="w-8 h-8 animate-spin mb-2" />
-            <p className="text-sm">Đang tải bản ghi...</p>
-          </div>
-        ) : items.length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-dashed border-divider bg-bg-surface p-8 text-center">
-            <p className="text-[14px] font-semibold text-text-primary">Folder này chưa có bản ghi nào.</p>
-            <p className="mt-1 text-[12px] text-text-muted">Nhấn biểu tượng micro để tạo bản ghi mới cho bệnh nhân này.</p>
-          </div>
-        ) : (
-          <ul className="space-y-2 pt-1">
-            {items.map((r) => {
-              const processing = r.status === 'processing' || r.status === 'pending';
+          <div className="mt-1 flex border-b border-border/80">
+            {TAB_ORDER.map((tab) => {
+              const isActive = activeTab === tab;
               return (
-                <li key={r.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (processing) return;
-                      router.push(openRouteByFormat(r));
-                    }}
-                    className="w-full rounded-xl border border-border bg-bg-surface px-4 py-3 text-left hover:bg-bg-hover disabled:opacity-80"
-                    disabled={processing}
-                  >
-                    <div className="flex items-start gap-3">
-                      {processing ? (
-                        <Loader2 className="w-5 h-5 mt-0.5 animate-spin text-accent-blue shrink-0" />
-                      ) : r.status === 'failed' ? (
-                        <AlertCircle className="w-5 h-5 mt-0.5 text-danger shrink-0" />
-                      ) : (
-                        <FileText className="w-5 h-5 mt-0.5 text-text-muted shrink-0" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[14px] font-semibold text-text-primary truncate">
-                          {r.display_name || 'Bản ghi không tên'}
-                        </p>
-                        <p className="text-[12px] text-text-muted mt-0.5">
-                          {new Date(r.created_at).toLocaleString('vi-VN')} · {STATUS_LABEL[r.status] ?? r.status}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                </li>
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 border-b-2 px-2 py-3 text-[12px] ${
+                    isActive
+                      ? 'border-accent-blue font-semibold text-accent-blue'
+                      : 'border-transparent text-text-muted'
+                  }`}
+                >
+                  {tabLabels[tab]}
+                </button>
               );
             })}
-          </ul>
-        )}
+          </div>
+          <div className="flex h-11 items-center gap-0.5 border-b border-border/80 px-1 text-text-secondary">
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><Bold className="h-3.5 w-3.5" /></button>
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><Italic className="h-3.5 w-3.5" /></button>
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><Underline className="h-3.5 w-3.5" /></button>
+            <span className="mx-1 h-5 w-px bg-border" />
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><List className="h-3.5 w-3.5" /></button>
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><ListOrdered className="h-3.5 w-3.5" /></button>
+            <span className="text-[12px] text-text-muted">H1</span>
+            <span className="text-[12px] text-text-muted">H2</span>
+            <span className="mx-1 h-5 w-px bg-border" />
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><LinkIcon className="h-3.5 w-3.5" /></button>
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><Undo2 className="h-3.5 w-3.5" /></button>
+            <button type="button" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-bg-surface"><Redo2 className="h-3.5 w-3.5" /></button>
+            <div className="ml-auto pr-1">{saveBadge}</div>
+          </div>
+        </header>
+
+        <main className="relative flex-1 bg-bg-page">
+          {loadingFolder || loadingRecord ? (
+            <div className="flex h-full items-center justify-center text-text-muted">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              <span className="text-sm">{t('loading')}</span>
+            </div>
+          ) : (
+            <RichTextEditor
+              content={content}
+              onChange={setContent}
+              minHeight="320px"
+              coerceTaskListOnLoad={activeTab === 'todo'}
+            />
+          )}
+        </main>
+
+        <footer className="border-t border-border/80 bg-bg-page px-4 py-3">
+          <div className="flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => router.push(`/recording?patient=${encodeURIComponent(folderName)}`)}
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-danger text-white shadow-lg"
+              aria-label={t('startRecording')}
+            >
+              <Mic className="h-6 w-6" />
+            </button>
+          </div>
+        </footer>
       </div>
     </div>
   );
 }
-

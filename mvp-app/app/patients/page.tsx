@@ -14,6 +14,17 @@ type FolderItem = {
   is_virtual?: boolean;
 };
 
+const UNKNOWN_FOLDER_NAMES = new Set([
+  'unknown patient',
+  'unknown',
+  'unassigned',
+]);
+
+const isUnknownFolder = (folder: FolderItem) => {
+  if (!folder.is_virtual) return false;
+  return UNKNOWN_FOLDER_NAMES.has(folder.name.trim().toLowerCase());
+};
+
 export default function PatientsPage() {
   const router = useRouter();
   const [items, setItems] = useState<FolderItem[]>([]);
@@ -37,7 +48,7 @@ export default function PatientsPage() {
   }, [loadFolders]);
 
   const visibleItems = useMemo(
-    () => items.filter((f) => !f.is_virtual || f.record_count > 0),
+    () => items.filter((f) => (!f.is_virtual || f.record_count > 0) && !isUnknownFolder(f)),
     [items]
   );
 
@@ -60,7 +71,7 @@ export default function PatientsPage() {
   return (
     <div className="min-h-screen bg-bg-page">
       <Header
-        title="Danh sách Folder"
+        title="Danh sách bệnh nhân"
         subtitle={`${visibleItems.length} bệnh nhân`}
         onBack={() => router.back()}
         rightNode={
@@ -80,13 +91,13 @@ export default function PatientsPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 text-text-muted">
             <Loader2 className="w-8 h-8 animate-spin mb-2" />
-            <p className="text-sm">Đang tải danh sách folder...</p>
+            <p className="text-sm">Đang tải danh sách bệnh nhân...</p>
           </div>
         ) : visibleItems.length === 0 ? (
           <div className="mt-8 rounded-2xl border border-dashed border-divider bg-bg-surface p-8 text-center">
             <UserRound className="w-10 h-10 text-divider mx-auto mb-3" />
             <p className="text-[15px] font-semibold text-text-primary">
-              Bạn chưa có bệnh nhân nào. Hãy thêm bệnh nhân mới để bắt đầu.
+              Thêm bệnh nhân mới để bắt đầu.
             </p>
             <button
               type="button"
@@ -94,7 +105,7 @@ export default function PatientsPage() {
               className="mt-4 inline-flex items-center gap-2 rounded-full bg-accent-blue px-4 py-2 text-[13px] font-semibold text-white"
             >
               <FolderPlus className="w-4 h-4" />
-              Thêm bệnh nhân
+              Thêm bệnh nhân mới
             </button>
           </div>
         ) : (

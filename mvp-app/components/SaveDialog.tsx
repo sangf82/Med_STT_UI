@@ -1,9 +1,9 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Loader2, Plus } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import { getMyRecords } from '@/lib/api/sttMetrics';
+import { createMyPatientFolder, getMyPatientFolders } from '@/lib/api/sttMetrics';
 
 export interface SaveDialogProps {
     onCancel: () => void;
@@ -12,6 +12,28 @@ export interface SaveDialogProps {
 }
 
 type FormatKey = 'soap' | 'clinical' | 'todo' | 'raw';
+
+const UNKNOWN_FOLDER_NAMES = new Set([
+    'unknown patient',
+    'unknown',
+    'unassigned',
+]);
+
+const isUnknownVirtualFolder = (folder: { name: string; is_virtual?: boolean }) => {
+    if (!folder.is_virtual) return false;
+    return UNKNOWN_FOLDER_NAMES.has(folder.name.trim().toLowerCase());
+};
+
+const generatePatientName = () => {
+    const now = new Date();
+    const datePart = now
+        .toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })
+        .replace(/\//g, '');
+    const timePart = now
+        .toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+        .replace(/:/g, '');
+    return `Patient_${datePart}_${timePart}`;
+};
 
 export function SaveDialog({ onCancel, onSave, initialPatientName }: SaveDialogProps) {
     const t = useTranslations('Recording');
@@ -23,6 +45,8 @@ export function SaveDialog({ onCancel, onSave, initialPatientName }: SaveDialogP
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
     const [patientOptions, setPatientOptions] = useState<string[]>([]);
+    const [loadingPatients, setLoadingPatients] = useState(false);
+    const [creatingPatient, setCreatingPatient] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const patientDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -60,23 +84,25 @@ export function SaveDialog({ onCancel, onSave, initialPatientName }: SaveDialogP
 
     useEffect(() => {
         let cancelled = false;
-        getMyRecords(0, 100)
+        setLoadingPatients(true);
+        getMyPatientFolders()
             .then((res) => {
                 if (cancelled) return;
-                const uniquePatients = Array.from(
-                    new Set(
-                        (res?.items || [])
-                            .map((item) => (item.patient_name || '').trim())
-                            .filter(Boolean)
-                    )
-                );
-                setPatientOptions(uniquePatients);
-                if (!patientName && uniquePatients.length > 0) {
-                    setPatientName(uniquePatients[0]);
+                const folders = Array.isArray(res?.items) ? res.items : [];
+                const realPatients = folders
+                    .filter((folder) => !isUnknownVirtualFolder(folder))
+                    .map((folder) => folder.name.trim())
+                    .filter(Boolean);
+                setPatientOptions(Array.from(new Set(realPatients)));
+                if (!patientName && realPatients.length > 0) {
+                    setPatientName(realPatients[0]);
                 }
             })
             .catch(() => {
                 if (!cancelled) setPatientOptions([]);
+            })
+            .finally(() => {
+                if (!cancelled) setLoadingPatients(false);
             });
         return () => { cancelled = true; };
     }, []);
@@ -85,6 +111,28 @@ export function SaveDialog({ onCancel, onSave, initialPatientName }: SaveDialogP
         const value = (initialPatientName || '').trim();
         if (value) setPatientName(value);
     }, [initialPatientName]);
+
+    const handleAddPatient = async () => {
+        const suggested = generatePatientName();
+        const name = prompt('Nhập tên bệnh nhân mới:', suggested);
+        const trimmed = (name || '').trim() || suggested;
+        if (!trimmed) return;
+
+        setCreatingPatient(true);
+        try {
+            await createMyPatientFolder(trimmed);
+            setPatientOptions((prev) => {
+                if (prev.some((item) => item === trimmed)) return prev;
+                return [...prev, trimmed];
+            });
+            setPatientName(trimmed);
+            setPatientDropdownOpen(false);
+        } catch {
+            alert('Không thể tạo bệnh nhân lúc này. Vui lòng thử lại sau.');
+        } finally {
+            setCreatingPatient(false);
+        }
+    };
 
     return (
         <div className="absolute inset-0 z-50 flex items-center justify-center px-6 bg-bg-overlay fade-in">
@@ -122,7 +170,7 @@ export function SaveDialog({ onCancel, onSave, initialPatientName }: SaveDialogP
                         className="w-full flex items-center justify-between py-1 transition-opacity active:opacity-60"
                     >
                         <span className={`text-[16px] font-bold ${patientName ? 'text-text-primary' : 'text-text-muted'}`}>
-                            {patientName || 'Unknown Patient'}
+                            {patientName || 'Chọn bệnh nhân'}
                         </span>
                         <ChevronDown
                             className={`w-4 h-4 text-text-muted transition-transform ${patientDropdownOpen ? 'rotate-180' : ''}`}
@@ -131,18 +179,6 @@ export function SaveDialog({ onCancel, onSave, initialPatientName }: SaveDialogP
                     <div className="h-px w-full bg-[#D0D0D0]" />
                     {patientDropdownOpen && (
                         <div className="absolute left-0 top-full mt-1 w-full bg-save-card-bg rounded-xl shadow-card border border-border z-10 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150 max-h-44 overflow-y-auto">
-                            <button
-                                onClick={() => {
-                                    setPatientName('');
-                                    setPatientDropdownOpen(false);
-                                }}
-                                className={`w-full text-left px-4 py-2.5 text-[15px] transition-colors ${!patientName
-                                    ? 'text-accent-blue font-semibold bg-accent-blue/10'
-                                    : 'text-text-primary hover:bg-bg-surface'
-                                    }`}
-                            >
-                                Unknown Patient
-                            </button>
                             {patientOptions.map((patient) => (
                                 <button
                                     key={patient}
@@ -158,9 +194,27 @@ export function SaveDialog({ onCancel, onSave, initialPatientName }: SaveDialogP
                                     {patient}
                                 </button>
                             ))}
+                            <div className="h-px bg-divider" />
+                            <button
+                                type="button"
+                                onClick={handleAddPatient}
+                                disabled={creatingPatient}
+                                className="w-full text-left px-4 py-2.5 text-[15px] text-accent-blue font-semibold hover:bg-bg-surface transition-colors disabled:opacity-60"
+                            >
+                                <span className="inline-flex items-center gap-2">
+                                    {creatingPatient ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                    {creatingPatient ? 'Đang tạo bệnh nhân...' : 'Thêm bệnh nhân'}
+                                </span>
+                            </button>
                         </div>
                     )}
                 </div>
+                {loadingPatients && (
+                    <div className="mt-2 inline-flex items-center gap-1.5 text-[12px] text-text-muted">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Đang tải danh sách bệnh nhân...
+                    </div>
+                )}
 
                 <div className="h-5" />
 

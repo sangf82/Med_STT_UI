@@ -2,14 +2,14 @@
 
 import { useTranslations } from 'next-intl';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Menu, Search, Stethoscope, Loader2, Trash2, Folder, FolderPlus, Pencil } from 'lucide-react';
+import { Menu, Search, Stethoscope, Loader2, Trash2, FolderOpen, ChevronRight } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useSidebar } from '@/context/SidebarContext';
 import { Badge } from '@/components/Badge';
 import { Card } from '@/components/Card';
 import { useRouter } from 'next/navigation';
 import { cn, formatDurationSec } from '@/lib/utils';
-import { getMyRecords, getMyUsage, deleteRecord, abandonUpload, getMyPatientFolders, createMyPatientFolder, renameMyPatientFolder, deleteMyPatientFolder } from '@/lib/api/sttMetrics';
+import { getMyRecords, getMyUsage, deleteRecord, abandonUpload, getMyPatientFolders, createMyPatientFolder } from '@/lib/api/sttMetrics';
 import { outputFormatToViLabel, recordLabelToReviewRoute } from '@/lib/outputFormat';
 import type { Recording } from '@/lib/mockData';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -20,6 +20,17 @@ type PatientFolderItem = {
     name: string;
     record_count: number;
     is_virtual?: boolean;
+};
+
+const UNKNOWN_FOLDER_NAMES = new Set([
+    'unknown patient',
+    'unknown',
+    'unassigned',
+]);
+
+const isUnknownFolder = (folder: PatientFolderItem) => {
+    if (!folder.is_virtual) return false;
+    return UNKNOWN_FOLDER_NAMES.has(folder.name.trim().toLowerCase());
 };
 
 
@@ -36,10 +47,7 @@ export default function DashboardPage() {
     const [currentLimit, setCurrentLimit] = useState<number>(50);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [patientFolders, setPatientFolders] = useState<PatientFolderItem[]>([]);
-    const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
     const [creatingFolder, setCreatingFolder] = useState(false);
-    const [renamingFolder, setRenamingFolder] = useState(false);
-    const [deletingFolder, setDeletingFolder] = useState(false);
     const rawUploading = useLiveQuery(() => db.uploads.toArray());
     const uploadingSessions = useMemo(() => rawUploading || [], [rawUploading]);
 
@@ -261,28 +269,15 @@ export default function DashboardPage() {
         return rec.format === filter;
     });
 
-    const folderFilteredRecordings = useMemo(() => {
-        if (!selectedFolder) return filteredRecordings;
-        const normalized = selectedFolder.trim().toLowerCase();
-        if (normalized === 'unknown patient') {
-            return filteredRecordings.filter((rec) => !(rec.patient || '').trim());
-        }
-        return filteredRecordings.filter((rec) => (rec.patient || '').trim() === selectedFolder);
-    }, [filteredRecordings, selectedFolder]);
-
-    const selectedFolderMeta = useMemo(
-        () => patientFolders.find((f) => f.name === selectedFolder) || null,
-        [patientFolders, selectedFolder]
+    const unassignedRecordings = useMemo(
+        () => filteredRecordings.filter((rec) => !(rec.patient || '').trim()),
+        [filteredRecordings]
     );
 
-    const selectedFolderStats = useMemo(() => {
-        if (!selectedFolder) return null;
-        const total = folderFilteredRecordings.length;
-        const done = folderFilteredRecordings.filter((r) => r.status === 'transcribed').length;
-        const inProgress = folderFilteredRecordings.filter((r) => r.status === 'transcribing' || r.status === 'uploading').length;
-        const failed = folderFilteredRecordings.filter((r) => r.status === 'error').length;
-        return { total, done, inProgress, failed };
-    }, [folderFilteredRecordings, selectedFolder]);
+    const visiblePatientFolders = useMemo(
+        () => patientFolders.filter((f) => (!f.is_virtual || f.record_count > 0) && !isUnknownFolder(f)),
+        [patientFolders]
+    );
 
     const headerTitle = useMemo(() => {
         if (filter === 'Ghi chú SOAP') return r('soapNote');
@@ -298,50 +293,18 @@ export default function DashboardPage() {
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
     const handleCreateFolder = async () => {
-        const name = prompt('Nhập tên bệnh nhân/folder mới:');
+        const name = prompt('Nhập tên bệnh nhân mới:');
         const trimmed = (name || '').trim();
         if (!trimmed) return;
         setCreatingFolder(true);
         try {
             await createMyPatientFolder(trimmed);
             await loadPatientFolders();
-            setSelectedFolder(trimmed);
+            router.push(`/patients/${encodeURIComponent(trimmed)}`);
         } catch {
-            alert('Không thể tạo folder lúc này. Vui lòng thử lại sau.');
+            alert('Không thể tạo bệnh nhân mới lúc này. Vui lòng thử lại sau.');
         } finally {
             setCreatingFolder(false);
-        }
-    };
-
-    const handleRenameFolder = async () => {
-        if (!selectedFolder || selectedFolder.toLowerCase() === 'unknown patient') return;
-        const newName = prompt('Đổi tên folder bệnh nhân:', selectedFolder);
-        const trimmed = (newName || '').trim();
-        if (!trimmed || trimmed === selectedFolder) return;
-        setRenamingFolder(true);
-        try {
-            await renameMyPatientFolder(selectedFolder, trimmed);
-            await loadDashboardData(true, true, currentLimit);
-            setSelectedFolder(trimmed);
-        } catch {
-            alert('Không thể đổi tên folder lúc này. Vui lòng thử lại sau.');
-        } finally {
-            setRenamingFolder(false);
-        }
-    };
-
-    const handleDeleteFolder = async () => {
-        if (!selectedFolder || selectedFolder.toLowerCase() === 'unknown patient') return;
-        if (!confirm(`Xóa folder "${selectedFolder}" và chuyển record của folder này về Unknown Patient?`)) return;
-        setDeletingFolder(true);
-        try {
-            await deleteMyPatientFolder(selectedFolder, true);
-            await loadDashboardData(true, true, currentLimit);
-            setSelectedFolder(null);
-        } catch {
-            alert('Không thể xóa folder lúc này. Vui lòng thử lại sau.');
-        } finally {
-            setDeletingFolder(false);
         }
     };
 
@@ -371,18 +334,36 @@ export default function DashboardPage() {
 
     return (
         <div className="flex flex-col min-h-screen pb-30 fade-in">
-            <div className="px-5 pt-2">
-                <div className="flex flex-col items-center gap-2 py-6">
-                    <Stethoscope className="w-12 h-12 text-accent-blue" />
+            <div className="h-12 px-4 flex items-center justify-between">
+                <button
+                    onClick={openSidebar}
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 text-text-primary"
+                    aria-label="Open menu"
+                >
+                    <div className="relative">
+                        <Menu className="w-6 h-6" />
+                        {showNotificationDot && (
+                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-danger border-2 border-bg-page rounded-full" />
+                        )}
+                    </div>
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                    <Stethoscope className="w-5.5 h-5.5 text-accent-blue" />
                     {isFilterView ? (
-                        <h1 className="text-[28px] font-bold leading-tight text-text-primary text-center">{headerTitle}</h1>
+                        <span className="text-[18px] font-bold leading-none text-text-primary">{headerTitle}</span>
                     ) : (
-                        <>
-                            <h1 className="text-[28px] font-bold leading-tight"><span className="text-accent-blue">Med</span><span className="text-accent-orange">Mate</span></h1>
-                            <p className="text-[14px] text-text-muted">{a('subtitle')}</p>
-                        </>
+                        <span className="text-[18px] font-bold leading-none"><span className="text-accent-blue">Med</span><span className="text-accent-orange">Mate</span></span>
                     )}
                 </div>
+
+                <button
+                    onClick={handleSearchClick}
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 text-text-primary"
+                    aria-label="Search"
+                >
+                    <Search className="w-5 h-5" />
+                </button>
             </div>
 
             {isRecoveringUploads && (
@@ -393,138 +374,49 @@ export default function DashboardPage() {
             )}
 
             {/* ── Recording List ── */}
-            <div className="px-4 flex flex-col gap-[10px]">
-                <div className="flex items-center justify-between py-2 px-1">
-                    <button
-                        onClick={openSidebar}
-                        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 text-text-primary"
-                        aria-label="Open menu"
-                    >
-                        <div className="relative">
-                            <Menu className="w-6 h-6" />
-                            {showNotificationDot && (
-                                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-danger border-2 border-bg-page rounded-full" />
-                            )}
-                        </div>
-                    </button>
-                    <button
-                        onClick={handleSearchClick}
-                        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 text-text-primary"
-                        aria-label="Search"
-                    >
-                        <Search className="w-5 h-5" />
-                    </button>
-                </div>
+            <div className="px-4 flex flex-col gap-2.5">
+                <h2 className="text-[13px] font-semibold text-text-muted px-1">{t('patients')}</h2>
 
-                <div className="rounded-2xl border border-border bg-bg-surface p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Folder className="w-4 h-4 text-text-muted" />
-                            <p className="text-[13px] font-semibold text-text-primary">Folder bệnh nhân</p>
+                <button
+                    type="button"
+                    onClick={handleCreateFolder}
+                    disabled={creatingFolder}
+                    className="w-full rounded-2xl border border-dashed border-border bg-bg-card p-4 text-left hover:bg-bg-surface transition-colors disabled:opacity-70"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-full bg-accent-blue/10 flex items-center justify-center">
+                            {creatingFolder ? <Loader2 className="w-5 h-5 text-accent-blue animate-spin" /> : <FolderOpen className="w-5 h-5 text-accent-blue" />}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            <button
-                                type="button"
-                                onClick={() => router.push('/patients')}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[12px] font-medium text-text-primary hover:bg-bg-page"
-                            >
-                                DS Folder
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleCreateFolder}
-                                disabled={creatingFolder}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[12px] font-medium text-text-primary hover:bg-bg-page disabled:opacity-50"
-                            >
-                                {creatingFolder ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderPlus className="w-3.5 h-3.5" />}
-                                Thêm bệnh nhân
-                            </button>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[15px] font-semibold text-text-primary">{t('noPatientsTitle')}</p>
+                            <p className="text-[12px] text-text-muted mt-0.5">{t('noPatientsHint')}</p>
                         </div>
+                        <ChevronRight className="w-4.5 h-4.5 text-text-muted" />
                     </div>
-                    {patientFolders.filter((f) => !f.is_virtual || f.record_count > 0).length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-divider px-3 py-4 text-center">
-                            <p className="text-[13px] font-semibold text-text-muted">Bạn chưa có bệnh nhân nào. Hãy thêm bệnh nhân mới để bắt đầu.</p>
-                            <p className="mt-1 text-[12px] text-text-tertiary">Nhấn "Thêm bệnh nhân" để tạo folder đầu tiên.</p>
-                        </div>
-                    ) : (
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setSelectedFolder(null)}
-                                className={cn(
-                                    "rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors",
-                                    selectedFolder === null
-                                        ? "border-accent-blue bg-accent-blue/10 text-accent-blue"
-                                        : "border-border text-text-muted hover:bg-bg-page"
-                                )}
-                            >
-                                Tất cả
-                            </button>
-                            {patientFolders
-                                .filter((f) => !f.is_virtual || f.record_count > 0)
-                                .map((folder) => (
-                                    <button
-                                        key={folder.id || folder.name}
-                                        type="button"
-                                        onClick={() => setSelectedFolder(folder.name)}
-                                        className={cn(
-                                            "rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors",
-                                            selectedFolder === folder.name
-                                                ? "border-accent-blue bg-accent-blue/10 text-accent-blue"
-                                                : "border-border text-text-muted hover:bg-bg-page"
-                                        )}
-                                    >
-                                        {folder.name} ({folder.record_count})
-                                    </button>
-                                ))}
-                        </div>
-                    )}
-                    {selectedFolder && selectedFolderStats && (
-                        <div className="mt-3 rounded-xl border border-border bg-bg-page px-3 py-2.5">
-                            <div className="flex items-center justify-between gap-2">
-                                <p className="text-[12px] font-semibold text-text-primary">
-                                    Chi tiết: {selectedFolder}
-                                    {selectedFolderMeta ? ` (${selectedFolderMeta.record_count})` : ''}
-                                </p>
-                                {selectedFolder.toLowerCase() !== 'unknown patient' && (
-                                    <div className="flex items-center gap-1">
-                                        <button
-                                            type="button"
-                                            onClick={handleRenameFolder}
-                                            disabled={renamingFolder || deletingFolder}
-                                            className="rounded-full p-1.5 text-text-muted hover:bg-bg-surface hover:text-text-primary disabled:opacity-50"
-                                            title="Đổi tên folder"
-                                        >
-                                            {renamingFolder ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Pencil className="w-3.5 h-3.5" />}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleDeleteFolder}
-                                            disabled={renamingFolder || deletingFolder}
-                                            className="rounded-full p-1.5 text-text-muted hover:bg-danger/10 hover:text-danger disabled:opacity-50"
-                                            title="Xóa folder"
-                                        >
-                                            {deletingFolder ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                                        </button>
-                                    </div>
-                                )}
+                </button>
+
+                {visiblePatientFolders.map((folder) => (
+                    <button
+                        key={folder.id || folder.name}
+                        type="button"
+                        onClick={() => router.push(`/patients/${encodeURIComponent(folder.name)}`)}
+                        className="w-full rounded-2xl p-4 text-left border border-transparent bg-bg-card hover:border-border hover:bg-bg-surface transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-full bg-accent-blue/10 flex items-center justify-center">
+                                <FolderOpen className="w-5 h-5 text-accent-blue" />
                             </div>
-                            <p className="mt-1 text-[12px] text-text-muted">
-                                Tổng: {selectedFolderStats.total} | Hoàn tất: {selectedFolderStats.done} | Đang xử lý: {selectedFolderStats.inProgress} | Lỗi: {selectedFolderStats.failed}
-                            </p>
-                            <button
-                                type="button"
-                                onClick={() => router.push(`/patients/${encodeURIComponent(selectedFolder)}`)}
-                                className="mt-2 rounded-full border border-border px-3 py-1.5 text-[12px] font-medium text-text-primary hover:bg-bg-surface"
-                            >
-                                Mở chi tiết folder
-                            </button>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[15px] font-semibold text-text-primary truncate">{folder.name}</p>
+                                <p className="text-[12px] text-text-muted mt-0.5">{t('patientRecordsCount', { count: folder.record_count })}</p>
+                            </div>
+                            <ChevronRight className="w-4.5 h-4.5 text-text-muted" />
                         </div>
-                    )}
-                </div>
+                    </button>
+                ))}
 
                 <h2 className="text-[13px] font-semibold text-text-muted mb-1 px-1">
-                    {t('myRecordings')}
+                    {t('unassigned')}
                     {!isLoading && totalRecordsFromApi >= 0 && (
                         <span className="ml-1 font-normal">(tổng {totalRecordsFromApi} bản ghi)</span>
                     )}
@@ -535,14 +427,14 @@ export default function DashboardPage() {
                         <Loader2 className="w-8 h-8 animate-spin mb-2" />
                         <span className="text-sm font-medium">Đang tải bản ghi...</span>
                     </div>
-                ) : folderFilteredRecordings.length === 0 ? (
+                ) : unassignedRecordings.length === 0 ? (
                     <div className="flex flex-col items-center justify-center p-8 text-center bg-bg-surface rounded-2xl border border-dashed border-divider mt-2">
                         <Stethoscope className="w-10 h-10 text-divider mb-3" />
-                        <p className="text-sm font-semibold text-text-muted">Chưa có bản ghi nào</p>
-                        <p className="text-xs text-text-tertiary mt-1">Bấm nút + để tạo bản ghi mới</p>
+                        <p className="text-sm font-semibold text-text-muted">Chưa có bản ghi chưa gán bệnh nhân</p>
+                        <p className="text-xs text-text-tertiary mt-1">Các bản ghi chưa chọn bệnh nhân sẽ hiển thị ở đây</p>
                     </div>
                 ) : (
-                    folderFilteredRecordings.map(rec => (
+                    unassignedRecordings.map(rec => (
                         <Card
                             key={rec.id}
                             className={cn(
