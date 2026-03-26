@@ -1,18 +1,14 @@
 'use client';
 
-import { useTranslations, useLocale } from 'next-intl';
-import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { soapNoteMockEN, soapNoteMockVI } from '@/lib/mockData';
-import { parseSoapSections } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
 import { useReview } from '../layout';
 import { updateRecord } from '@/lib/api/sttMetrics';
 import { RichTextEditor } from '@/components/RichTextEditor';
 
 export default function SoapNotePage() {
-    const t = useTranslations('Review');
     const locale = useLocale();
-    const router = useRouter();
     const { setSaveStatus, record } = useReview();
 
     const mockData = locale === 'vi' ? soapNoteMockVI : soapNoteMockEN;
@@ -90,16 +86,25 @@ export default function SoapNotePage() {
                 {isLoadingContext ? (
                     <div className="h-14 animate-pulse rounded-xl bg-bg-surface" />
                 ) : contextStatus === 'empty' ? (
-                    <div className="rounded-xl border border-border bg-bg-surface px-3 py-2 text-[13px] text-text-muted">
+                    <div className="rounded-xl border border-border bg-bg-surface px-3 py-2">
+                        <p className="text-[12px] font-semibold text-text-primary mb-1">Context cũ</p>
+                        <p className="text-[13px] text-text-muted">
                         Chưa có dữ liệu khám cũ. Bản SOAP này sẽ được khởi tạo mới hoàn toàn.
+                        </p>
                     </div>
                 ) : contextStatus === 'unknown_patient' ? (
-                    <div className="rounded-xl border border-border bg-bg-surface px-3 py-2 text-[13px] text-text-muted">
+                    <div className="rounded-xl border border-border bg-bg-surface px-3 py-2">
+                        <p className="text-[12px] font-semibold text-text-primary mb-1">Context cũ</p>
+                        <p className="text-[13px] text-text-muted">
                         Chưa gán bệnh nhân, chưa thể lấy context SOAP cũ.
+                        </p>
                     </div>
                 ) : contextText ? (
-                    <div className="rounded-xl border border-border bg-bg-surface px-3 py-2 text-[12px] text-text-muted whitespace-pre-wrap max-h-28 overflow-auto">
-                        {contextText}
+                    <div className="rounded-xl border border-border bg-bg-surface px-3 py-2">
+                        <p className="text-[12px] font-semibold text-text-primary mb-1">Context cũ</p>
+                        <div className="text-[12px] text-text-muted whitespace-pre-wrap max-h-28 overflow-auto">
+                            {contextText}
+                        </div>
                     </div>
                 ) : null}
             </div>

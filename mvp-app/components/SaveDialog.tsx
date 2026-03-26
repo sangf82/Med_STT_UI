@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { ChevronDown } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import { getMyRecords } from '@/lib/api/sttMetrics';
 
 export interface SaveDialogProps {
     onCancel: () => void;
@@ -19,7 +20,10 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
     const [patientName, setPatientName] = useState('');
     const [format, setFormat] = useState<FormatKey>('soap');
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
+    const [patientOptions, setPatientOptions] = useState<string[]>([]);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const patientDropdownRef = useRef<HTMLDivElement>(null);
 
     const formatOptions: { key: FormatKey; labelKey: string }[] = [
         { key: 'soap', labelKey: 'formatSoap' },
@@ -41,6 +45,40 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, [dropdownOpen]);
+
+    useEffect(() => {
+        if (!patientDropdownOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (patientDropdownRef.current && !patientDropdownRef.current.contains(e.target as Node)) {
+                setPatientDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [patientDropdownOpen]);
+
+    useEffect(() => {
+        let cancelled = false;
+        getMyRecords(0, 100)
+            .then((res) => {
+                if (cancelled) return;
+                const uniquePatients = Array.from(
+                    new Set(
+                        (res?.items || [])
+                            .map((item) => (item.patient_name || '').trim())
+                            .filter(Boolean)
+                    )
+                );
+                setPatientOptions(uniquePatients);
+                if (!patientName && uniquePatients.length > 0) {
+                    setPatientName(uniquePatients[0]);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setPatientOptions([]);
+            });
+        return () => { cancelled = true; };
+    }, []);
 
     return (
         <div className="absolute inset-0 z-50 flex items-center justify-center px-6 bg-bg-overlay fade-in">
@@ -72,13 +110,51 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
 
                 <span className="text-[13px] text-text-muted">Assign to Patient</span>
                 <div className="h-1" />
-                <input
-                    type="text"
-                    value={patientName}
-                    onChange={(e) => setPatientName(e.target.value)}
-                    placeholder="Assign to Patient"
-                    className="w-full text-[15px] text-text-primary bg-transparent border-b border-b-[#CCCCCC] pb-2 outline-none focus:border-b-accent-blue transition-colors"
-                />
+                <div ref={patientDropdownRef} className="relative">
+                    <button
+                        onClick={() => setPatientDropdownOpen((v) => !v)}
+                        className="w-full flex items-center justify-between py-1 transition-opacity active:opacity-60"
+                    >
+                        <span className={`text-[16px] font-bold ${patientName ? 'text-text-primary' : 'text-text-muted'}`}>
+                            {patientName || 'Unknown Patient'}
+                        </span>
+                        <ChevronDown
+                            className={`w-4 h-4 text-text-muted transition-transform ${patientDropdownOpen ? 'rotate-180' : ''}`}
+                        />
+                    </button>
+                    <div className="h-px w-full bg-[#D0D0D0]" />
+                    {patientDropdownOpen && (
+                        <div className="absolute left-0 top-full mt-1 w-full bg-save-card-bg rounded-xl shadow-card border border-border z-10 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150 max-h-44 overflow-y-auto">
+                            <button
+                                onClick={() => {
+                                    setPatientName('');
+                                    setPatientDropdownOpen(false);
+                                }}
+                                className={`w-full text-left px-4 py-2.5 text-[15px] transition-colors ${!patientName
+                                    ? 'text-accent-blue font-semibold bg-accent-blue/10'
+                                    : 'text-text-primary hover:bg-bg-surface'
+                                    }`}
+                            >
+                                Unknown Patient
+                            </button>
+                            {patientOptions.map((patient) => (
+                                <button
+                                    key={patient}
+                                    onClick={() => {
+                                        setPatientName(patient);
+                                        setPatientDropdownOpen(false);
+                                    }}
+                                    className={`w-full text-left px-4 py-2.5 text-[15px] transition-colors ${patientName === patient
+                                        ? 'text-accent-blue font-semibold bg-accent-blue/10'
+                                        : 'text-text-primary hover:bg-bg-surface'
+                                        }`}
+                                >
+                                    {patient}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
 
                 <div className="h-5" />
 
