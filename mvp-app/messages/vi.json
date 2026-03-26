@@ -133,6 +133,20 @@
     "purpose": "Mục đích",
     "status": "Trạng thái"
   },
+  "Records": {
+    "title": "Danh sách bản ghi",
+    "subtitle": "{total} bản ghi",
+    "loading": "Đang tải...",
+    "empty": "Chưa có bản ghi nào.",
+    "loadError": "Không tải được danh sách bản ghi.",
+    "recordFallback": "Bản ghi {idSuffix}",
+    "status": {
+      "processing": "Đang xử lý",
+      "completed": "Hoàn thành",
+      "failed": "Thất bại",
+      "pending": "Đang chờ"
+    }
+  },
   "Badge": {
     "transcribed": "Đã chuyển đổi",
     "transcribing": "Đang chuyển đổi",

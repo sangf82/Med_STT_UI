@@ -133,6 +133,20 @@
     "purpose": "Purpose",
     "status": "Status"
   },
+  "Records": {
+    "title": "Records",
+    "subtitle": "{total} records",
+    "loading": "Loading...",
+    "empty": "No records yet.",
+    "loadError": "Unable to load records.",
+    "recordFallback": "Record {idSuffix}",
+    "status": {
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "pending": "Pending"
+    }
+  },
   "Badge": {
     "transcribed": "Transcribed",
     "transcribing": "Transcribing",
