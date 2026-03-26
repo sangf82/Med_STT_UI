@@ -59,6 +59,19 @@ export interface SttRecordsResponse {
   limit: number;
 }
 
+export interface PatientFolder {
+  id?: string | null;
+  name: string;
+  record_count: number;
+  latest_record_at?: string | null;
+  is_virtual?: boolean;
+}
+
+export interface PatientFoldersResponse {
+  items: PatientFolder[];
+  total: number;
+}
+
 export interface SttTranscriptionResponse {
   response?: {
     refined_text: string;
@@ -234,6 +247,41 @@ export const getMyRecords = (skip = 0, limit = 50, output_format?: string) => {
 
 export const getRecordById = (recordId: string) =>
   apiClient<SttRecord>(`/stt-metrics/me/records/${recordId}`);
+
+export const getMyPatientFolders = () =>
+  apiClient<PatientFoldersResponse>("/stt-metrics/me/patient-folders", {
+    cache: "no-store",
+  });
+
+export const createMyPatientFolder = (name: string) =>
+  apiClient<{ id: string; name: string }>("/stt-metrics/me/patient-folders", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+
+export const renameMyPatientFolder = (folderName: string, newName: string) =>
+  apiClient<{ name: string; renamed: boolean }>(`/stt-metrics/me/patient-folders/${encodeURIComponent(folderName)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ new_name: newName }),
+  });
+
+export const deleteMyPatientFolder = (folderName: string, clearRecords = true) =>
+  apiClient<{ deleted: boolean; clear_records: boolean }>(
+    `/stt-metrics/me/patient-folders/${encodeURIComponent(folderName)}`,
+    {
+      method: "DELETE",
+      params: { clear_records: String(clearRecords) },
+    },
+  );
+
+export const getPatientFolderRecords = (folderName: string, skip = 0, limit = 50) =>
+  apiClient<SttRecordsResponse>(`/stt-metrics/me/patient-folders/${encodeURIComponent(folderName)}/records`, {
+    params: {
+      skip: String(skip),
+      limit: String(limit),
+    },
+    cache: "no-store",
+  });
 
 export const updateRecord = (
   recordId: string,

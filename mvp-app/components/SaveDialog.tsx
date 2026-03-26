@@ -8,16 +8,17 @@ import { getMyRecords } from '@/lib/api/sttMetrics';
 export interface SaveDialogProps {
     onCancel: () => void;
     onSave: (name: string, format: string, patientName: string) => void;
+    initialPatientName?: string;
 }
 
 type FormatKey = 'soap' | 'clinical' | 'todo' | 'raw';
 
-export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
+export function SaveDialog({ onCancel, onSave, initialPatientName }: SaveDialogProps) {
     const t = useTranslations('Recording');
     const defaultName = `Ca khám ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '')}` +
         `_${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '')}`;
     const [name, setName] = useState(defaultName);
-    const [patientName, setPatientName] = useState('');
+    const [patientName, setPatientName] = useState((initialPatientName || '').trim());
     const [format, setFormat] = useState<FormatKey>('soap');
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
@@ -79,6 +80,11 @@ export function SaveDialog({ onCancel, onSave }: SaveDialogProps) {
             });
         return () => { cancelled = true; };
     }, []);
+
+    useEffect(() => {
+        const value = (initialPatientName || '').trim();
+        if (value) setPatientName(value);
+    }, [initialPatientName]);
 
     return (
         <div className="absolute inset-0 z-50 flex items-center justify-center px-6 bg-bg-overlay fade-in">

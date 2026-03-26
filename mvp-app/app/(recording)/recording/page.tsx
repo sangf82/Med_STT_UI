@@ -10,7 +10,7 @@ import type { ControlState } from '@/components/RecordingControls';
 import { SaveDialog } from '@/components/SaveDialog';
 import { formatTimeMs } from '@/lib/utils';
 import { Loader2, MoreVertical } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { getMyUsage, type OutputFormat, AVAILABLE_OUTPUT_FORMATS, initStreamUpload, streamEndUpload, uploadChunkWithRetry } from '@/lib/api/sttMetrics';
@@ -26,6 +26,8 @@ import { useAppContext } from '@/context/AppContext';
 export default function RecordingPage() {
     const t = useTranslations('Recording');
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const initialPatientName = (searchParams.get('patient') || '').trim();
 
     const recorder = useAudioRecorder();
     const { showSurvey, setShowSurvey, addActiveUploadId, removeActiveUploadId } = useAppContext();
@@ -537,6 +539,7 @@ export default function RecordingPage() {
                 <SaveDialog
                     onCancel={handleCancelSave}
                     onSave={handleConfirmSave}
+                    initialPatientName={initialPatientName}
                 />
             )}
             {durationWarning && (
