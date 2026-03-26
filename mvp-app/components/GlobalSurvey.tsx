@@ -23,7 +23,7 @@ export function GlobalSurvey() {
 
     return (
         <>
-            {showSurvey && !isRecordingPage && <SurveyDialog onClose={() => setShowSurvey(false)} />}
+            {showSurvey && <SurveyDialog onClose={() => setShowSurvey(false)} />}
             {showDailyReport && !isRecordingPage && <DailyReportDialog onClose={() => setShowDailyReport(false)} />}
         </>
     );
