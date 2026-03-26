@@ -172,6 +172,8 @@
     "ehrPlaceholder": "Clinical summary will appear here.",
     "todoPlaceholder1": "Add medication adjustment task",
     "todoPlaceholder2": "Add follow-up reminder",
+    "emptyTitle": "No SOAP, EHR, or To-do notes yet",
+    "emptySubtitle": "Start recording to generate your first note for this patient.",
     "saving": "Saving...",
     "saved": "Saved",
     "saveError": "Save failed",

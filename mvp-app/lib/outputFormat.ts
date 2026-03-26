@@ -14,15 +14,22 @@ export function normalizeOutputFormatToken(value?: string): CanonicalOutputForma
   if (
     normalized === 'ehr' ||
     normalized === 'clinical' ||
-    ascii === 'tom_tat_lam_sang'
+    normalized === 'ehr_summary' ||
+    normalized === 'clinical_summary' ||
+    ascii === 'tom_tat_lam_sang' ||
+    ascii === 'tom_tat_ehr'
   ) return 'ehr';
 
   if (
     normalized === 'to-do' ||
+    normalized === 'to_do' ||
     normalized === 'todo' ||
     normalized === 'todo_list' ||
     normalized === 'todo-list' ||
-    ascii === 'viec_can_lam'
+    normalized === 'to_do_list' ||
+    normalized === 'task_list' ||
+    ascii === 'viec_can_lam' ||
+    ascii === 'danh_sach_cong_viec'
   ) return 'to-do';
 
   if (

@@ -88,6 +88,11 @@ export default function PatientFolderPage() {
     [t]
   );
 
+  const availableTabs = useMemo(
+    () => TAB_ORDER.filter((tab) => Boolean(recordsByTab[tab])),
+    [recordsByTab]
+  );
+
   const activeRecord = recordsByTab[activeTab];
 
   const loadFolder = useCallback(async () => {
@@ -125,14 +130,20 @@ export default function PatientFolderPage() {
   }, [loadFolder]);
 
   useEffect(() => {
+    if (availableTabs.length === 0) return;
+    if (!availableTabs.includes(activeTab)) {
+      setActiveTab(availableTabs[0]);
+    }
+  }, [activeTab, availableTabs]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const loadTabContent = async () => {
       if (!activeRecord?.id) {
-        const fallback = getTemplateForTab(activeTab, t);
         if (!isMounted) return;
-        setContent(fallback);
-        lastLoadedContentRef.current = fallback;
+        setContent('');
+        lastLoadedContentRef.current = '';
         setSaveStatus('idle');
         return;
       }
@@ -224,7 +235,7 @@ export default function PatientFolderPage() {
             </button>
           </div>
           <div className="mt-1 flex border-b border-border/80">
-            {TAB_ORDER.map((tab) => {
+            {availableTabs.map((tab) => {
               const isActive = activeTab === tab;
               return (
                 <button
@@ -244,7 +255,7 @@ export default function PatientFolderPage() {
           </div>
           <div id="editor-toolbar" className="flex items-center border-b border-border/80 bg-bg-page">
             <div className="min-w-0 flex-1">
-              <EditorToolbar editor={editorInstance} />
+              {availableTabs.length > 0 && <EditorToolbar editor={editorInstance} />}
             </div>
             <div className="ml-2 shrink-0 pr-2">{saveBadge}</div>
           </div>
@@ -255,6 +266,12 @@ export default function PatientFolderPage() {
             <div className="flex h-full items-center justify-center text-text-muted">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               <span className="text-sm">{t('loading')}</span>
+            </div>
+          ) : availableTabs.length === 0 ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+              <p className="text-[16px] font-semibold text-text-primary">{t('emptyTitle')}</p>
+              <p className="mt-2 text-[13px] text-text-muted">{t('emptySubtitle')}</p>
+              
             </div>
           ) : (
             <RichTextEditor

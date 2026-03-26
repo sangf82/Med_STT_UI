@@ -172,6 +172,8 @@
     "ehrPlaceholder": "Tóm tắt lâm sàng sẽ hiển thị tại đây.",
     "todoPlaceholder1": "Thêm việc điều chỉnh thuốc",
     "todoPlaceholder2": "Thêm nhắc lịch tái khám",
+    "emptyTitle": "Chưa có ghi chú SOAP, EHR hoặc việc cần làm",
+    "emptySubtitle": "Hãy bắt đầu ghi âm để tạo ghi chú đầu tiên cho bệnh nhân này.",
     "saving": "Đang lưu...",
     "saved": "Đã lưu",
     "saveError": "Lưu thất bại",

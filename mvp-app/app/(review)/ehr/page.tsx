@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useTranslations, useLocale } from 'next-intl';
+import { useLocale } from 'next-intl';
 import { ehrSummaryMockEN, ehrSummaryMockVI } from '@/lib/mockData';
 import { useReview } from '../layout';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -15,7 +15,7 @@ export default function EhrSummaryPage() {
     const data = locale === 'vi' ? ehrSummaryMockVI : ehrSummaryMockEN;
     const initialContent = record?.content || record?.refined_text || record?.raw_text || data;
     const [content, setContent] = useState(initialContent);
-    const timeoutRef = useRef<NodeJS.Timeout>(null);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         if (record) {
@@ -42,6 +42,14 @@ export default function EhrSummaryPage() {
             }
         }, 1000);
     };
+
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
 
     return (
         <div className="flex-1 flex flex-col fade-in">

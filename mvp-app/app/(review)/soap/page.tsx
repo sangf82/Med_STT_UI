@@ -14,8 +14,7 @@ export default function SoapNotePage() {
     const mockData = locale === 'vi' ? soapNoteMockVI : soapNoteMockEN;
     const initialContent = record?.content || record?.refined_text || record?.raw_text || mockData;
     const [content, setContent] = useState(initialContent);
-    const timeoutRef = useRef<NodeJS.Timeout>(null);
-    const lastEditAtRef = useRef<number>(0);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isLoadingContext, setIsLoadingContext] = useState(false);
     const [contextText, setContextText] = useState('');
     const [contextStatus, setContextStatus] = useState<string>('');
@@ -66,19 +65,19 @@ export default function SoapNotePage() {
     const handleChange = (newContent: string) => {
         setContent(newContent);
         setSaveStatus('saving');
-        const now = Date.now();
-        const diff = now - lastEditAtRef.current;
-        lastEditAtRef.current = now;
-
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        if (diff > 5000) {
-            void autosave(newContent);
-            return;
-        }
         timeoutRef.current = setTimeout(() => {
             void autosave(newContent);
-        }, 15000);
+        }, 1000);
     };
+
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
 
     return (
         <div className="flex-1 flex flex-col fade-in">
