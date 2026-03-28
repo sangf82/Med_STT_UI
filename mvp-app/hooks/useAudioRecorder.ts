@@ -35,6 +35,9 @@ export interface UseAudioRecorderReturn {
 
 const LEVEL_INTERVAL = 60; // ms between level samples
 
+/** Opus in WebM: higher bitrate = clearer speech/music; browser may cap or ignore. */
+const RECORDING_AUDIO_BITS_PER_SECOND = 256_000;
+
 export function useAudioRecorder(): UseAudioRecorderReturn {
     const [state, setState] = useState<RecorderState>('idle');
     const [timeMs, setTimeMs] = useState(0);
@@ -112,11 +115,11 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    sampleRate: 48000,
-                    channelCount: 1,
+                    sampleRate: { ideal: 48_000 },
+                    channelCount: { ideal: 1 },
+                    echoCancellation: { ideal: false },
+                    noiseSuppression: { ideal: false },
+                    autoGainControl: { ideal: false },
                 }
             });
             streamRef.current = stream;
@@ -136,10 +139,15 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
                 ? 'audio/webm;codecs=opus'
                 : 'audio/webm';
             mimeTypeRef.current = mimeType;
-            const recorder = new MediaRecorder(stream, { 
-                mimeType,
-                audioBitsPerSecond: 128000
-            });
+            let recorder: MediaRecorder;
+            try {
+                recorder = new MediaRecorder(stream, {
+                    mimeType,
+                    audioBitsPerSecond: RECORDING_AUDIO_BITS_PER_SECOND,
+                });
+            } catch {
+                recorder = new MediaRecorder(stream, { mimeType });
+            }
             mediaRecorderRef.current = recorder;
             chunksRef.current = [];
 

@@ -217,11 +217,11 @@ export default function DashboardPage() {
             micRequested.current = true;
             navigator.mediaDevices.getUserMedia({
                 audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    sampleRate: 48000,
-                    channelCount: 1,
+                    sampleRate: { ideal: 48_000 },
+                    channelCount: { ideal: 1 },
+                    echoCancellation: { ideal: false },
+                    noiseSuppression: { ideal: false },
+                    autoGainControl: { ideal: false },
                 }
             })
                 .then((stream) => { stream.getTracks().forEach((track) => track.stop()); })
