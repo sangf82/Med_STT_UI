@@ -497,7 +497,7 @@ export default function RecordingPage() {
                 }
             />
 
-            <div className="flex-1 flex flex-col items-center pt-6 pb-[34px]">
+            <div className="flex-1 flex flex-col items-center pt-6 pb-8.5">
 
                 {/* Timer (or "Starting..." while mic is being requested) */}
                 <div className="text-[52px] font-light leading-none tracking-tight text-center">

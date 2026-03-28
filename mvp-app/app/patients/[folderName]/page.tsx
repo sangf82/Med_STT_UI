@@ -261,7 +261,7 @@ export default function PatientFolderPage() {
             <div className="flex min-w-0 items-center gap-2">
               <button
                 type="button"
-                onClick={() => router.back()}
+                onClick={() => router.push('/dashboard')}
                 className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg-surface"
                 aria-label={t('back')}
               >

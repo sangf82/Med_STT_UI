@@ -112,9 +112,9 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
                     sampleRate: 16000,
                     channelCount: 1,
                 }
