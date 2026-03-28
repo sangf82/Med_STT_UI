@@ -87,19 +87,21 @@
 | D1 | Audio Detail | Header (back, title, saving status, triple-dot menu), tab bar (Formatted / Raw), editor toolbar (bold, italic, font size, align), transcript content with audio player |
 | D2 | EHR Summary | Same header + editor toolbar, structured EHR output (Chief Complaint, HPI, Assessment, Plan sections) |
 | D3 | Free Text | Same header + editor toolbar, plain text transcript |
-| D4 | Menu Popup | D1 with triple-dot menu open — options: Rename, Record Info, Delete |
+| D4 | Menu Popup | D1 with edit icon menu open — options: Rename, Convert, Delete |
 | D5 | Rename Dialog | D1 with rename overlay card — text input + Save/Cancel |
-| D6 | Record Info | Back arrow → D1, read-only info: file name, format, duration, date, assigned patient, sync status |
+| D6 | Convert Dialog | D1 with convert overlay card — dropdown to pick output format (like C4), Cancel/Convert buttons |
 
 **Flow:**
 - B1/B2/E1 → tap any record card → D1 (or D2/D3 depending on output format)
 - D1 → tap tab "Formatted" / "Raw" → switch content view
 - D1 → edit text → saving status appears in header ("Saving..." → "Saved")
-- D1 → tap triple-dot (⋯) → D4 Menu Popup
+- D1 → tap edit icon (✏️) → D4 Menu Popup
 - D4 → tap "Rename" → D5 Rename Dialog
-- D4 → tap "Record Info" → D6
+- D4 → tap "Convert" → D6 Convert Dialog
+- D4 → tap "Delete" → confirm deletion → B1
 - D5 → tap "Save" → D1 (title updated)
-- D6 → back → D1
+- D6 → select format from dropdown → tap "Convert" → D1/D2/D3 (converted)
+- D6 → tap "Cancel" → D4
 - D1 → back → previous screen (B1/E1)
 
 ---
