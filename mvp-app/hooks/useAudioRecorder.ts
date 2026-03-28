@@ -115,7 +115,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
                     echoCancellation: false,
                     noiseSuppression: false,
                     autoGainControl: false,
-                    sampleRate: 16000,
+                    sampleRate: 48000,
                     channelCount: 1,
                 }
             });
