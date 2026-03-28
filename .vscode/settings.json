@@ -1,7 +1,8 @@
 {
     "chat.tools.terminal.autoApprove": {
-        "uv": true,
-        "ConvertFrom-Json": true,
-        "ForEach-Object": true
+        "/^\\$content = Get-Content \"c:\\\\Users\\\\sluon\\\\AppData\\\\Roaming\\\\Code\\\\User\\\\workspaceStorage\\\\f017754303d2b672809189e904baf2e0\\\\GitHub\\.copilot-chat\\\\chat-session-resources\\\\14ac5d6a-1225-495e-9ccb-319797c942b9\\\\toolu_vrtx_014qcdjVV471jtr8BFFHa4kn__vscode-1774640733116\\\\content\\.json\" \\| ConvertFrom-Json; \\$matches = Select-String -InputObject \\(\\$content \\| ConvertTo-Json -Depth 20\\) -Pattern '\"fill\": \"#E63946\"' -AllMatches; Write-Output \"E63946 count: \\$\\(\\$matches\\.Matches\\.Count\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }
