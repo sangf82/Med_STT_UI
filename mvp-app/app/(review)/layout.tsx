@@ -8,13 +8,23 @@ import { TabBar } from '@/components/TabBar';
 import { BottomBar } from '@/components/BottomBar';
 import { Badge } from '@/components/Badge';
 import { MenuPopup } from '@/components/MenuPopup';
-import { Copy, MoreVertical, ChevronLeft, Loader, AlertCircle, RefreshCw } from 'lucide-react';
+import { Copy, MoreVertical, ChevronLeft, Loader, AlertCircle, RefreshCw, Wand2 } from 'lucide-react';
 import { Dialog } from '@/components/Dialog';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { useAppContext } from '@/context/AppContext';
-import { getRecordById, updateRecord, retryRecord, deleteRecord } from '@/lib/api/sttMetrics';
-import type { SttRecord } from '@/lib/api/sttMetrics';
+import {
+    getRecordById,
+    updateRecord,
+    retryRecord,
+    deleteRecord,
+    sttChangeFormat,
+    refinedTextFromChangeFormatResponse,
+    AVAILABLE_OUTPUT_FORMATS,
+    normalizeOutputFormat,
+    type SttRecord,
+    type OutputFormat,
+} from '@/lib/api/sttMetrics';
 import { formatDurationSec } from '@/lib/utils';
 
 
@@ -50,6 +60,10 @@ export default function ReviewLayout({
     const [isRetrying, setIsRetrying] = useState(false);
     const [retryError, setRetryError] = useState<string | null>(null);
     const [timedOutAfterRetries, setTimedOutAfterRetries] = useState(false);
+    const [convertOpen, setConvertOpen] = useState(false);
+    const [convertTargetFormat, setConvertTargetFormat] = useState<OutputFormat>('soap_note');
+    const [convertLoading, setConvertLoading] = useState(false);
+    const [convertError, setConvertError] = useState<string | null>(null);
     const pollStartTimeRef = useRef(0);
     const autoRetryCountRef = useRef(0);
     const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -136,6 +150,70 @@ export default function ReviewLayout({
             }
         };
     }, [recordId, recordData?.status]);
+
+    useEffect(() => {
+        if (!convertOpen || !recordData) return;
+        const c = normalizeOutputFormat(String(recordData.output_format || 'soap_note'));
+        const alt = AVAILABLE_OUTPUT_FORMATS.find((f) => f !== c) ?? 'soap_note';
+        setConvertTargetFormat(alt);
+        setConvertError(null);
+    }, [convertOpen, recordData?.output_format]);
+
+    const canConvertFormat =
+        Boolean(recordData?.status === 'completed' && (recordData.raw_text || '').trim());
+
+    const formatLabels: Record<OutputFormat, string> = {
+        soap_note: 'Ghi chú SOAP',
+        ehr: 'Tóm tắt lâm sàng (EHR)',
+        'to-do': 'Việc cần làm',
+        freetext: 'Văn bản tự do',
+    };
+
+    const handleConvertSubmit = async () => {
+        if (!recordId || !recordData?.raw_text?.trim()) return;
+        setConvertLoading(true);
+        setConvertError(null);
+        try {
+            const target = convertTargetFormat;
+            const res = await sttChangeFormat({
+                raw_text: recordData.raw_text,
+                output_format: target,
+            });
+            const text = refinedTextFromChangeFormatResponse(res);
+            if (!text) {
+                setConvertError('Dịch vụ không trả nội dung hợp lệ.');
+                return;
+            }
+            await updateRecord(recordId, {
+                content: text,
+                refined_text: text,
+                output_format: target,
+                patient_name: recordData.patient_name,
+            });
+            const updated = await getRecordById(recordId);
+            setRecordData(updated);
+            setRecordingName(updated.display_name || recordingName);
+            setConvertOpen(false);
+            const tab =
+                target === 'soap_note'
+                    ? 'soap'
+                    : target === 'ehr'
+                      ? 'ehr'
+                      : target === 'to-do'
+                        ? 'todo'
+                        : 'raw';
+            router.replace(`/${tab}?id=${recordId}`);
+        } catch (e: unknown) {
+            const err = e as { message?: string; data?: { detail?: string } };
+            setConvertError(
+                typeof err?.data?.detail === 'string'
+                    ? err.data.detail
+                    : err?.message ?? 'Chuyển định dạng thất bại.',
+            );
+        } finally {
+            setConvertLoading(false);
+        }
+    };
 
     const format = useMemo(() => {
         if (!recordData) return 'None';
@@ -344,7 +422,21 @@ export default function ReviewLayout({
                             <div className="flex-1 flex items-center h-full">
                                 <TabBar tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
                             </div>
-                            <div className="flex items-center justify-center p-1 mr-1">
+                            <div className="flex items-center justify-center p-1 mr-1 gap-0.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setConvertOpen(true)}
+                                    disabled={!canConvertFormat}
+                                    title={
+                                        canConvertFormat
+                                            ? 'Chuyển định dạng từ raw text'
+                                            : 'Cần bản ghi hoàn thành và có văn bản raw'
+                                    }
+                                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 transition-all text-accent-blue disabled:opacity-35 disabled:pointer-events-none"
+                                    aria-label="Chuyển định dạng"
+                                >
+                                    <Wand2 className="w-4.5 h-4.5" />
+                                </button>
                                 <button
                                     onClick={handleCopy}
                                     className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 transition-all text-brand-orange"
@@ -458,6 +550,61 @@ export default function ReviewLayout({
                                     {t('rename')}
                                 </button>
                             </div>
+                        </div>
+                    </Dialog>
+
+                    {/* Chuyển định dạng (raw → AI format khác) */}
+                    <Dialog
+                        open={convertOpen}
+                        onOpenChange={(o) => {
+                            setConvertOpen(o);
+                            if (!o) setConvertError(null);
+                        }}
+                        title="Chuyển định dạng"
+                    >
+                        <p className="text-[13px] text-text-secondary leading-snug px-0.5">
+                            Dùng văn bản <span className="font-semibold">raw</span> của bản ghi và AI để tạo lại theo định dạng bạn chọn. Nội dung đang sửa sẽ được thay bằng kết quả mới.
+                        </p>
+                        <label className="block text-[12px] font-semibold text-text-primary mt-1">
+                            Định dạng đích
+                            <select
+                                className="mt-1.5 w-full rounded-xl border border-border bg-bg-page px-3 py-2.5 text-[15px] text-text-primary outline-none focus:border-accent-blue"
+                                value={convertTargetFormat}
+                                onChange={(e) =>
+                                    setConvertTargetFormat(normalizeOutputFormat(e.target.value))
+                                }
+                            >
+                                {AVAILABLE_OUTPUT_FORMATS.map((f) => (
+                                    <option key={f} value={f}>
+                                        {formatLabels[f]}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        {convertError ? (
+                            <p className="text-[12px] text-danger px-0.5">{convertError}</p>
+                        ) : null}
+                        <div className="flex items-center justify-between pt-2 gap-2">
+                            <button
+                                type="button"
+                                className="flex-1 text-center text-[15px] font-semibold text-text-secondary active:scale-95 transition-transform py-2.5"
+                                onClick={() => setConvertOpen(false)}
+                                disabled={convertLoading}
+                            >
+                                Hủy
+                            </button>
+                            <div className="w-px h-5 bg-border shrink-0" />
+                            <button
+                                type="button"
+                                className="flex-1 text-center text-[15px] font-semibold text-accent-blue active:scale-95 transition-transform py-2.5 inline-flex items-center justify-center gap-2"
+                                onClick={() => void handleConvertSubmit()}
+                                disabled={convertLoading || !canConvertFormat}
+                            >
+                                {convertLoading ? (
+                                    <Loader className="w-4 h-4 animate-spin" />
+                                ) : null}
+                                Chuyển
+                            </button>
                         </div>
                     </Dialog>
 

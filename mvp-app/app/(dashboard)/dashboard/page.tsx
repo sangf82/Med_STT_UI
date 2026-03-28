@@ -217,7 +217,6 @@ export default function DashboardPage() {
             micRequested.current = true;
             navigator.mediaDevices.getUserMedia({
                 audio: {
-                    sampleRate: { ideal: 48_000 },
                     channelCount: { ideal: 1 },
                     echoCancellation: { ideal: false },
                     noiseSuppression: { ideal: false },

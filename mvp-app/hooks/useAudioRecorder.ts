@@ -35,8 +35,8 @@ export interface UseAudioRecorderReturn {
 
 const LEVEL_INTERVAL = 60; // ms between level samples
 
-/** Opus in WebM: higher bitrate = clearer speech/music; browser may cap or ignore. */
-const RECORDING_AUDIO_BITS_PER_SECOND = 256_000;
+/** Opus in WebM: request high bitrate; browser may cap or ignore (common cap ~128–256). */
+const RECORDING_AUDIO_BITS_PER_SECOND = 320_000;
 
 export function useAudioRecorder(): UseAudioRecorderReturn {
     const [state, setState] = useState<RecorderState>('idle');
@@ -113,9 +113,9 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         onChunkRef.current = options?.onChunk ?? null;
         streamChunkIndexRef.current = 0;
         try {
+            // No sampleRate constraint: let OS use native mic rate (often 48 kHz), closer to native recorders.
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    sampleRate: { ideal: 48_000 },
                     channelCount: { ideal: 1 },
                     echoCancellation: { ideal: false },
                     noiseSuppression: { ideal: false },
@@ -125,7 +125,17 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
             streamRef.current = stream;
 
             // Set up Web Audio API analyser for levels
-            const audioCtx = new AudioContext();
+            const track = stream.getAudioTracks()[0];
+            const nativeRate = track?.getSettings?.().sampleRate;
+            let audioCtx: AudioContext;
+            try {
+                audioCtx = new AudioContext({
+                    latencyHint: 'interactive',
+                    ...(typeof nativeRate === 'number' && nativeRate > 0 ? { sampleRate: nativeRate } : {}),
+                });
+            } catch {
+                audioCtx = new AudioContext({ latencyHint: 'interactive' });
+            }
             audioCtxRef.current = audioCtx;
             const source = audioCtx.createMediaStreamSource(stream);
             const analyser = audioCtx.createAnalyser();

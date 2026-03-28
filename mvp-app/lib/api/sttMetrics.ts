@@ -194,6 +194,29 @@ export function sttChangeFormat(payload: {
   });
 }
 
+function pickStr(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+/** Đọc nội dung đã convert từ response Modal (nhiều dạng key). */
+export function refinedTextFromChangeFormatResponse(
+  res: SttChangeFormatResponse,
+): string {
+  let t = pickStr(res.refined_text);
+  if (t) return t;
+  t = pickStr(res.text);
+  if (t) return t;
+  const j = res.json;
+  if (j && typeof j === "object") {
+    const o = j as Record<string, unknown>;
+    for (const k of ["refined_text", "text", "result", "output"]) {
+      t = pickStr(o[k]);
+      if (t) return t;
+    }
+  }
+  return "";
+}
+
 // --- API Functions ---
 
 // 1. Usage Management
@@ -309,14 +332,24 @@ export const getPatientFolderRecords = (folderName: string, skip = 0, limit = 50
 
 export const updateRecord = (
   recordId: string,
-  payload: { content?: string; display_name?: string; patient_name?: string },
+  payload: {
+    content?: string;
+    display_name?: string;
+    patient_name?: string;
+    output_format?: OutputFormat | string;
+    refined_text?: string;
+  },
 ) => {
   // NOTE: The backend requires "content" field in the PATCH body.
   // Ensure all callers provide it. If you only want to update display_name,
   // you must still provide the current content.
+  const body: Record<string, unknown> = { ...payload };
+  if (payload.output_format !== undefined) {
+    body.output_format = normalizeOutputFormat(String(payload.output_format));
+  }
   return apiClient<SttRecord>(`/stt-metrics/me/records/${recordId}`, {
     method: "PATCH",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
 };
 
