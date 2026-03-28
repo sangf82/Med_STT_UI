@@ -278,7 +278,7 @@ export default function ReviewLayout({
         if (saveStatus === 'saving') {
             return (
                 <Badge variant="progress" className="mr-1 flex items-center gap-1.5 px-2.5">
-                    <Loader className="w-[12px] h-[12px] animate-spin" />
+                    <Loader className="w-3 h-3 animate-spin" />
                     <span>{d('saving')}</span>
                 </Badge>
             );
@@ -287,13 +287,13 @@ export default function ReviewLayout({
     };
 
     return (
-        <div className="relative min-h-screen bg-bg-page text-text-primary max-w-md mx-auto w-full shadow-lg flex flex-col fade-in pt-[5px] overflow-x-hidden">
+        <div className="relative min-h-screen bg-bg-page text-text-primary max-w-md mx-auto w-full shadow-lg flex flex-col fade-in pt-1.25 overflow-x-hidden">
             <Suspense fallback={<div className="min-h-screen bg-bg-page" />}>
                 <ReviewContext.Provider value={{ setSaveStatus, record }}>
 
                     {/* Header is dynamic based on edit mode */}
                     {!isEditMode ? (
-                        <header className="sticky top-0 z-40 flex items-center justify-between min-h-[64px] pt-4 px-4 w-full bg-bg-page text-text-primary tracking-tight">
+                        <header className="sticky top-0 z-40 flex items-center justify-between min-h-16 pt-4 px-4 w-full bg-bg-page text-text-primary tracking-tight">
                             <div className="flex items-center gap-1 min-w-0">
                                 <button
                                     onClick={() => {
@@ -340,7 +340,7 @@ export default function ReviewLayout({
 
                     {/* Tabs (Hidden in Edit mode) */}
                     {!isEditMode && (
-                        <div className="flex items-center w-full bg-bg-card dark:bg-bg-page shadow-[0_4px_12px_rgba(0,0,0,0.03)] dark:shadow-none z-20 sticky top-[64px] h-[48px] transition-all">
+                        <div className="flex items-center w-full bg-bg-card dark:bg-bg-page shadow-[0_4px_12px_rgba(0,0,0,0.03)] dark:shadow-none z-20 sticky top-16 h-12 transition-all">
                             <div className="flex-1 flex items-center h-full">
                                 <TabBar tabs={tabs} activeTab={activeTab} onTabChange={handleTabChange} />
                             </div>
@@ -350,7 +350,7 @@ export default function ReviewLayout({
                                     className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 transition-all text-brand-orange"
                                     aria-label="Copy"
                                 >
-                                    <Copy className="w-[18px] h-[18px]" />
+                                    <Copy className="w-4.5 h-4.5" />
                                 </button>
                             </div>
                         </div>
@@ -409,7 +409,7 @@ export default function ReviewLayout({
                                 <p className="text-[16px] font-medium text-text-primary mb-2">
                                     {t('transcribingDetail')}
                                 </p>
-                                <p className="text-[13px] text-text-muted max-w-[280px]">
+                                <p className="text-[13px] text-text-muted max-w-70">
                                     {t('transcribingStuckHint')}
                                 </p>
                             </div>

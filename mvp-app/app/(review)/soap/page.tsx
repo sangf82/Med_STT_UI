@@ -1,7 +1,5 @@
 'use client';
 
-import { useLocale } from 'next-intl';
-import { soapNoteMockEN, soapNoteMockVI } from '@/lib/mockData';
 import { useState, useRef, useEffect } from 'react';
 import { useReview } from '../layout';
 import { updateRecord } from '@/lib/api/sttMetrics';
@@ -9,30 +7,35 @@ import { RichTextEditor } from '@/components/RichTextEditor';
 import { Loader2 } from 'lucide-react';
 
 export default function SoapNotePage() {
-    const locale = useLocale();
     const { setSaveStatus, record } = useReview();
 
-    const mockData = locale === 'vi' ? soapNoteMockVI : soapNoteMockEN;
-    const initialContent = record?.content || record?.refined_text || record?.raw_text || mockData;
+    const initialContent = record?.content || record?.refined_text || record?.raw_text || '';
+    const hasBackendContent = initialContent.trim().length > 0;
     const [content, setContent] = useState(initialContent);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isLoadingContext, setIsLoadingContext] = useState(false);
     const [contextText, setContextText] = useState('');
     const [contextStatus, setContextStatus] = useState<string>('');
     const isTranscribing = record?.status === 'transcribing';
+    const isWaitingForResult = Boolean(record?.id) && !hasBackendContent;
 
     useEffect(() => {
         if (record) {
-            setContent(record.content || record.refined_text || record.raw_text || mockData);
+            const syncTimer = setTimeout(() => {
+                setContent(record.content || record.refined_text || record.raw_text || '');
+            }, 0);
+            return () => clearTimeout(syncTimer);
         }
-    }, [record, mockData]);
+    }, [record]);
 
     useEffect(() => {
         const id = record?.id;
         if (!id) return;
-        setIsLoadingContext(true);
-        setContextStatus('');
-        setContextText('');
+        const syncTimer = setTimeout(() => {
+            setIsLoadingContext(true);
+            setContextStatus('');
+            setContextText('');
+        }, 0);
         fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://medmate-backend-k25riftvia-as.a.run.app"}/stt-metrics/me/records/${id}`, {
             headers: {
                 Authorization: `Bearer ${typeof window !== 'undefined' ? (localStorage.getItem('auth_token') || '') : ''}`,
@@ -45,6 +48,7 @@ export default function SoapNotePage() {
                 setContextText(data.context_text || '');
             })
             .finally(() => setIsLoadingContext(false));
+        return () => clearTimeout(syncTimer);
     }, [record?.id]);
 
     const autosave = async (nextContent: string) => {
@@ -83,7 +87,7 @@ export default function SoapNotePage() {
 
     return (
         <div className="flex-1 flex flex-col fade-in">
-            {isTranscribing ? (
+            {(isTranscribing || isWaitingForResult) ? (
                 <div className="flex-1 flex flex-col items-center justify-center px-6 text-center text-text-muted">
                     <Loader2 className="w-7 h-7 animate-spin mb-3 text-accent-blue" />
                     <p className="text-[15px] font-semibold text-text-primary">Đang chuyển giọng nói thành văn bản...</p>

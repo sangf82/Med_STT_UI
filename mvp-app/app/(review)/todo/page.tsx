@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useLocale } from 'next-intl';
-import { todoListMDMockEN, todoListMDMockVI } from '@/lib/mockData';
 import { useReview } from '../layout';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { updateRecord } from '@/lib/api/sttMetrics';
@@ -100,21 +98,20 @@ function serializeTodoItems(items: TodoItem[]): string {
 }
 
 export default function TodoListPage() {
-    const locale = useLocale();
-
     const { setSaveStatus, record } = useReview();
 
-    const mockData = locale === 'vi' ? todoListMDMockVI : todoListMDMockEN;
-    const rawContent = record?.content || record?.refined_text || record?.raw_text || mockData;
+    const rawContent = record?.content || record?.refined_text || record?.raw_text || '';
+    const hasBackendContent = rawContent.trim().length > 0;
     const initialContent = useMemo(() => normalizeTodoMarkdownForDisplay(rawContent), [rawContent]);
     const [content, setContent] = useState(initialContent);
     const [items, setItems] = useState<TodoItem[]>(() => parseTodoItems(rawContent));
     const timeoutRef = useRef<NodeJS.Timeout>(null);
     const isTranscribing = record?.status === 'transcribing';
+    const isWaitingForResult = Boolean(record?.id) && !hasBackendContent;
 
     useEffect(() => {
         if (record) {
-            const raw = record.content || record.refined_text || record.raw_text || mockData;
+            const raw = record.content || record.refined_text || record.raw_text || '';
             const normalized = normalizeTodoMarkdownForDisplay(raw);
             const syncTimer = setTimeout(() => {
                 setContent(normalized);
@@ -122,7 +119,7 @@ export default function TodoListPage() {
             }, 0);
             return () => clearTimeout(syncTimer);
         }
-    }, [record, mockData]);
+    }, [record]);
 
     const saveContent = (newContent: string) => {
         setSaveStatus('saving');
@@ -158,7 +155,7 @@ export default function TodoListPage() {
 
     return (
         <div className="flex-1 flex flex-col fade-in">
-            {isTranscribing ? (
+            {(isTranscribing || isWaitingForResult) ? (
                 <div className="flex-1 flex flex-col items-center justify-center px-6 text-center text-text-muted">
                     <Loader2 className="w-7 h-7 animate-spin mb-3 text-accent-blue" />
                     <p className="text-[15px] font-semibold text-text-primary">Đang chuyển giọng nói thành văn bản...</p>

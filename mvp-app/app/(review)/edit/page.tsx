@@ -31,9 +31,9 @@ export default function EditSoapPage() {
     };
 
     return (
-        <div className="flex flex-col p-6 fade-in pb-[100px] gap-6">
+        <div className="flex flex-col p-6 fade-in pb-25 gap-6">
 
-            <div className="flex items-center gap-2 bg-badge-progress-bg text-badge-progress px-4 py-3 rounded-[12px] border border-[#FB8A0A]/20">
+            <div className="flex items-center gap-2 bg-badge-progress-bg text-badge-progress px-4 py-3 rounded-xl border border-brand-orange/20">
                 <Pencil className="w-4 h-4 shrink-0" />
                 <span className="text-[13px] font-semibold">{t('editModeMsg')}</span>
             </div>
@@ -49,7 +49,7 @@ export default function EditSoapPage() {
                             onChange={(e) => handleContentChange(idx, e.target.value)}
                             onInput={handleInput}
                             rows={4}
-                            className="w-full bg-bg-input rounded-[12px] border border-border-input focus-visible:bg-bg-card p-4 text-[14px] text-text-primary leading-[1.6] resize-y overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue"
+                            className="w-full bg-bg-input rounded-xl border border-border-input focus-visible:bg-bg-card p-4 text-[14px] text-text-primary leading-[1.6] resize-y overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue"
                             style={{ minHeight: '100px' }}
                         />
                     </div>

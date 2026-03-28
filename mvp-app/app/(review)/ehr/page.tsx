@@ -1,29 +1,29 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useLocale } from 'next-intl';
-import { ehrSummaryMockEN, ehrSummaryMockVI } from '@/lib/mockData';
 import { useReview } from '../layout';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { updateRecord } from '@/lib/api/sttMetrics';
 import { Loader2 } from 'lucide-react';
 
 export default function EhrSummaryPage() {
-    const locale = useLocale();
-
     const { setSaveStatus, record } = useReview();
 
-    const data = locale === 'vi' ? ehrSummaryMockVI : ehrSummaryMockEN;
-    const initialContent = record?.content || record?.refined_text || record?.raw_text || data;
+    const initialContent = record?.content || record?.refined_text || record?.raw_text || '';
+    const hasBackendContent = initialContent.trim().length > 0;
     const [content, setContent] = useState(initialContent);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isTranscribing = record?.status === 'transcribing';
+    const isWaitingForResult = Boolean(record?.id) && !hasBackendContent;
 
     useEffect(() => {
         if (record) {
-            setContent(record.content || record.refined_text || record.raw_text || data);
+            const syncTimer = setTimeout(() => {
+                setContent(record.content || record.refined_text || record.raw_text || '');
+            }, 0);
+            return () => clearTimeout(syncTimer);
         }
-    }, [record, data]);
+    }, [record]);
 
     const handleChange = (newContent: string) => {
         setContent(newContent);
@@ -55,7 +55,7 @@ export default function EhrSummaryPage() {
 
     return (
         <div className="flex-1 flex flex-col fade-in">
-            {isTranscribing ? (
+            {(isTranscribing || isWaitingForResult) ? (
                 <div className="flex-1 flex flex-col items-center justify-center px-6 text-center text-text-muted">
                     <Loader2 className="w-7 h-7 animate-spin mb-3 text-accent-blue" />
                     <p className="text-[15px] font-semibold text-text-primary">Đang chuyển giọng nói thành văn bản...</p>
