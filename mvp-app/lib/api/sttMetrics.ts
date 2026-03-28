@@ -83,6 +83,15 @@ export interface SttTranscriptionResponse {
   output_format?: string;
 }
 
+/** POST /ai/stt/change-format — Modal may return refined_text, text, json, etc. */
+export interface SttChangeFormatResponse {
+  refined_text?: string;
+  text?: string;
+  output_format?: OutputFormat | string;
+  elapsed_time?: number;
+  [key: string]: unknown;
+}
+
 export interface DailyActualCasesResponse {
   by_date: Record<string, number>;
   items: any[];
@@ -168,6 +177,21 @@ export interface IncompleteUpload {
 
 export interface IncompleteUploadsResponse {
   uploads: IncompleteUpload[]; // backend returns { uploads: [...] }
+}
+
+/** Đổi raw_text sang format khác (soap_note | ehr | to-do | freetext) qua Modal; không tốn quota STT audio. */
+export function sttChangeFormat(payload: {
+  raw_text: string;
+  output_format: OutputFormat | string;
+}) {
+  const output_format = normalizeOutputFormat(String(payload.output_format));
+  return apiClient<SttChangeFormatResponse>("/ai/stt/change-format", {
+    method: "POST",
+    body: JSON.stringify({
+      raw_text: payload.raw_text,
+      output_format,
+    }),
+  });
 }
 
 // --- API Functions ---
