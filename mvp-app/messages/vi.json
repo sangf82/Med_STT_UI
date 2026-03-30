@@ -64,14 +64,19 @@
   "Tasks": {
     "title": "Danh sách việc cần làm",
     "back": "Quay lại",
+    "menu": "Menu",
+    "editPrompt": "Chỉnh sửa tiêu đề công việc",
     "today": "Hôm nay",
     "prevDay": "Ngày trước",
     "nextDay": "Ngày sau",
+    "tasksRemaining": "Còn {count} việc",
     "loading": "Đang tải công việc...",
-    "emptyTitle": "Hoàn thành tất cả công việc!",
-    "emptySubtitle": "Không còn việc nào cho ngày này.",
+    "emptyTitle": "Không có việc cho ngày này",
+    "emptySubtitle": "Thử ngày khác hoặc tạo bản ghi mới.",
     "taskFallback": "Công việc chưa đặt tên",
-    "unknownPatient": "Chưa rõ bệnh nhân"
+    "unknownPatient": "Chưa rõ bệnh nhân",
+    "patientId": "Mã bệnh nhân",
+    "dueLabel": "Hạn"
   },
   "Unassigned": {
     "title": "Bản ghi chưa gán bệnh nhân",

@@ -64,14 +64,19 @@
   "Tasks": {
     "title": "To Do List",
     "back": "Back",
+    "menu": "Menu",
+    "editPrompt": "Edit task title",
     "today": "Today",
     "prevDay": "Previous day",
     "nextDay": "Next day",
+    "tasksRemaining": "{count} tasks remaining",
     "loading": "Loading tasks...",
-    "emptyTitle": "All tasks completed!",
-    "emptySubtitle": "No remaining tasks for this day.",
+    "emptyTitle": "No tasks for this day",
+    "emptySubtitle": "Try another date or create a new recording.",
     "taskFallback": "Untitled task",
-    "unknownPatient": "Unknown patient"
+    "unknownPatient": "Unknown patient",
+    "patientId": "Patient ID",
+    "dueLabel": "Due"
   },
   "Unassigned": {
     "title": "Unassigned Records",

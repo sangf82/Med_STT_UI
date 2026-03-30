@@ -170,7 +170,7 @@ export default function PatientFolderRecordsPage() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 py-3">
+        <main className="flex-1 overflow-y-auto px-4 py-3 pb-28">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-text-muted">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -228,8 +228,8 @@ export default function PatientFolderRecordsPage() {
           )}
         </main>
 
-        <footer className="border-t border-border/80 bg-bg-page px-4 py-3">
-          <div className="flex items-center justify-center">
+        <footer className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-bg-page/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-bg-page/85">
+          <div className="mx-auto flex w-full max-w-md items-center justify-center">
             <button
               type="button"
               onClick={() => router.push(`/recording?patient=${encodeURIComponent(folderName)}`)}
