@@ -1,10 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
-import { Calendar, ChevronLeft, ChevronDown, Loader2, Trash2 } from 'lucide-react';
-import { deleteMyPatientFolder, getPatientFolderRecords, type SttRecord } from '@/lib/api/sttMetrics';
+import { ChevronLeft, Loader2, Trash2 } from 'lucide-react';
+import {
+  deleteMyPatientFolder,
+  getPatientFolderRecords,
+  renameMyPatientFolder,
+  type SttRecord,
+} from '@/lib/api/sttMetrics';
+import { Input } from '@/components/Input';
+import { Button } from '@/components/Button';
 
 function deriveInitials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -12,33 +19,20 @@ function deriveInitials(name: string) {
   return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('');
 }
 
-function deriveMrn(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i += 1) {
-    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  }
-  return `MRN-${String(hash).padStart(8, '0').slice(0, 8)}`;
-}
-
-function formatLongDate(iso: string, locale: string) {
-  return new Intl.DateTimeFormat(locale, {
-    month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-  }).format(new Date(iso));
-}
-
 export default function PatientInfoPage() {
   const t = useTranslations('PatientInfo');
-  const localeKey = useLocale();
-  const locale = localeKey === 'vi' ? 'vi-VN' : 'en-US';
   const router = useRouter();
   const params = useParams<{ folderName: string }>();
   const folderName = decodeURIComponent(params.folderName ?? '');
 
+  const isUnknownVirtual = folderName.trim().toLowerCase() === 'unknown patient';
+
   const [records, setRecords] = useState<SttRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [nameDraft, setNameDraft] = useState(folderName);
+  const [renaming, setRenaming] = useState(false);
+  const [nameError, setNameError] = useState<string | undefined>();
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -56,13 +50,46 @@ export default function PatientInfoPage() {
     loadRecords();
   }, [loadRecords]);
 
+  useEffect(() => {
+    setNameDraft(folderName);
+    setNameError(undefined);
+  }, [folderName]);
+
   const latestRecord = useMemo(() => {
     if (records.length === 0) return null;
     return [...records].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
   }, [records]);
 
-  const dobText = latestRecord ? formatLongDate(latestRecord.created_at, locale) : t('unknown');
-  const notesText = latestRecord?.content || latestRecord?.refined_text || latestRecord?.raw_text || t('notesPlaceholder');
+  const notesText =
+    latestRecord?.content ||
+    latestRecord?.refined_text ||
+    latestRecord?.raw_text ||
+    t('notesPlaceholder');
+
+  const handleSaveName = async () => {
+    const trimmed = nameDraft.trim();
+    setNameError(undefined);
+    if (!trimmed || trimmed === folderName) return;
+    if (isUnknownVirtual) {
+      setNameError(t('cannotRenameUnknown'));
+      return;
+    }
+    setRenaming(true);
+    try {
+      const res = await renameMyPatientFolder(folderName, trimmed);
+      const nextName = typeof res?.name === 'string' ? res.name : trimmed;
+      router.replace(`/patients/${encodeURIComponent(nextName)}/records`);
+    } catch (e: unknown) {
+      const status = typeof e === 'object' && e && 'status' in e ? (e as { status?: number }).status : undefined;
+      if (status === 409) {
+        setNameError(t('renameConflict'));
+      } else {
+        setNameError(t('renameFailed'));
+      }
+    } finally {
+      setRenaming(false);
+    }
+  };
 
   const handleDeletePatient = async () => {
     const confirmed = confirm(t('deleteConfirm'));
@@ -78,6 +105,9 @@ export default function PatientInfoPage() {
       setDeleting(false);
     }
   };
+
+  const displayName = nameDraft.trim() || folderName;
+  const nameDirty = nameDraft.trim() !== folderName.trim();
 
   return (
     <div className="min-h-screen bg-bg-card">
@@ -105,29 +135,44 @@ export default function PatientInfoPage() {
             <div className="flex flex-col gap-6">
               <div className="flex flex-col items-center justify-center gap-3">
                 <div className="flex h-18 w-18 items-center justify-center rounded-full bg-avatar-bg">
-                  <span className="text-[24px] font-bold text-text-on-accent">{deriveInitials(folderName)}</span>
+                  <span className="text-[24px] font-bold text-text-on-accent">{deriveInitials(displayName)}</span>
                 </div>
-                <p className="text-[20px] font-bold text-text-primary">{folderName}</p>
+                <p className="text-[20px] font-bold text-text-primary">{displayName}</p>
               </div>
 
-              <InfoField label={t('fullName')} value={folderName} />
+              <div className="flex flex-col gap-2">
+                <Input
+                  label={t('fullName')}
+                  value={nameDraft}
+                  onChange={(ev) => setNameDraft(ev.target.value)}
+                  disabled={isUnknownVirtual || renaming}
+                  error={nameError}
+                />
+                {!isUnknownVirtual ? (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    className="w-full"
+                    disabled={renaming || !nameDraft.trim() || !nameDirty}
+                    onClick={() => void handleSaveName()}
+                  >
+                    {renaming ? t('savingName') : t('saveName')}
+                  </Button>
+                ) : (
+                  <p className="text-[12px] text-text-muted">{t('cannotRenameUnknown')}</p>
+                )}
+              </div>
 
-              <InfoField
-                label={t('dateOfBirth')}
-                value={dobText}
-                rightNode={<Calendar className="h-4.5 w-4.5 text-text-secondary" />}
-              />
+              <InfoField label={t('dateOfBirth')} value={t('unknown')} hint={t('noClinicalFieldsHint')} />
 
-              <InfoField
-                label={t('gender')}
-                value={t('male')}
-                rightNode={<ChevronDown className="h-4.5 w-4.5 text-text-secondary" />}
-              />
+              <InfoField label={t('gender')} value={t('unknown')} hint={t('noClinicalFieldsHint')} />
 
-              <InfoField label={t('medicalRecordId')} value={deriveMrn(folderName)} />
+              <InfoField label={t('medicalRecordId')} value={t('unknown')} hint={t('noClinicalFieldsHint')} />
 
               <div className="flex flex-col gap-1.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[1px] text-text-secondary">{t('notes')}</p>
+                <p className="text-[11px] text-text-muted">{t('notesPreviewHint')}</p>
                 <div className="min-h-20 rounded-lg border border-border-medium bg-bg-card px-3 py-2.5">
                   <p className="line-clamp-4 text-[14px] text-text-primary">{notesText}</p>
                 </div>
@@ -160,18 +205,18 @@ export default function PatientInfoPage() {
 function InfoField({
   label,
   value,
-  rightNode,
+  hint,
 }: {
   label: string;
   value: string;
-  rightNode?: React.ReactNode;
+  hint?: string;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
       <p className="text-[11px] font-semibold uppercase tracking-[1px] text-text-secondary">{label}</p>
-      <div className="flex h-11 items-center justify-between rounded-lg border border-border-medium bg-bg-card px-3">
+      {hint ? <p className="text-[11px] text-text-muted">{hint}</p> : null}
+      <div className="flex h-11 items-center rounded-lg border border-border-medium bg-bg-card px-3">
         <span className="text-[15px] text-text-primary">{value}</span>
-        {rightNode}
       </div>
     </div>
   );
