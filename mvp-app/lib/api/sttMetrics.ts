@@ -312,6 +312,31 @@ export const renameMyPatientFolder = (folderName: string, newName: string) =>
     body: JSON.stringify({ new_name: newName }),
   });
 
+/** STT-only patient demographics (MongoDB collection stt_patient_profiles). */
+export interface SttPatientProfile {
+  patient_name: string;
+  date_of_birth: string | null;
+  gender: string | null;
+  medical_record_number: string | null;
+  notes: string | null;
+  updated_at: string | null;
+}
+
+export type SttPatientProfilePatch = Partial<
+  Pick<SttPatientProfile, "date_of_birth" | "gender" | "medical_record_number" | "notes">
+>;
+
+export const getSttPatientProfile = (folderName: string) =>
+  apiClient<SttPatientProfile>(`/stt-metrics/me/patient-folders/${encodeURIComponent(folderName)}/profile`, {
+    cache: "no-store",
+  });
+
+export const patchSttPatientProfile = (folderName: string, payload: SttPatientProfilePatch) =>
+  apiClient<SttPatientProfile>(`/stt-metrics/me/patient-folders/${encodeURIComponent(folderName)}/profile`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+
 export const deleteMyPatientFolder = (folderName: string, clearRecords = true) =>
   apiClient<{ deleted: boolean; clear_records: boolean }>(
     `/stt-metrics/me/patient-folders/${encodeURIComponent(folderName)}`,

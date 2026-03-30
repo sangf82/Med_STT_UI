@@ -7,11 +7,14 @@ import { ChevronLeft, Loader2, Trash2 } from 'lucide-react';
 import {
   deleteMyPatientFolder,
   getPatientFolderRecords,
+  getSttPatientProfile,
+  patchSttPatientProfile,
   renameMyPatientFolder,
   type SttRecord,
 } from '@/lib/api/sttMetrics';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
+import { cn } from '@/lib/utils';
 
 function deriveInitials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -19,11 +22,28 @@ function deriveInitials(name: string) {
   return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('');
 }
 
+function folderNameFromParams(folderNameParam: string | string[] | undefined): string {
+  const raw = Array.isArray(folderNameParam) ? folderNameParam[0] : folderNameParam;
+  if (raw == null || raw === '') return '';
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+const emptyProfileDraft = () => ({
+  date_of_birth: '',
+  gender: '',
+  medical_record_number: '',
+  notes: '',
+});
+
 export default function PatientInfoPage() {
   const t = useTranslations('PatientInfo');
   const router = useRouter();
   const params = useParams<{ folderName: string }>();
-  const folderName = decodeURIComponent(params.folderName ?? '');
+  const folderName = useMemo(() => folderNameFromParams(params?.folderName), [params?.folderName]);
 
   const isUnknownVirtual = folderName.trim().toLowerCase() === 'unknown patient';
 
@@ -33,22 +53,48 @@ export default function PatientInfoPage() {
   const [nameDraft, setNameDraft] = useState(folderName);
   const [renaming, setRenaming] = useState(false);
   const [nameError, setNameError] = useState<string | undefined>();
+  const [profileDraft, setProfileDraft] = useState(emptyProfileDraft);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | undefined>();
 
-  const loadRecords = useCallback(async () => {
+  const loadAll = useCallback(async () => {
+    if (!folderName) {
+      setRecords([]);
+      setProfileDraft(emptyProfileDraft());
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    setProfileError(undefined);
     try {
-      const res = await getPatientFolderRecords(folderName, 0, 100);
-      setRecords(Array.isArray(res?.items) ? res.items : []);
+      const recordsPromise = getPatientFolderRecords(folderName, 0, 100);
+      const profilePromise =
+        !isUnknownVirtual
+          ? getSttPatientProfile(folderName).catch(() => null)
+          : Promise.resolve(null);
+      const [recRes, prof] = await Promise.all([recordsPromise, profilePromise]);
+      setRecords(Array.isArray(recRes?.items) ? recRes.items : []);
+      if (prof && typeof prof === 'object') {
+        setProfileDraft({
+          date_of_birth: prof.date_of_birth ?? '',
+          gender: prof.gender ?? '',
+          medical_record_number: prof.medical_record_number ?? '',
+          notes: prof.notes ?? '',
+        });
+      } else {
+        setProfileDraft(emptyProfileDraft());
+      }
     } catch {
       setRecords([]);
+      setProfileDraft(emptyProfileDraft());
     } finally {
       setLoading(false);
     }
-  }, [folderName]);
+  }, [folderName, isUnknownVirtual]);
 
   useEffect(() => {
-    loadRecords();
-  }, [loadRecords]);
+    void loadAll();
+  }, [loadAll]);
 
   useEffect(() => {
     setNameDraft(folderName);
@@ -60,11 +106,8 @@ export default function PatientInfoPage() {
     return [...records].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
   }, [records]);
 
-  const notesText =
-    latestRecord?.content ||
-    latestRecord?.refined_text ||
-    latestRecord?.raw_text ||
-    t('notesPlaceholder');
+  const latestTranscriptPreview =
+    latestRecord?.content || latestRecord?.refined_text || latestRecord?.raw_text || '';
 
   const handleSaveName = async () => {
     const trimmed = nameDraft.trim();
@@ -91,6 +134,31 @@ export default function PatientInfoPage() {
     }
   };
 
+  const handleSaveProfile = async () => {
+    if (isUnknownVirtual || !folderName) return;
+    setProfileError(undefined);
+    setSavingProfile(true);
+    try {
+      const dob = profileDraft.date_of_birth.trim();
+      if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+        setProfileError(t('invalidDateOfBirth'));
+        setSavingProfile(false);
+        return;
+      }
+      await patchSttPatientProfile(folderName, {
+        date_of_birth: dob || null,
+        gender: profileDraft.gender.trim() || null,
+        medical_record_number: profileDraft.medical_record_number.trim() || null,
+        notes: profileDraft.notes.trim() || null,
+      });
+      await loadAll();
+    } catch {
+      setProfileError(t('profileSaveFailed'));
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   const handleDeletePatient = async () => {
     const confirmed = confirm(t('deleteConfirm'));
     if (!confirmed) return;
@@ -108,6 +176,14 @@ export default function PatientInfoPage() {
 
   const displayName = nameDraft.trim() || folderName;
   const nameDirty = nameDraft.trim() !== folderName.trim();
+
+  if (!folderName) {
+    return (
+      <div className="min-h-screen bg-bg-card p-5">
+        <p className="text-text-muted text-sm">{t('loading')}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-bg-card">
@@ -164,19 +240,93 @@ export default function PatientInfoPage() {
                 )}
               </div>
 
-              <InfoField label={t('dateOfBirth')} value={t('unknown')} hint={t('noClinicalFieldsHint')} />
+              {!isUnknownVirtual ? (
+                <div className="flex flex-col gap-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[1px] text-text-secondary">
+                    {t('clinicalProfileSection')}
+                  </p>
 
-              <InfoField label={t('gender')} value={t('unknown')} hint={t('noClinicalFieldsHint')} />
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[1px] text-text-secondary">
+                      {t('dateOfBirth')}
+                    </p>
+                    <input
+                      type="date"
+                      value={profileDraft.date_of_birth}
+                      onChange={(ev) => setProfileDraft((p) => ({ ...p, date_of_birth: ev.target.value }))}
+                      className={cn(
+                        'flex h-11 w-full rounded-lg border border-border-medium bg-bg-card px-3 text-[15px] text-text-primary',
+                        'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-blue',
+                      )}
+                    />
+                  </div>
 
-              <InfoField label={t('medicalRecordId')} value={t('unknown')} hint={t('noClinicalFieldsHint')} />
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[1px] text-text-secondary">
+                      {t('gender')}
+                    </p>
+                    <select
+                      value={profileDraft.gender}
+                      onChange={(ev) => setProfileDraft((p) => ({ ...p, gender: ev.target.value }))}
+                      className={cn(
+                        'flex h-11 w-full rounded-lg border border-border-medium bg-bg-card px-3 text-[15px] text-text-primary',
+                        'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-blue',
+                      )}
+                    >
+                      <option value="">{t('selectGender')}</option>
+                      <option value="male">{t('male')}</option>
+                      <option value="female">{t('female')}</option>
+                    </select>
+                  </div>
 
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[11px] font-semibold uppercase tracking-[1px] text-text-secondary">{t('notes')}</p>
-                <p className="text-[11px] text-text-muted">{t('notesPreviewHint')}</p>
-                <div className="min-h-20 rounded-lg border border-border-medium bg-bg-card px-3 py-2.5">
-                  <p className="line-clamp-4 text-[14px] text-text-primary">{notesText}</p>
+                  <Input
+                    label={t('medicalRecordId')}
+                    value={profileDraft.medical_record_number}
+                    onChange={(ev) => setProfileDraft((p) => ({ ...p, medical_record_number: ev.target.value }))}
+                  />
+
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[1px] text-text-secondary">{t('notes')}</p>
+                    <textarea
+                      value={profileDraft.notes}
+                      onChange={(ev) => setProfileDraft((p) => ({ ...p, notes: ev.target.value }))}
+                      rows={4}
+                      className={cn(
+                        'w-full resize-y rounded-lg border border-border-medium bg-bg-card px-3 py-2.5 text-[14px] text-text-primary',
+                        'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-blue',
+                      )}
+                      placeholder={t('notesPlaceholder')}
+                    />
+                  </div>
+
+                  {profileError ? <p className="text-[12px] text-danger">{profileError}</p> : null}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={savingProfile}
+                    onClick={() => void handleSaveProfile()}
+                  >
+                    {savingProfile ? t('savingProfile') : t('saveProfile')}
+                  </Button>
                 </div>
-              </div>
+              ) : (
+                <p className="text-[12px] text-text-muted">{t('noProfileForUnknown')}</p>
+              )}
+
+              {latestTranscriptPreview ? (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[1px] text-text-secondary">
+                    {t('latestRecordingPreview')}
+                  </p>
+                  <p className="text-[11px] text-text-muted">{t('latestRecordingPreviewHint')}</p>
+                  <div className="min-h-16 rounded-lg border border-border-medium bg-bg-card px-3 py-2.5">
+                    <p className="line-clamp-4 text-[14px] text-text-primary">{latestTranscriptPreview}</p>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="h-px w-full bg-border-medium" />
 
@@ -197,26 +347,6 @@ export default function PatientInfoPage() {
             </div>
           )}
         </main>
-      </div>
-    </div>
-  );
-}
-
-function InfoField({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <p className="text-[11px] font-semibold uppercase tracking-[1px] text-text-secondary">{label}</p>
-      {hint ? <p className="text-[11px] text-text-muted">{hint}</p> : null}
-      <div className="flex h-11 items-center rounded-lg border border-border-medium bg-bg-card px-3">
-        <span className="text-[15px] text-text-primary">{value}</span>
       </div>
     </div>
   );
