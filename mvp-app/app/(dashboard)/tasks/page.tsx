@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { Calendar, ChevronDown, ChevronLeft, EllipsisVertical, Loader2 } from 'lucide-react';
+import { Calendar, ChevronLeft, EllipsisVertical, Loader2 } from 'lucide-react';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import { getMyRecords, getRecordById, updateRecord, type SttRecord } from '@/lib/api/sttMetrics';
 
 function toLocalDayKey(iso: string) {
@@ -24,11 +25,14 @@ function formatDayLabel(dayKey: string, locale: string) {
   }).format(date);
 }
 
-function deriveTodoCheckedState(raw: string): boolean | null {
-  if (!raw || typeof raw !== 'string') return null;
+function countUncheckedTasks(raw: string): number {
+  if (!raw || typeof raw !== 'string') return 0;
   const matches = [...raw.matchAll(/^\s*[-*]\s*\[\s*([xX ]?)\s*\]/gm)];
-  if (matches.length === 0) return null;
-  return matches.every((m) => (m[1] || '').toLowerCase() === 'x');
+  if (matches.length === 0) return 0;
+  return matches.reduce((count, match) => {
+    const checkedMarker = (match[1] || '').toLowerCase();
+    return checkedMarker === 'x' ? count : count + 1;
+  }, 0);
 }
 
 export default function TasksPage() {
@@ -37,10 +41,8 @@ export default function TasksPage() {
   const [items, setItems] = useState<SttRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeDay, setActiveDay] = useState<string>('');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draftTitle, setDraftTitle] = useState('');
-  const [todoCheckedById, setTodoCheckedById] = useState<Record<string, boolean>>({});
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [contentById, setContentById] = useState<Record<string, string>>({});
+  const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -81,110 +83,103 @@ export default function TasksPage() {
   }, [activeDay, items]);
 
   const locale = typeof document !== 'undefined' && document.documentElement.lang === 'vi' ? 'vi-VN' : 'en-US';
-  const remainingCount = dayItems.filter((item) => !(todoCheckedById[item.id] ?? false)).length;
 
   const groupedByPatient = useMemo(() => {
-    const groups = new Map<string, SttRecord[]>();
+    const groups = new Map<string, SttRecord>();
     for (const item of dayItems) {
       const key = (item.patient_name || t('unknownPatient')).trim();
-      const current = groups.get(key) || [];
-      current.push(item);
-      groups.set(key, current);
+      if (!groups.has(key)) {
+        groups.set(key, item);
+      }
     }
     return Array.from(groups.entries());
   }, [dayItems, t]);
 
+  const remainingCount = useMemo(() => {
+    return groupedByPatient.reduce((sum, [, record]) => {
+      const content =
+        contentById[record.id] ??
+        record.content ??
+        record.refined_text ??
+        record.raw_text ??
+        '';
+      return sum + countUncheckedTasks(content);
+    }, 0);
+  }, [contentById, groupedByPatient]);
+
   useEffect(() => {
     let canceled = false;
 
-    const resolveCheckedStates = async () => {
-      const missing = dayItems.filter((item) => todoCheckedById[item.id] === undefined);
+    const resolveContentByPatient = async () => {
+      const records = groupedByPatient.map(([, record]) => record);
+      const missing = records.filter((record) => contentById[record.id] === undefined);
       if (missing.length === 0) return;
 
       const resolved = await Promise.all(
-        missing.map(async (item): Promise<[string, boolean]> => {
-          let raw = item.content || item.refined_text || item.raw_text || '';
+        missing.map(async (record): Promise<[string, string]> => {
+          let content = record.content || record.refined_text || record.raw_text || '';
 
-          if (!raw) {
+          if (!content) {
             try {
-              const detail = await getRecordById(item.id);
-              raw = detail.content || detail.refined_text || detail.raw_text || '';
+              const detail = await getRecordById(record.id);
+              content = detail.content || detail.refined_text || detail.raw_text || '';
             } catch {
-              return [item.id, false];
+              return [record.id, ''];
             }
           }
 
-          const parsed = deriveTodoCheckedState(raw);
-          return [item.id, parsed ?? false];
+          return [record.id, content];
         }),
       );
 
       if (canceled) return;
-      setTodoCheckedById((prev) => {
+      setContentById((prev) => {
         const next = { ...prev };
-        for (const [id, checked] of resolved) {
-          next[id] = checked;
+        for (const [id, content] of resolved) {
+          next[id] = content;
         }
         return next;
       });
     };
 
-    void resolveCheckedStates();
+    void resolveContentByPatient();
     return () => {
       canceled = true;
     };
-  }, [dayItems, todoCheckedById]);
+  }, [contentById, groupedByPatient]);
 
-  const persistTitle = useCallback(async (item: SttRecord, nextTitle: string) => {
-    const trimmed = nextTitle.trim();
-    const currentTitle = (item.display_name || '').trim();
-    if (!trimmed || trimmed === currentTitle) return;
-
+  const persistContent = useCallback(async (item: SttRecord, nextContent: string) => {
     try {
-      const detail = await getRecordById(item.id);
-      const content = detail.content || detail.refined_text || detail.raw_text || '';
       await updateRecord(item.id, {
-        content,
-        display_name: trimmed,
-        patient_name: detail.patient_name,
+        content: nextContent,
+        patient_name: item.patient_name,
       });
-      setItems((prev) => prev.map((record) => (record.id === item.id ? { ...record, display_name: trimmed } : record)));
+      setItems((prev) => prev.map((record) => (record.id === item.id ? { ...record, content: nextContent } : record)));
     } catch (error) {
-      console.error('Save task title failed', error);
+      console.error('Save task content failed', error);
     }
   }, []);
 
-  const startEditing = useCallback((item: SttRecord) => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    setEditingId(item.id);
-    setDraftTitle(item.display_name || t('taskFallback'));
-  }, [t]);
+  const scheduleSaveContent = useCallback((item: SttRecord, nextValue: string) => {
+    setContentById((prev) => ({ ...prev, [item.id]: nextValue }));
 
-  const scheduleSave = useCallback((item: SttRecord, nextValue: string) => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
+    const existingTimer = saveTimersRef.current[item.id];
+    if (existingTimer) {
+      clearTimeout(existingTimer);
     }
-    saveTimerRef.current = setTimeout(() => {
-      void persistTitle(item, nextValue);
+
+    saveTimersRef.current[item.id] = setTimeout(() => {
+      void persistContent(item, nextValue);
+      delete saveTimersRef.current[item.id];
     }, 700);
-  }, [persistTitle]);
-
-  const stopEditing = useCallback((item: SttRecord) => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    void persistTitle(item, draftTitle);
-    setEditingId(null);
-  }, [draftTitle, persistTitle]);
+  }, [persistContent]);
 
   useEffect(() => {
     return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
+      const timers = saveTimersRef.current;
+      const ids = Object.keys(timers);
+      for (const id of ids) {
+        clearTimeout(timers[id]);
       }
     };
   }, []);
@@ -227,7 +222,6 @@ export default function TasksPage() {
                 </option>
               ))}
             </select>
-            <ChevronDown className="h-4 w-4 text-[#555555]" />
           </div>
           <span className="text-[12px] text-[#555555]">{t('tasksRemaining', { count: remainingCount })}</span>
         </div>
@@ -245,62 +239,42 @@ export default function TasksPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              {groupedByPatient.map(([patientName, records]) => (
+              {groupedByPatient.map(([patientName, record]) => {
+                const content =
+                  contentById[record.id] ??
+                  record.content ??
+                  record.refined_text ??
+                  record.raw_text ??
+                  '';
+                const isLoadingContent =
+                  contentById[record.id] === undefined &&
+                  !(record.content || record.refined_text || record.raw_text);
+
+                return (
                 <section key={patientName} className="space-y-2.5">
                   <h2 className="text-[28px] leading-none font-bold text-[#1A1A1A]">{patientName}</h2>
-                  <p className="text-[12px] text-[#555555]">{t('patientId')}: P-{records[0].id.slice(-8).toUpperCase()}</p>
+                  <p className="text-[12px] text-[#555555]">{t('patientId')}: P-{record.id.slice(-8).toUpperCase()}</p>
 
-                  <div className="space-y-2">
-                    {records.map((item) => {
-                      const done = todoCheckedById[item.id] ?? false;
-                      const isEditing = editingId === item.id;
-                      return (
-                        <div key={item.id} className="flex items-start gap-2.5">
-                          <input
-                            type="checkbox"
-                            checked={done}
-                            readOnly
-                            className="mt-1 h-4 w-4 rounded-[3px] border border-[#C7CBD4]"
-                          />
-                          <div className="min-w-0 flex-1">
-                            {isEditing ? (
-                              <div onBlur={() => stopEditing(item)}>
-                                <input
-                                  autoFocus
-                                  value={draftTitle}
-                                  onChange={(e) => {
-                                    const nextValue = e.target.value;
-                                    setDraftTitle(nextValue);
-                                    scheduleSave(item, nextValue);
-                                  }}
-                                  onBlur={() => stopEditing(item)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      stopEditing(item);
-                                    }
-                                  }}
-                                  className={`w-full bg-transparent text-[14px] leading-[1.4] text-[#1A1A1A] outline-none ${done ? 'line-through opacity-70' : ''}`}
-                                />
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => startEditing(item)}
-                                className="w-full text-left"
-                              >
-                                <p className={`text-[14px] leading-[1.4] text-[#1A1A1A] ${done ? 'line-through opacity-70' : ''}`}>
-                                  {item.display_name || t('taskFallback')}
-                                </p>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="rounded-xl border border-[#D0D3D9] bg-white">
+                    {isLoadingContent ? (
+                      <div className="flex items-center gap-2 px-4 py-4 text-sm text-text-muted">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>{t('loading')}</span>
+                      </div>
+                    ) : (
+                      <RichTextEditor
+                        content={content}
+                        onChange={(nextValue) => scheduleSaveContent(record, nextValue)}
+                        coerceTaskListOnLoad
+                        showToolbar={false}
+                        className="min-h-22"
+                        minHeight="88px"
+                      />
+                    )}
                   </div>
                 </section>
-              ))}
+                );
+              })}
             </div>
           )}
         </main>
