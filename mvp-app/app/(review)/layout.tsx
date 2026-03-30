@@ -8,13 +8,23 @@ import { TabBar } from '@/components/TabBar';
 import { BottomBar } from '@/components/BottomBar';
 import { Badge } from '@/components/Badge';
 import { MenuPopup } from '@/components/MenuPopup';
-import { Copy, MoreVertical, ChevronLeft, Loader, AlertCircle, RefreshCw } from 'lucide-react';
+import { Copy, SquarePen, ChevronLeft, Loader, AlertCircle, RefreshCw, ChevronDown } from 'lucide-react';
 import { Dialog } from '@/components/Dialog';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { useAppContext } from '@/context/AppContext';
-import { getRecordById, updateRecord, retryRecord, deleteRecord } from '@/lib/api/sttMetrics';
-import type { SttRecord } from '@/lib/api/sttMetrics';
+import {
+    getRecordById,
+    updateRecord,
+    retryRecord,
+    deleteRecord,
+    sttChangeFormat,
+    refinedTextFromChangeFormatResponse,
+    AVAILABLE_OUTPUT_FORMATS,
+    normalizeOutputFormat,
+    type SttRecord,
+    type OutputFormat,
+} from '@/lib/api/sttMetrics';
 import { formatDurationSec } from '@/lib/utils';
 
 
@@ -50,6 +60,10 @@ export default function ReviewLayout({
     const [isRetrying, setIsRetrying] = useState(false);
     const [retryError, setRetryError] = useState<string | null>(null);
     const [timedOutAfterRetries, setTimedOutAfterRetries] = useState(false);
+    const [convertOpen, setConvertOpen] = useState(false);
+    const [convertTargetFormat, setConvertTargetFormat] = useState<OutputFormat>('soap_note');
+    const [convertLoading, setConvertLoading] = useState(false);
+    const [convertError, setConvertError] = useState<string | null>(null);
     const pollStartTimeRef = useRef(0);
     const autoRetryCountRef = useRef(0);
     const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -136,6 +150,70 @@ export default function ReviewLayout({
             }
         };
     }, [recordId, recordData?.status]);
+
+    useEffect(() => {
+        if (!convertOpen || !recordData) return;
+        const c = normalizeOutputFormat(String(recordData.output_format || 'soap_note'));
+        const alt = AVAILABLE_OUTPUT_FORMATS.find((f) => f !== c) ?? 'soap_note';
+        setConvertTargetFormat(alt);
+        setConvertError(null);
+    }, [convertOpen, recordData?.output_format]);
+
+    const canConvertFormat =
+        Boolean(recordData?.status === 'completed' && (recordData.raw_text || '').trim());
+
+    const formatLabels: Record<OutputFormat, string> = {
+        soap_note: 'Ghi chú SOAP',
+        ehr: 'Tóm tắt lâm sàng (EHR)',
+        'to-do': 'Việc cần làm',
+        freetext: 'Văn bản tự do',
+    };
+
+    const handleConvertSubmit = async () => {
+        if (!recordId || !recordData?.raw_text?.trim()) return;
+        setConvertLoading(true);
+        setConvertError(null);
+        try {
+            const target = convertTargetFormat;
+            const res = await sttChangeFormat({
+                raw_text: recordData.raw_text,
+                output_format: target,
+            });
+            const text = refinedTextFromChangeFormatResponse(res);
+            if (!text) {
+                setConvertError('Dịch vụ không trả nội dung hợp lệ.');
+                return;
+            }
+            await updateRecord(recordId, {
+                content: text,
+                refined_text: text,
+                output_format: target,
+                patient_name: recordData.patient_name,
+            });
+            const updated = await getRecordById(recordId);
+            setRecordData(updated);
+            setRecordingName(updated.display_name || recordingName);
+            setConvertOpen(false);
+            const tab =
+                target === 'soap_note'
+                    ? 'soap'
+                    : target === 'ehr'
+                      ? 'ehr'
+                      : target === 'to-do'
+                        ? 'todo'
+                        : 'raw';
+            router.replace(`/${tab}?id=${recordId}`);
+        } catch (e: unknown) {
+            const err = e as { message?: string; data?: { detail?: string } };
+            setConvertError(
+                typeof err?.data?.detail === 'string'
+                    ? err.data.detail
+                    : err?.message ?? 'Chuyển định dạng thất bại.',
+            );
+        } finally {
+            setConvertLoading(false);
+        }
+    };
 
     const format = useMemo(() => {
         if (!recordData) return 'None';
@@ -316,10 +394,12 @@ export default function ReviewLayout({
                             <div className="flex items-center gap-1 shrink-0 ml-2">
                                 {renderBadge()}
                                 <button
+                                    type="button"
                                     onClick={() => setMenuOpen(true)}
                                     className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 transition-all outline-none"
+                                    aria-label="Menu"
                                 >
-                                    <MoreVertical className="w-6 h-6 text-text-primary" />
+                                    <SquarePen className="w-5 h-5 text-text-muted" strokeWidth={1.75} />
                                 </button>
                             </div>
                         </header>
@@ -346,11 +426,12 @@ export default function ReviewLayout({
                             </div>
                             <div className="flex items-center justify-center p-1 mr-1">
                                 <button
+                                    type="button"
                                     onClick={handleCopy}
                                     className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-bg-surface active:scale-95 transition-all text-brand-orange"
                                     aria-label="Copy"
                                 >
-                                    <Copy className="w-4.5 h-4.5" />
+                                    <Copy className="w-[18px] h-[18px]" strokeWidth={2} />
                                 </button>
                             </div>
                         </div>
@@ -425,6 +506,8 @@ export default function ReviewLayout({
                         open={menuOpen}
                         onClose={() => setMenuOpen(false)}
                         onRename={() => setRenameOpen(true)}
+                        onConvert={() => setConvertOpen(true)}
+                        convertDisabled={!canConvertFormat}
                         onDelete={() => setDeleteOpen(true)}
                     />
 
@@ -456,6 +539,85 @@ export default function ReviewLayout({
                                     onClick={handleRenameConfirm}
                                 >
                                     {t('rename')}
+                                </button>
+                            </div>
+                        </div>
+                    </Dialog>
+
+                    {/* D6 · Mob Convert Dialog */}
+                    <Dialog
+                        open={convertOpen}
+                        onOpenChange={(o) => {
+                            setConvertOpen(o);
+                            if (!o) setConvertError(null);
+                        }}
+                        title="Convert Format"
+                        titleClassName="text-[20px] font-bold"
+                        className="max-w-[340px] rounded-[20px] p-6 pb-4 gap-0"
+                    >
+                        <div className="flex flex-col gap-4 -mt-1">
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[13px] text-text-muted font-normal">
+                                    Recording Name
+                                </span>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[15px] text-text-primary font-normal truncate">
+                                        {recordingName}
+                                    </span>
+                                    <div className="h-[1.5px] w-full bg-text-primary rounded-full" />
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[13px] text-text-muted font-normal">
+                                    Output Format
+                                </span>
+                                <div className="h-1" />
+                                <div className="relative flex items-center gap-1.5">
+                                    <select
+                                        className="w-full appearance-none bg-transparent text-[16px] font-bold text-text-primary py-1 pr-8 outline-none focus-visible:ring-2 focus-visible:ring-accent-blue/30 rounded cursor-pointer"
+                                        value={convertTargetFormat}
+                                        onChange={(e) =>
+                                            setConvertTargetFormat(
+                                                normalizeOutputFormat(e.target.value),
+                                            )
+                                        }
+                                        disabled={convertLoading}
+                                    >
+                                        {AVAILABLE_OUTPUT_FORMATS.map((f) => (
+                                            <option key={f} value={f}>
+                                                {formatLabels[f]}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <ChevronDown
+                                        className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted"
+                                        strokeWidth={2}
+                                    />
+                                </div>
+                            </div>
+                            {convertError ? (
+                                <p className="text-[12px] text-danger">{convertError}</p>
+                            ) : null}
+                            <div className="flex h-12 items-stretch border-t border-border -mx-1 mt-1">
+                                <button
+                                    type="button"
+                                    className="flex-1 flex items-center justify-center text-[16px] font-normal text-accent-blue active:opacity-80"
+                                    onClick={() => setConvertOpen(false)}
+                                    disabled={convertLoading}
+                                >
+                                    Cancel
+                                </button>
+                                <div className="w-px self-center h-5 bg-divider" />
+                                <button
+                                    type="button"
+                                    className="flex-1 flex items-center justify-center gap-2 text-[16px] font-semibold text-accent-blue active:opacity-80"
+                                    onClick={() => void handleConvertSubmit()}
+                                    disabled={convertLoading || !canConvertFormat}
+                                >
+                                    {convertLoading ? (
+                                        <Loader className="w-4 h-4 animate-spin" />
+                                    ) : null}
+                                    Convert
                                 </button>
                             </div>
                         </div>

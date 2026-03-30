@@ -35,6 +35,9 @@ export interface UseAudioRecorderReturn {
 
 const LEVEL_INTERVAL = 60; // ms between level samples
 
+/** Opus in WebM: request high bitrate; browser may cap or ignore (common cap ~128–256). */
+const RECORDING_AUDIO_BITS_PER_SECOND = 320_000;
+
 export function useAudioRecorder(): UseAudioRecorderReturn {
     const [state, setState] = useState<RecorderState>('idle');
     const [timeMs, setTimeMs] = useState(0);
@@ -110,19 +113,29 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         onChunkRef.current = options?.onChunk ?? null;
         streamChunkIndexRef.current = 0;
         try {
+            // No sampleRate constraint: let OS use native mic rate (often 48 kHz), closer to native recorders.
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    sampleRate: 48000,
-                    channelCount: 1,
+                    channelCount: { ideal: 1 },
+                    echoCancellation: { ideal: false },
+                    noiseSuppression: { ideal: false },
+                    autoGainControl: { ideal: false },
                 }
             });
             streamRef.current = stream;
 
             // Set up Web Audio API analyser for levels
-            const audioCtx = new AudioContext();
+            const track = stream.getAudioTracks()[0];
+            const nativeRate = track?.getSettings?.().sampleRate;
+            let audioCtx: AudioContext;
+            try {
+                audioCtx = new AudioContext({
+                    latencyHint: 'interactive',
+                    ...(typeof nativeRate === 'number' && nativeRate > 0 ? { sampleRate: nativeRate } : {}),
+                });
+            } catch {
+                audioCtx = new AudioContext({ latencyHint: 'interactive' });
+            }
             audioCtxRef.current = audioCtx;
             const source = audioCtx.createMediaStreamSource(stream);
             const analyser = audioCtx.createAnalyser();
@@ -136,10 +149,15 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
                 ? 'audio/webm;codecs=opus'
                 : 'audio/webm';
             mimeTypeRef.current = mimeType;
-            const recorder = new MediaRecorder(stream, { 
-                mimeType,
-                audioBitsPerSecond: 128000
-            });
+            let recorder: MediaRecorder;
+            try {
+                recorder = new MediaRecorder(stream, {
+                    mimeType,
+                    audioBitsPerSecond: RECORDING_AUDIO_BITS_PER_SECOND,
+                });
+            } catch {
+                recorder = new MediaRecorder(stream, { mimeType });
+            }
             mediaRecorderRef.current = recorder;
             chunksRef.current = [];
 

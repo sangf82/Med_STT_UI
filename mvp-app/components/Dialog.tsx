@@ -9,9 +9,17 @@ export interface DialogProps {
     title: string;
     children: React.ReactNode;
     className?: string;
+    titleClassName?: string;
 }
 
-export function Dialog({ open, onOpenChange, title, children, className }: DialogProps) {
+export function Dialog({
+    open,
+    onOpenChange,
+    title,
+    children,
+    className,
+    titleClassName,
+}: DialogProps) {
     React.useEffect(() => {
         if (open) {
             document.body.style.overflow = 'hidden';
@@ -41,7 +49,10 @@ export function Dialog({ open, onOpenChange, title, children, className }: Dialo
                 aria-modal="true"
                 aria-labelledby="dialog-title"
             >
-                <h2 id="dialog-title" className="text-[18px] font-bold text-text-primary">
+                <h2
+                    id="dialog-title"
+                    className={cn("text-[18px] font-bold text-text-primary", titleClassName)}
+                >
                     {title}
                 </h2>
                 {children}

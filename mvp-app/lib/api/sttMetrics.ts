@@ -83,6 +83,15 @@ export interface SttTranscriptionResponse {
   output_format?: string;
 }
 
+/** POST /ai/stt/change-format — Modal may return refined_text, text, json, etc. */
+export interface SttChangeFormatResponse {
+  refined_text?: string;
+  text?: string;
+  output_format?: OutputFormat | string;
+  elapsed_time?: number;
+  [key: string]: unknown;
+}
+
 export interface DailyActualCasesResponse {
   by_date: Record<string, number>;
   items: any[];
@@ -168,6 +177,44 @@ export interface IncompleteUpload {
 
 export interface IncompleteUploadsResponse {
   uploads: IncompleteUpload[]; // backend returns { uploads: [...] }
+}
+
+/** Đổi raw_text sang format khác (soap_note | ehr | to-do | freetext) qua Modal; không tốn quota STT audio. */
+export function sttChangeFormat(payload: {
+  raw_text: string;
+  output_format: OutputFormat | string;
+}) {
+  const output_format = normalizeOutputFormat(String(payload.output_format));
+  return apiClient<SttChangeFormatResponse>("/ai/stt/change-format", {
+    method: "POST",
+    body: JSON.stringify({
+      raw_text: payload.raw_text,
+      output_format,
+    }),
+  });
+}
+
+function pickStr(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+/** Đọc nội dung đã convert từ response Modal (nhiều dạng key). */
+export function refinedTextFromChangeFormatResponse(
+  res: SttChangeFormatResponse,
+): string {
+  let t = pickStr(res.refined_text);
+  if (t) return t;
+  t = pickStr(res.text);
+  if (t) return t;
+  const j = res.json;
+  if (j && typeof j === "object") {
+    const o = j as Record<string, unknown>;
+    for (const k of ["refined_text", "text", "result", "output"]) {
+      t = pickStr(o[k]);
+      if (t) return t;
+    }
+  }
+  return "";
 }
 
 // --- API Functions ---
@@ -285,14 +332,24 @@ export const getPatientFolderRecords = (folderName: string, skip = 0, limit = 50
 
 export const updateRecord = (
   recordId: string,
-  payload: { content?: string; display_name?: string; patient_name?: string },
+  payload: {
+    content?: string;
+    display_name?: string;
+    patient_name?: string;
+    output_format?: OutputFormat | string;
+    refined_text?: string;
+  },
 ) => {
   // NOTE: The backend requires "content" field in the PATCH body.
   // Ensure all callers provide it. If you only want to update display_name,
   // you must still provide the current content.
+  const body: Record<string, unknown> = { ...payload };
+  if (payload.output_format !== undefined) {
+    body.output_format = normalizeOutputFormat(String(payload.output_format));
+  }
   return apiClient<SttRecord>(`/stt-metrics/me/records/${recordId}`, {
     method: "PATCH",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
 };
 
