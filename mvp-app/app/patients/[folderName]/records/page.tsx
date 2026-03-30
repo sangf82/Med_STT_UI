@@ -3,54 +3,50 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, Mic, Search } from 'lucide-react';
-import { getPatientFolderRecords, type SttRecord } from '@/lib/api/sttMetrics';
-import { outputFormatToReviewRoute } from '@/lib/outputFormat';
+import { Calendar, ChevronLeft, ChevronDown, Loader2, Trash2 } from 'lucide-react';
+import { deleteMyPatientFolder, getPatientFolderRecords, type SttRecord } from '@/lib/api/sttMetrics';
 
-type ItemStatus = 'done' | 'draft';
-
-function toStatus(record: SttRecord): ItemStatus {
-  return record.status === 'completed' ? 'done' : 'draft';
+function deriveInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'PT';
+  return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('');
 }
 
-function formatDurationLabel(totalSec?: number) {
-  const sec = Math.max(0, Math.round(totalSec ?? 0));
-  const min = Math.floor(sec / 60);
-  const remainSec = sec % 60;
-  return `${min}m ${remainSec}s`;
+function deriveMrn(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  return `MRN-${String(hash).padStart(8, '0').slice(0, 8)}`;
 }
 
-function formatTime(iso: string, locale: string) {
+function formatLongDate(iso: string, locale: string) {
   return new Intl.DateTimeFormat(locale, {
+    month: 'short',
     day: '2-digit',
-    month: '2-digit',
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   }).format(new Date(iso));
 }
 
-export default function PatientRecordsHistoryPage() {
-  const t = useTranslations('PatientRecords');
-  const locale = useLocale();
+export default function PatientInfoPage() {
+  const t = useTranslations('PatientInfo');
+  const localeKey = useLocale();
+  const locale = localeKey === 'vi' ? 'vi-VN' : 'en-US';
   const router = useRouter();
   const params = useParams<{ folderName: string }>();
   const folderName = decodeURIComponent(params.folderName ?? '');
 
-  const [items, setItems] = useState<SttRecord[]>([]);
+  const [records, setRecords] = useState<SttRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchText, setSearchText] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getPatientFolderRecords(folderName, 0, 100);
-      const next = Array.isArray(res?.items) ? res.items : [];
-      setItems(
-        next.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      );
+      setRecords(Array.isArray(res?.items) ? res.items : []);
     } catch {
-      setItems([]);
+      setRecords([]);
     } finally {
       setLoading(false);
     }
@@ -60,134 +56,122 @@ export default function PatientRecordsHistoryPage() {
     loadRecords();
   }, [loadRecords]);
 
-  const filtered = useMemo(() => {
-    const q = searchText.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((item) => {
-      const name = (item.display_name || '').toLowerCase();
-      const content = (item.content || item.refined_text || item.raw_text || '').toLowerCase();
-      return name.includes(q) || content.includes(q);
-    });
-  }, [items, searchText]);
+  const latestRecord = useMemo(() => {
+    if (records.length === 0) return null;
+    return [...records].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+  }, [records]);
 
-  const monthLabel = useMemo(() => {
-    if (filtered.length === 0) return '';
-    const month = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(new Date(filtered[0].created_at));
-    return month.toUpperCase();
-  }, [filtered, locale]);
+  const dobText = latestRecord ? formatLongDate(latestRecord.created_at, locale) : t('unknown');
+  const notesText = latestRecord?.content || latestRecord?.refined_text || latestRecord?.raw_text || t('notesPlaceholder');
+
+  const handleDeletePatient = async () => {
+    const confirmed = confirm(t('deleteConfirm'));
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      await deleteMyPatientFolder(folderName, true);
+      router.push('/patients');
+    } catch {
+      alert(t('deleteFailed'));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-bg-page">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-bg-page">
-        <header className="border-b border-border/80 bg-bg-page px-4 pt-1.25">
-          <div className="flex h-14 items-center justify-between">
-            <div className="flex min-w-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => router.back()}
-                className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg-surface"
-                aria-label={t('back')}
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <div className="min-w-0">
-                <p className="truncate text-[20px] font-bold text-text-primary leading-tight">{t('title')}</p>
-                <p className="truncate text-[11px] text-text-muted">{folderName}</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg-surface"
-              aria-label={t('search')}
-              onClick={() => {
-                // Keep this icon action lightweight; real filtering is via inline search input.
-              }}
-            >
-              <Search className="h-4 w-4 text-text-muted" />
-            </button>
-          </div>
-          <div className="pb-2">
-            <div className="flex h-9 items-center gap-2 rounded-xl bg-bg-surface px-3 text-text-muted">
-              <Search className="h-4 w-4" />
-              <input
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                className="w-full bg-transparent text-[14px] text-text-primary placeholder:text-text-muted outline-none"
-                placeholder={t('searchPlaceholder')}
-              />
-            </div>
-          </div>
+    <div className="min-h-screen bg-bg-card">
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-bg-card">
+        <header className="flex h-12 items-center justify-between border-b border-border-medium bg-bg-card px-4">
+          <button
+            type="button"
+            onClick={() => router.push(`/patients/${encodeURIComponent(folderName)}`)}
+            className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg-surface"
+            aria-label={t('back')}
+          >
+            <ChevronLeft className="h-5 w-5 text-text-primary" />
+          </button>
+          <h1 className="text-[18px] font-bold text-text-primary">{t('title')}</h1>
+          <div className="h-10 w-10" />
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 pb-20 pt-3">
+        <main className="flex-1 px-5 py-5">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-text-muted">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               <span className="text-sm">{t('loading')}</span>
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-divider bg-bg-surface px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-text-primary">{t('empty')}</p>
-            </div>
           ) : (
-            <>
-              <p className="mb-1 px-1 text-[11px] font-semibold tracking-wide text-text-muted">{monthLabel}</p>
-              <ul className="divide-y divide-divider rounded-xl bg-bg-card">
-                {filtered.map((item) => {
-                  const status = toStatus(item);
-                  const route = outputFormatToReviewRoute(item.output_format ?? undefined);
-                  const summary = item.content || item.refined_text || item.raw_text || t('noPreview');
-                  const durationSec = item.elapsed_time ?? 0;
-                  return (
-                    <li key={item.id}>
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-3 px-2 py-3 text-left hover:bg-bg-surface"
-                        onClick={() => router.push(`/${route}?id=${item.id}`)}
-                      >
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-blue/10">
-                          <span className="text-[14px] text-accent-blue">♪</span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="truncate text-[15px] font-semibold text-text-primary">{formatTime(item.created_at, locale)}</p>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[11px] text-text-muted">{formatDurationLabel(durationSec)}</span>
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                  status === 'done'
-                                    ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-                                    : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-                                }`}
-                              >
-                                {status === 'done' ? t('done') : t('draft')}
-                              </span>
-                            </div>
-                          </div>
-                          <p className="mt-0.5 truncate text-[12px] text-text-muted">{summary}</p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col items-center justify-center gap-3">
+                <div className="flex h-18 w-18 items-center justify-center rounded-full bg-avatar-bg">
+                  <span className="text-[24px] font-bold text-text-on-accent">{deriveInitials(folderName)}</span>
+                </div>
+                <p className="text-[20px] font-bold text-text-primary">{folderName}</p>
+              </div>
+
+              <InfoField label={t('fullName')} value={folderName} />
+
+              <InfoField
+                label={t('dateOfBirth')}
+                value={dobText}
+                rightNode={<Calendar className="h-4.5 w-4.5 text-text-secondary" />}
+              />
+
+              <InfoField
+                label={t('gender')}
+                value={t('male')}
+                rightNode={<ChevronDown className="h-4.5 w-4.5 text-text-secondary" />}
+              />
+
+              <InfoField label={t('medicalRecordId')} value={deriveMrn(folderName)} />
+
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-[1px] text-text-secondary">{t('notes')}</p>
+                <div className="min-h-20 rounded-lg border border-border-medium bg-bg-card px-3 py-2.5">
+                  <p className="line-clamp-4 text-[14px] text-text-primary">{notesText}</p>
+                </div>
+              </div>
+
+              <div className="h-px w-full bg-border-medium" />
+
+              <div className="flex items-center justify-between">
+                <span className="text-[14px] text-text-secondary">{t('totalRecordings')}</span>
+                <span className="text-[14px] font-semibold text-text-primary">{records.length}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleDeletePatient()}
+                disabled={deleting}
+                className="mt-2 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[10px] border border-danger bg-bg-card text-[15px] font-semibold text-danger disabled:opacity-60"
+              >
+                {deleting ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <Trash2 className="h-4.5 w-4.5" />}
+                <span>{t('deletePatient')}</span>
+              </button>
+            </div>
           )}
         </main>
+      </div>
+    </div>
+  );
+}
 
-        <footer className="border-t border-border/80 bg-bg-page px-4 py-3">
-          <div className="flex items-center justify-center">
-            <button
-              type="button"
-              onClick={() => router.push(`/recording?patient=${encodeURIComponent(folderName)}`)}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-danger text-white shadow-lg"
-              aria-label={t('startRecording')}
-            >
-              <Mic className="h-6 w-6" />
-            </button>
-          </div>
-        </footer>
+function InfoField({
+  label,
+  value,
+  rightNode,
+}: {
+  label: string;
+  value: string;
+  rightNode?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-[11px] font-semibold uppercase tracking-[1px] text-text-secondary">{label}</p>
+      <div className="flex h-11 items-center justify-between rounded-lg border border-border-medium bg-bg-card px-3">
+        <span className="text-[15px] text-text-primary">{value}</span>
+        {rightNode}
       </div>
     </div>
   );

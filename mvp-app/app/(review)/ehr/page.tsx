@@ -65,6 +65,7 @@ export default function EhrSummaryPage() {
                 <RichTextEditor
                     content={content}
                     onChange={handleChange}
+                    markdownMode="clinical-ehr"
                 />
             )}
         </div>

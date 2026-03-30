@@ -124,6 +124,7 @@ export default function SoapNotePage() {
             <RichTextEditor
                 content={content}
                 onChange={handleChange}
+                markdownMode="clinical-soap"
             />
                 </>
             )}

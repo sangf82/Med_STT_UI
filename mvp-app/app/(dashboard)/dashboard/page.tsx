@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { cn, formatDurationSec } from '@/lib/utils';
 import { getMyRecords, getMyUsage, deleteRecord, abandonUpload, getMyPatientFolders, createMyPatientFolder } from '@/lib/api/sttMetrics';
 import { outputFormatToViLabel, recordLabelToReviewRoute } from '@/lib/outputFormat';
-import type { Recording } from '@/lib/mockData';
+import type { Recording } from '@/lib/types/app';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, clearStaleUploadSessions } from '@/lib/db';
 
@@ -273,6 +273,11 @@ export default function DashboardPage() {
         [filteredRecordings]
     );
 
+    const todoRecords = useMemo(
+        () => filteredRecordings.filter((rec) => rec.format === 'Việc cần làm'),
+        [filteredRecordings]
+    );
+
     const visiblePatientFolders = useMemo(
         () => patientFolders.filter((f) => (!f.is_virtual || f.record_count > 0) && !isUnknownFolder(f)),
         [patientFolders]
@@ -374,7 +379,37 @@ export default function DashboardPage() {
 
             {/* ── Recording List ── */}
             <div className="px-4 flex flex-col gap-2.5">
-                <h2 className="text-[13px] font-semibold text-text-muted px-1">{t('patients')}</h2>
+                <div className="mt-1 rounded-2xl bg-bg-card px-4 py-3 border border-border/60">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-[13px] font-semibold text-text-muted">{t('todoList')}</h2>
+                        <button
+                            type="button"
+                            onClick={() => router.push('/tasks')}
+                            className="text-[12px] font-semibold text-accent-blue"
+                        >
+                            {t('viewAll')}
+                        </button>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => router.push('/tasks')}
+                        className="mt-2 w-full rounded-xl bg-bg-page px-3 py-2.5 text-left hover:bg-bg-surface transition-colors"
+                    >
+                        <p className="text-[14px] font-semibold text-text-primary">{t('openTodoList')}</p>
+                        <p className="mt-1 text-[12px] text-text-muted">{t('patientRecordsCount', { count: todoRecords.length })}</p>
+                    </button>
+                </div>
+
+                <div className="flex items-center justify-between px-1 mt-1">
+                    <h2 className="text-[13px] font-semibold text-text-muted">{t('patients')}</h2>
+                    <button
+                        type="button"
+                        onClick={() => router.push('/patients')}
+                        className="text-[12px] font-semibold text-accent-blue"
+                    >
+                        {t('viewAll')}
+                    </button>
+                </div>
 
                 <button
                     type="button"
@@ -414,12 +449,21 @@ export default function DashboardPage() {
                     </button>
                 ))}
 
-                <h2 className="text-[13px] font-semibold text-text-muted mb-1 px-1">
-                    {t('unassigned')}
-                    {!isLoading && totalRecordsFromApi >= 0 && (
-                        <span className="ml-1 font-normal">(tổng {totalRecordsFromApi} bản ghi)</span>
-                    )}
-                </h2>
+                <div className="flex items-center justify-between mb-1 px-1">
+                    <h2 className="text-[13px] font-semibold text-text-muted">
+                        {t('unassigned')}
+                        {!isLoading && (
+                            <span className="ml-1 font-normal">({unassignedRecordings.length})</span>
+                        )}
+                    </h2>
+                    <button
+                        type="button"
+                        onClick={() => router.push('/unassigned')}
+                        className="text-[12px] font-semibold text-accent-blue"
+                    >
+                        {t('viewAll')}
+                    </button>
+                </div>
 
                 {isLoading ? (
                     <div className="flex flex-col items-center justify-center p-8 text-text-muted">

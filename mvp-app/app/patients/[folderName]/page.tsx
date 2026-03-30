@@ -1,344 +1,230 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
-import {
-  ChevronLeft,
-  History,
-  Mic,
-} from 'lucide-react';
-import { Loader2 } from 'lucide-react';
-import { type Editor } from '@tiptap/react';
-import { RichTextEditor } from '@/components/RichTextEditor';
-import { EditorToolbar } from '@/components/EditorToolbar';
-import { getPatientFolderRecords, getRecordById, updateRecord, type SttRecord } from '@/lib/api/sttMetrics';
-import { normalizeOutputFormatToken } from '@/lib/outputFormat';
+import { ChevronLeft, ChevronRight, FileText, Info, ListTodo, Loader2, Mic, Search, Stethoscope } from 'lucide-react';
+import { getPatientFolderRecords, type SttRecord } from '@/lib/api/sttMetrics';
+import { normalizeOutputFormatToken, outputFormatToReviewRoute } from '@/lib/outputFormat';
 
-type TabKey = 'soap' | 'ehr' | 'todo';
+type FilterTab = 'all' | 'soap' | 'ehr' | 'todo';
 
-const TAB_ORDER: TabKey[] = ['soap', 'ehr', 'todo'];
-const TRANSCRIBING_POLL_MS = 5000;
-
-function isRecordTranscribing(status?: string | null): boolean {
-  return status === 'processing' || status === 'pending';
+function formatDateTime(iso: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso));
 }
 
-function getRecordTimestamp(record: SttRecord): number {
-  const created = Date.parse(record.created_at ?? '');
-  if (Number.isFinite(created)) return created;
-  const updated = Date.parse(record.updated_at ?? '');
-  if (Number.isFinite(updated)) return updated;
-  return 0;
+function formatDuration(seconds?: number) {
+  const sec = Math.max(0, Math.round(seconds ?? 0));
+  const min = Math.floor(sec / 60);
+  const remain = sec % 60;
+  return `${min}m ${remain}s`;
 }
 
-function getTemplateForTab(tab: TabKey, t: ReturnType<typeof useTranslations<'PatientFolder'>>) {
-  if (tab === 'soap') {
-    return [
-      `S — ${t('subjective')}`,
-      t('subjectivePlaceholder'),
-      '',
-      `O — ${t('objective')}`,
-      t('objectivePlaceholder'),
-      '',
-      `A — ${t('assessment')}`,
-      t('assessmentPlaceholder'),
-      '',
-      `P — ${t('plan')}`,
-      t('planPlaceholder'),
-    ].join('\n');
+function getTypeIndicator(format: ReturnType<typeof normalizeOutputFormatToken>) {
+  if (format === 'soap_note') {
+    return {
+      Icon: FileText,
+      iconClassName: 'text-accent-blue',
+      containerClassName: 'bg-accent-blue/10',
+    };
   }
-  if (tab === 'ehr') {
-    return [
-      `# ${t('ehrSummary')}`,
-      '',
-      t('ehrPlaceholder'),
-    ].join('\n');
+  if (format === 'ehr') {
+    return {
+      Icon: Stethoscope,
+      iconClassName: 'text-[#0D9488]',
+      containerClassName: 'bg-[#F0FDFA]',
+    };
   }
-  return [
-    `# ${t('todoList')}`,
-    '',
-    `- [ ] ${t('todoPlaceholder1')}`,
-    `- [ ] ${t('todoPlaceholder2')}`,
-  ].join('\n');
+  if (format === 'to-do') {
+    return {
+      Icon: ListTodo,
+      iconClassName: 'text-[#7C3AED]',
+      containerClassName: 'bg-[#F5F3FF]',
+    };
+  }
+  return {
+    Icon: FileText,
+    iconClassName: 'text-[#2563EB]',
+    containerClassName: 'bg-[#EFF6FF]',
+  };
 }
 
-export default function PatientFolderPage() {
-  const t = useTranslations('PatientFolder');
-  const locale = useLocale();
+export default function PatientFolderRecordsPage() {
+  const t = useTranslations('PatientRecords');
+  const r = useTranslations('Review');
+  const localeKey = useLocale();
+  const locale = localeKey === 'vi' ? 'vi-VN' : 'en-US';
   const router = useRouter();
   const params = useParams<{ folderName: string }>();
   const folderName = decodeURIComponent(params.folderName ?? '');
 
-  const [loadingFolder, setLoadingFolder] = useState(true);
-  const [loadingRecord, setLoadingRecord] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabKey>('soap');
-  const [recordsByTab, setRecordsByTab] = useState<Record<TabKey, SttRecord | null>>({
-    soap: null,
-    ehr: null,
-    todo: null,
-  });
-  const [content, setContent] = useState('');
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
+  const [items, setItems] = useState<SttRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [activeTab, setActiveTab] = useState<FilterTab>('all');
 
-  const lastLoadedContentRef = useRef('');
-
-  const tabLabels = useMemo(
-    () => ({
-      soap: t('soapNote'),
-      ehr: t('ehrSummary'),
-      todo: t('todoList'),
-    }),
-    [t]
-  );
-
-  const availableTabs = useMemo(
-    () => TAB_ORDER.filter((tab) => Boolean(recordsByTab[tab])),
-    [recordsByTab]
-  );
-
-  const activeRecord = recordsByTab[activeTab];
-  const isActiveRecordTranscribing = useMemo(
-    () => isRecordTranscribing(activeRecord?.status),
-    [activeRecord?.status]
-  );
-
-  const loadFolder = useCallback(async () => {
-    setLoadingFolder(true);
+  const loadRecords = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await getPatientFolderRecords(folderName, 0, 50);
-      const next: Record<TabKey, SttRecord | null> = { soap: null, ehr: null, todo: null };
-
-      for (const item of res.items ?? []) {
-        const normalized = normalizeOutputFormatToken(item.output_format ?? undefined);
-        const key: TabKey | null = normalized === 'soap_note' ? 'soap' : normalized === 'ehr' ? 'ehr' : normalized === 'to-do' ? 'todo' : null;
-        if (!key) continue;
-        if (!next[key]) {
-          next[key] = item;
-          continue;
-        }
-        if (getRecordTimestamp(item) > getRecordTimestamp(next[key]!)) {
-          next[key] = item;
-        }
-      }
-
-      setRecordsByTab(next);
-      const firstAvailable = TAB_ORDER.find((k) => Boolean(next[k])) ?? 'soap';
-      setActiveTab(firstAvailable);
+      const res = await getPatientFolderRecords(folderName, 0, 100);
+      const next = Array.isArray(res?.items) ? res.items : [];
+      setItems(next.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     } catch {
-      setRecordsByTab({ soap: null, ehr: null, todo: null });
-      setActiveTab('soap');
+      setItems([]);
     } finally {
-      setLoadingFolder(false);
+      setLoading(false);
     }
   }, [folderName]);
 
   useEffect(() => {
-    loadFolder();
-  }, [loadFolder]);
+    loadRecords();
+  }, [loadRecords]);
 
-  useEffect(() => {
-    if (availableTabs.length === 0) return;
-    if (!availableTabs.includes(activeTab)) {
-      setActiveTab(availableTabs[0]);
-    }
-  }, [activeTab, availableTabs]);
+  const filtered = useMemo(() => {
+    const q = searchText.trim().toLowerCase();
 
-  useEffect(() => {
-    let isMounted = true;
+    return items.filter((item) => {
+      const format = normalizeOutputFormatToken(item.output_format ?? undefined);
+      if (activeTab === 'soap' && format !== 'soap_note') return false;
+      if (activeTab === 'ehr' && format !== 'ehr') return false;
+      if (activeTab === 'todo' && format !== 'to-do') return false;
 
-    const loadTabContent = async () => {
-      if (!activeRecord?.id) {
-        if (!isMounted) return;
-        setContent('');
-        lastLoadedContentRef.current = '';
-        setSaveStatus('idle');
-        return;
-      }
+      if (!q) return true;
+      const name = (item.display_name || '').toLowerCase();
+      const content = (item.content || item.refined_text || item.raw_text || '').toLowerCase();
+      return name.includes(q) || content.includes(q);
+    });
+  }, [activeTab, items, searchText]);
 
-      if (isRecordTranscribing(activeRecord.status)) {
-        if (!isMounted) return;
-        setSaveStatus('idle');
-        return;
-      }
-
-      setLoadingRecord(true);
-      try {
-        const detail = await getRecordById(activeRecord.id);
-        const nextContent = detail.content || detail.refined_text || detail.raw_text || getTemplateForTab(activeTab, t);
-        if (!isMounted) return;
-        setContent(nextContent);
-        lastLoadedContentRef.current = nextContent;
-        setSaveStatus('idle');
-      } catch {
-        if (!isMounted) return;
-        const fallback = getTemplateForTab(activeTab, t);
-        setContent(fallback);
-        lastLoadedContentRef.current = fallback;
-        setSaveStatus('error');
-      } finally {
-        if (isMounted) setLoadingRecord(false);
-      }
-    };
-
-    loadTabContent();
-    return () => {
-      isMounted = false;
-    };
-  }, [activeRecord?.id, activeRecord?.status, activeTab, t]);
-
-  useEffect(() => {
-    if (!activeRecord?.id || !isRecordTranscribing(activeRecord.status)) return;
-
-    let stopped = false;
-    const tabKey = activeTab;
-    const recordId = activeRecord.id;
-
-    const tick = async () => {
-      try {
-        const detail = await getRecordById(recordId);
-        if (stopped) return;
-        setRecordsByTab((prev) => {
-          if (prev[tabKey]?.id !== recordId) return prev;
-          return { ...prev, [tabKey]: detail };
-        });
-      } catch {
-        // Keep polling; transient API errors should not break the transcribing state.
-      }
-    };
-
-    void tick();
-    const interval = setInterval(() => {
-      void tick();
-    }, TRANSCRIBING_POLL_MS);
-
-    return () => {
-      stopped = true;
-      clearInterval(interval);
-    };
-  }, [activeRecord?.id, activeRecord?.status, activeTab]);
-
-  useEffect(() => {
-    if (!activeRecord?.id) return;
-    if (isRecordTranscribing(activeRecord.status)) return;
-    if (content === lastLoadedContentRef.current) return;
-
-    setSaveStatus('saving');
-    const timer = setTimeout(async () => {
-      try {
-        await updateRecord(activeRecord.id, { content });
-        lastLoadedContentRef.current = content;
-        setSaveStatus('saved');
-      } catch {
-        setSaveStatus('error');
-      }
-    }, 900);
-
-    return () => clearTimeout(timer);
-  }, [activeRecord?.id, activeRecord?.status, content]);
-
-  const subtitle = useMemo(() => {
-    const d = activeRecord?.created_at ? new Date(activeRecord.created_at) : null;
-    const formattedDate = d ? new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d) : '--';
-    const mrn = activeRecord?.id ? activeRecord.id.slice(-6).toUpperCase() : '------';
-    return `${t('dobLabel')}: ${formattedDate}  ·  ${t('mrnLabel')}: ${mrn}`;
-  }, [activeRecord?.created_at, activeRecord?.id, locale, t]);
-
-  const saveBadge = useMemo(() => {
-    if (!activeRecord?.id) return null;
-    if (saveStatus === 'saving') return <span className="text-[11px] text-accent-blue">{t('saving')}</span>;
-    if (saveStatus === 'saved') return <span className="text-[11px] text-green-600 dark:text-green-400">{t('saved')}</span>;
-    if (saveStatus === 'error') return <span className="text-[11px] text-red-500">{t('saveError')}</span>;
-    return null;
-  }, [activeRecord?.id, saveStatus, t]);
+  const tabs = useMemo(
+    () => [
+      { id: 'all' as const, label: t('tabAll') },
+      { id: 'soap' as const, label: r('soapNote') },
+      { id: 'ehr' as const, label: r('ehrSummary') },
+      { id: 'todo' as const, label: r('todoList') },
+    ],
+    [r, t]
+  );
 
   return (
     <div className="min-h-screen bg-bg-page">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-bg-page">
-        <header className="border-b border-border/80 bg-bg-page px-4 pb-2 pt-1.25">
-          <div className="flex h-14 items-center justify-between">
-            <div className="flex min-w-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => router.push('/dashboard')}
-                className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg-surface"
-                aria-label={t('back')}
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <div className="min-w-0">
-                <p className="truncate text-[15px] font-semibold text-text-primary">{folderName}</p>
-                <p className="truncate text-[10px] text-text-muted">{subtitle}</p>
-              </div>
+        <header className="border-b border-border/80 bg-bg-card px-4 pt-1.5">
+          <div className="flex h-12 items-center justify-between">
+            <button
+              type="button"
+              onClick={() => router.push('/patients')}
+              className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg-surface"
+              aria-label={t('back')}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <div className="min-w-0 text-center">
+              <p className="truncate text-[16px] font-semibold text-text-primary">{folderName}</p>
             </div>
             <button
               type="button"
               onClick={() => router.push(`/patients/${encodeURIComponent(folderName)}/records`)}
               className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-bg-surface"
-              aria-label={t('refresh')}
+              aria-label={t('patientInfo')}
             >
-              <History className="h-4 w-4 text-text-muted" />
+              <Info className="h-4.5 w-4.5 text-text-muted" />
             </button>
           </div>
-          <div className="mt-1 flex border-b border-border/80">
-            {availableTabs.map((tab) => {
-              const isActive = activeTab === tab;
-              const tabIsTranscribing = isRecordTranscribing(recordsByTab[tab]?.status);
+
+          <div className="pb-2">
+            <div className="flex h-9 items-center gap-2 rounded-xl bg-bg-surface px-3 text-text-muted">
+              <Search className="h-4 w-4" />
+              <input
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="w-full bg-transparent text-[14px] text-text-primary placeholder:text-text-muted outline-none"
+                placeholder={t('searchPlaceholder')}
+              />
+            </div>
+          </div>
+
+          <div className="-mx-4 flex border-t border-border/80 px-4">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
               return (
                 <button
-                  key={tab}
+                  key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab)}
-                  className={`flex-1 border-b-2 px-2 py-3 text-[12px] ${
-                    isActive
-                      ? 'border-accent-blue font-semibold text-accent-blue'
-                      : 'border-transparent text-text-muted'
-                  }`}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={[
+                    'flex-1 border-b-2 py-2.5 text-[12px] font-medium transition-colors',
+                    isActive ? 'border-accent-blue text-accent-blue' : 'border-transparent text-text-muted',
+                  ].join(' ')}
                 >
-                  <span className="inline-flex items-center gap-1.5">
-                    <span>{tabLabels[tab]}</span>
-                    {tabIsTranscribing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  </span>
+                  {tab.label}
                 </button>
               );
             })}
           </div>
-          <div id="editor-toolbar" className="flex items-center border-b border-border/80 bg-bg-page">
-            <div className="min-w-0 flex-1">
-              {availableTabs.length > 0 && <EditorToolbar editor={editorInstance} />}
-            </div>
-            <div className="ml-2 shrink-0 pr-2">{saveBadge}</div>
-          </div>
         </header>
 
-        <main className="relative flex-1 bg-bg-page">
-          {loadingFolder || loadingRecord ? (
-            <div className="flex h-full items-center justify-center text-text-muted">
+        <main className="flex-1 overflow-y-auto px-4 py-3">
+          {loading ? (
+            <div className="flex items-center justify-center py-16 text-text-muted">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               <span className="text-sm">{t('loading')}</span>
             </div>
-          ) : availableTabs.length === 0 ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-              <p className="text-[16px] font-semibold text-text-primary">{t('emptyTitle')}</p>
-              <p className="mt-2 text-[13px] text-text-muted">{t('emptySubtitle')}</p>
-              
-            </div>
-          ) : isActiveRecordTranscribing ? (
-            <div className="flex h-full flex-col items-center justify-center px-6 text-center text-text-muted">
-              <Loader2 className="mb-3 h-7 w-7 animate-spin text-accent-blue" />
-              <p className="text-[15px] font-semibold text-text-primary">Đang chuyển giọng nói thành văn bản...</p>
-              <p className="mt-1 text-[13px]">Nội dung sẽ tự động hiển thị sau khi hoàn tất.</p>
+          ) : filtered.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-divider bg-bg-surface px-4 py-8 text-center">
+              <p className="text-sm font-semibold text-text-primary">{t('empty')}</p>
             </div>
           ) : (
-            <RichTextEditor
-              content={content}
-              onChange={setContent}
-              minHeight="320px"
-              coerceTaskListOnLoad={activeTab === 'todo'}
-              showToolbar={false}
-              onEditorReady={setEditorInstance}
-            />
+            <ul className="divide-y divide-divider rounded-xl bg-bg-card">
+              {filtered.map((item) => {
+                const format = normalizeOutputFormatToken(item.output_format ?? undefined);
+                const route = outputFormatToReviewRoute(item.output_format ?? undefined);
+                const statusDone = item.status === 'completed';
+                const preview = item.content || item.refined_text || item.raw_text || t('noPreview');
+                const { Icon, iconClassName, containerClassName } = getTypeIndicator(format);
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 px-2 py-3 text-left hover:bg-bg-surface"
+                      onClick={() => router.push(`/${route}?id=${item.id}`)}
+                    >
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${containerClassName}`}>
+                        <Icon className={`h-4.5 w-4.5 ${iconClassName}`} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-[15px] font-semibold text-text-primary">
+                            {formatDateTime(item.created_at, locale)}
+                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] text-text-muted">{formatDuration(item.elapsed_time)}</span>
+                            <span
+                              className={[
+                                'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                                statusDone
+                                  ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                                  : 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+                              ].join(' ')}
+                            >
+                              {statusDone ? t('done') : t('draft')}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="mt-0.5 truncate text-[12px] text-text-muted">{preview}</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </main>
 

@@ -1,9 +1,19 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { initialRecordings, doctorProfile, type Profile, type Recording } from '@/lib/mockData';
+import type { Profile, Recording } from '@/lib/types/app';
 import { apiClient } from '@/lib/apiClient';
 import { getAuthToken } from '@/lib/auth';
+
+const EMPTY_PROFILE: Profile = {
+    name: '',
+    initials: '',
+    specialty: '',
+    hospital: '',
+    email: '',
+    phone: '',
+    npi: '',
+};
 
 interface AppContextProps {
     recordings: Recording[];
@@ -34,13 +44,13 @@ interface AppContextProps {
 const AppContext = createContext<AppContextProps | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
-    const [recordings, setRecordings] = useState<Recording[]>(initialRecordings);
-    const [profile, setProfile] = useState<Profile>(doctorProfile);
+    const [recordings, setRecordings] = useState<Recording[]>([]);
+    const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
     const [filter, setFilter] = useState<string | null>(null);
     const [showSurvey, setShowSurvey] = useState(false);
     const [showDailyReport, setShowDailyReport] = useState(false);
-    const [showTrialPanel, setShowTrialPanel] = useState(initialRecordings.length >= 5);
-    const [showNotificationDot, setShowNotificationDot] = useState(initialRecordings.length >= 5);
+    const [showTrialPanel, setShowTrialPanel] = useState(false);
+    const [showNotificationDot, setShowNotificationDot] = useState(false);
     const [isRecoveringUploads, setIsRecoveringUploads] = useState(false);
     const activeUploadIdsRef = useRef(new Set<string>());
     const [activeUploadIds, setActiveUploadIds] = useState<Set<string>>(new Set());
@@ -112,10 +122,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Keep localStorage in sync if profile is manually set elsewhere (e.g. login)
     useEffect(() => {
-        // Only update localStorage if not matching doctorProfile exactly or as a general rule
-        if (profile !== doctorProfile) {
-            localStorage.setItem('user_profile', JSON.stringify(profile));
-        }
+        if (!getAuthToken()) return;
+        if (!profile.name && !profile.email && !profile.phone && !profile.npi) return;
+        localStorage.setItem('user_profile', JSON.stringify(profile));
     }, [profile]);
 
     return (

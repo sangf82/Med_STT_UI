@@ -18,8 +18,72 @@ interface RichTextEditorProps {
     className?: string;
     minHeight?: string;
     coerceTaskListOnLoad?: boolean;
+    markdownMode?: 'default' | 'clinical-ehr' | 'clinical-soap';
     showToolbar?: boolean;
     onEditorReady?: (editor: Editor | null) => void;
+}
+
+function normalizeClinicalMarkdown(content: string): string {
+    if (!content || typeof content !== 'string') return content;
+
+    const lines = content.split('\n');
+    const normalized: string[] = [];
+    let activeSoapSection = false;
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (line.length === 0) {
+            normalized.push('');
+            continue;
+        }
+
+        const oneLinerMatch = line.match(/^#\s*One-liner\s*:\s*(.*)$/i);
+        if (oneLinerMatch) {
+            const oneLinerContent = oneLinerMatch[1]?.trim();
+            normalized.push(oneLinerContent ? `**One-liner**: ${oneLinerContent}` : '**One-liner**:');
+            activeSoapSection = false;
+            continue;
+        }
+
+        const soapHeadingMatch = line.match(/^#\s*([SOAP])\s*\(([^)]+)\)\s*:?\s*$/i);
+        if (soapHeadingMatch) {
+            const letter = soapHeadingMatch[1].toUpperCase();
+            const title = soapHeadingMatch[2].trim();
+            normalized.push(`### ${letter} (${title})`);
+            activeSoapSection = true;
+            continue;
+        }
+
+        const inlineSectionHeadingMatch = line.match(/^#\s*([A-Za-z][^:]+)\s*:\s*(.+)$/);
+        if (inlineSectionHeadingMatch) {
+            normalized.push(`### ${inlineSectionHeadingMatch[1].trim()}`);
+            normalized.push(inlineSectionHeadingMatch[2].trim());
+            activeSoapSection = true;
+            continue;
+        }
+
+        const sectionBodyMatch = line.match(/^##\s*(.+)$/);
+        if (sectionBodyMatch) {
+            normalized.push(sectionBodyMatch[1].trim());
+            continue;
+        }
+
+        const genericHeadingMatch = line.match(/^#\s*(.+)$/);
+        if (genericHeadingMatch) {
+            normalized.push(`### ${genericHeadingMatch[1].replace(/:\s*$/, '').trim()}`);
+            activeSoapSection = true;
+            continue;
+        }
+
+        normalized.push(rawLine);
+    }
+
+    if (!activeSoapSection && !/^\s*#\s*One-liner\s*:/im.test(content) && !/^\s*#\s*[SOAP]\s*\(/im.test(content)) {
+        return content;
+    }
+
+    return normalized.join('\n');
 }
 
 function escapeHtml(input: string): string {
@@ -92,11 +156,20 @@ export function RichTextEditor({
     className,
     minHeight = "none",
     coerceTaskListOnLoad = false,
+    markdownMode = 'default',
     showToolbar = true,
     onEditorReady,
 }: RichTextEditorProps) {
     const [mounted, setMounted] = useState(false);
     const [isKeyboardActive, setIsKeyboardActive] = useState(false);
+
+    const isClinicalMode = markdownMode === 'clinical-ehr' || markdownMode === 'clinical-soap';
+    const editorClassName = `focus:outline-none w-full h-full text-text-primary leading-relaxed tiptap-editor${isClinicalMode ? ' clinical-markdown' : ''}${markdownMode === 'clinical-ehr' ? ' clinical-markdown-ehr' : ''}${markdownMode === 'clinical-soap' ? ' clinical-markdown-soap' : ''}`;
+    const initialContent = coerceTaskListOnLoad
+        ? coerceTaskMarkdownToHtml(content)
+        : isClinicalMode
+            ? normalizeClinicalMarkdown(content)
+            : content;
 
     const editor = useEditor({
         extensions: [
@@ -123,7 +196,7 @@ export function RichTextEditor({
             Color,
             FontSize,
         ],
-        content: coerceTaskListOnLoad ? coerceTaskMarkdownToHtml(content) : content,
+        content: initialContent,
         onUpdate: ({ editor }) => {
             const markdown = (editor.storage as any).markdown?.getMarkdown() ?? '';
             onChange(markdown);
@@ -145,7 +218,7 @@ export function RichTextEditor({
         },
         editorProps: {
             attributes: {
-                class: 'focus:outline-none w-full h-full text-text-primary leading-relaxed tiptap-editor',
+                class: editorClassName,
                 style: `min-height: ${minHeight};`,
             },
             handleDOMEvents: {
@@ -197,14 +270,14 @@ export function RichTextEditor({
             editor.setOptions({
                 editorProps: {
                     attributes: {
-                        class: 'focus:outline-none w-full h-full text-text-primary leading-relaxed tiptap-editor',
+                        class: editorClassName,
                         style: `min-height: ${minHeight};`,
                         inputmode: isKeyboardActive ? 'text' : 'none',
                     }
                 }
             });
         }
-    }, [isKeyboardActive, editor, minHeight]);
+    }, [isKeyboardActive, editor, minHeight, editorClassName]);
 
     useEffect(() => {
         setMounted(true);
@@ -212,10 +285,14 @@ export function RichTextEditor({
 
     useEffect(() => {
         if (editor && content !== (editor.storage as any).markdown?.getMarkdown() && !editor.isFocused) {
-            const nextContent = coerceTaskListOnLoad ? coerceTaskMarkdownToHtml(content) : content;
+            const nextContent = coerceTaskListOnLoad
+                ? coerceTaskMarkdownToHtml(content)
+                : isClinicalMode
+                    ? normalizeClinicalMarkdown(content)
+                    : content;
             editor.commands.setContent(nextContent);
         }
-    }, [content, editor, coerceTaskListOnLoad]);
+    }, [content, editor, coerceTaskListOnLoad, isClinicalMode]);
 
     useEffect(() => {
         onEditorReady?.(editor ?? null);

@@ -23,7 +23,22 @@ export function middleware(request: NextRequest) {
   }
 
   // Protected routes check
-  const protectedPaths = ["/dashboard", "/recording", "/review"];
+  const protectedPaths = [
+    "/dashboard",
+    "/settings",
+    "/profile",
+    "/patients",
+    "/records",
+    "/tasks",
+    "/unassigned",
+    "/recording",
+    "/soap",
+    "/ehr",
+    "/todo",
+    "/raw",
+    "/edit",
+    "/review",
+  ];
   const isProtected = protectedPaths.some((path) => pathname.startsWith(path));
   const token = request.cookies.get("auth_token");
 
