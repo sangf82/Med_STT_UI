@@ -443,8 +443,7 @@
 
 .tiptap-editor.clinical-markdown-ehr h1,
 .tiptap-editor.clinical-markdown-ehr h2,
-.tiptap-editor.clinical-markdown-ehr h3,
-.tiptap-editor.clinical-markdown-ehr strong:first-child {
+.tiptap-editor.clinical-markdown-ehr h3 {
   color: var(--accent-orange);
 }
 
