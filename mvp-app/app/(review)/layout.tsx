@@ -257,9 +257,11 @@ export default function ReviewLayout({
 
 
 
+    const ehrTabLabel = format === 'Biên bản phẫu thuật' ? t('operativeNote') : t('ehrSummary');
+
     const allTabs = [
         { id: 'soap', label: t('soapNote') },
-        { id: 'ehr', label: t('ehrSummary') },
+        { id: 'ehr', label: ehrTabLabel },
         { id: 'todo', label: t('todoList') },
         { id: 'raw', label: t('raw') },
     ];
