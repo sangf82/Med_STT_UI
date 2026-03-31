@@ -201,7 +201,7 @@ export default function PatientFolderRecordsPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
                           <p className="truncate text-[15px] font-semibold text-text-primary">
-                            {formatDateTime(item.created_at, locale)}
+                            {item.display_name}
                           </p>
                           <div className="flex items-center gap-1.5">
                             <span className="text-[11px] text-text-muted">{formatDuration(item.elapsed_time)}</span>

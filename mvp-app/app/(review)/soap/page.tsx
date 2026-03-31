@@ -116,7 +116,11 @@ export default function SoapNotePage() {
                     <div className="rounded-xl border border-border bg-bg-surface px-3 py-2">
                         <p className="text-[12px] font-semibold text-text-primary mb-1">Context cũ</p>
                         <div className="text-[12px] text-text-muted whitespace-pre-wrap max-h-28 overflow-auto">
-                            {contextText}
+                            <RichTextEditor
+                                content={contextText}
+                                onChange={() => {}}
+                                markdownMode="clinical-soap"
+                            />
                         </div>
                     </div>
                 ) : null}
