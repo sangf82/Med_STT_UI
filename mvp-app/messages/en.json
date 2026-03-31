@@ -130,6 +130,7 @@
     "name": "Name",
     "formatSoap": "SOAP Note",
     "formatClinical": "Clinical Summary",
+    "formatOperative": "Operative Note",
     "formatTodo": "To-do List",
     "formatRaw": "Free Text"
   },
@@ -137,6 +138,7 @@
     "consultation": "Patient Consultation",
     "soapNote": "SOAP Note",
     "ehrSummary": "Clinical Summary",
+    "operativeNote": "Operative Note",
     "todoList": "To-do List",
     "unclassified": "Unclassified",
     "raw": "Free Text",

@@ -314,7 +314,13 @@ export default function RecordingPage() {
         saveInProgressRef.current = true;
         setRecordingError(null);
         setShowSave(false);
-        const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = { soap: 'soap_note', clinical: 'ehr', todo: 'to-do', raw: 'freetext' };
+        const UI_TO_OUTPUT_FORMAT: Record<string, OutputFormat> = {
+            soap: 'soap_note',
+            clinical: 'ehr',
+            operative: 'operative_note',
+            todo: 'to-do',
+            raw: 'freetext'
+        };
         const outputFormat: OutputFormat = UI_TO_OUTPUT_FORMAT[format] ?? AVAILABLE_OUTPUT_FORMATS[0];
         outputFormatRef.current = outputFormat;
 

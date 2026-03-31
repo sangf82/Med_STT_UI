@@ -2,15 +2,23 @@ import { apiClient } from "../apiClient";
 import { getAuthToken, logout } from "../auth";
 
 // AI-supported output formats only (must match backend AVAILABLE_OUTPUT_FORMATS)
-export const AVAILABLE_OUTPUT_FORMATS = ["soap_note", "ehr", "to-do", "freetext"] as const;
+export const AVAILABLE_OUTPUT_FORMATS = ["soap_note", "ehr", "operative_note", "to-do", "freetext"] as const;
 export type OutputFormat = (typeof AVAILABLE_OUTPUT_FORMATS)[number];
 
 /** Normalize to one of AVAILABLE_OUTPUT_FORMATS only (matches backend/AI). */
 export function normalizeOutputFormat(value: string | undefined): OutputFormat {
   if (!value || !value.trim()) return "soap_note";
   const raw = value.trim().toLowerCase().replace(/\s/g, "_");
+  const ascii = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (raw === "soap_note" || raw === "soap") return "soap_note";
   if (raw === "ehr" || raw === "clinical") return "ehr";
+  if (
+    raw === "operative_note" ||
+    raw === "operative" ||
+    raw === "operation_note" ||
+    raw === "surgery_note" ||
+    ascii === "bien_ban_phau_thuat"
+  ) return "operative_note";
   if (raw === "to-do" || raw === "todo" || raw === "todolist") return "to-do";
   if (raw === "freetext" || raw === "free" || raw === "free_text" || raw === "raw") return "freetext";
   return "soap_note";
@@ -179,7 +187,7 @@ export interface IncompleteUploadsResponse {
   uploads: IncompleteUpload[]; // backend returns { uploads: [...] }
 }
 
-/** Đổi raw_text sang format khác (soap_note | ehr | to-do | freetext) qua Modal; không tốn quota STT audio. */
+/** Đổi raw_text sang format khác (soap_note | ehr | operative_note | to-do | freetext) qua Modal; không tốn quota STT audio. */
 export function sttChangeFormat(payload: {
   raw_text: string;
   output_format: OutputFormat | string;

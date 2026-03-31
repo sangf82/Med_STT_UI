@@ -5,9 +5,10 @@ import { ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 
-const TEMPLATES: Array<{ value: string; key: any }> = [
+const TEMPLATES: Array<{ value: string; key: string }> = [
     { value: 'SOAP Note', key: 'formatSoap' },
     { value: 'Clinical Summary', key: 'formatClinical' },
+    { value: 'Operative Note', key: 'formatOperative' },
     { value: 'To-do List', key: 'formatTodo' },
 ];
 

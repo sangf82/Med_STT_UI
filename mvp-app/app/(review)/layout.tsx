@@ -165,6 +165,7 @@ export default function ReviewLayout({
     const formatLabels: Record<OutputFormat, string> = {
         soap_note: 'Ghi chú SOAP',
         ehr: 'Tóm tắt lâm sàng (EHR)',
+        operative_note: 'Biên bản phẫu thuật',
         'to-do': 'Việc cần làm',
         freetext: 'Văn bản tự do',
     };
@@ -197,9 +198,9 @@ export default function ReviewLayout({
             const tab =
                 target === 'soap_note'
                     ? 'soap'
-                    : target === 'ehr'
-                      ? 'ehr'
-                      : target === 'to-do'
+                    : target === 'ehr' || target === 'operative_note'
+                        ? 'ehr'
+                        : target === 'to-do'
                         ? 'todo'
                         : 'raw';
             router.replace(`/${tab}?id=${recordId}`);
@@ -222,6 +223,11 @@ export default function ReviewLayout({
             case 'soap_note':
             case 'soap': return 'Ghi chú SOAP';
             case 'ehr': return 'Tóm tắt lâm sàng';
+            case 'operative_note':
+            case 'operative':
+            case 'operation_note':
+            case 'surgery_note':
+                return 'Biên bản phẫu thuật';
             case 'to-do':
             case 'todo':
             case 'todo_list':
@@ -262,6 +268,7 @@ export default function ReviewLayout({
         return allTabs.filter(tab => {
             if (format === 'Ghi chú SOAP' && tab.id === 'soap') return true;
             if (format === 'Tóm tắt lâm sàng' && tab.id === 'ehr') return true;
+            if (format === 'Biên bản phẫu thuật' && tab.id === 'ehr') return true;
             if (format === 'Việc cần làm' && tab.id === 'todo') return true;
             if (format === 'Văn bản tự do' && tab.id === 'raw') return true;
             return false;
@@ -284,12 +291,12 @@ export default function ReviewLayout({
     useEffect(() => {
         if (!record) return;
         const isSoapInvalid = pathname.includes('/soap') && format !== 'Ghi chú SOAP';
-        const isEhrInvalid = pathname.includes('/ehr') && format !== 'Tóm tắt lâm sàng';
+        const isEhrInvalid = pathname.includes('/ehr') && format !== 'Tóm tắt lâm sàng' && format !== 'Biên bản phẫu thuật';
         const isTodoInvalid = pathname.includes('/todo') && format !== 'Việc cần làm';
         const isRawInvalid = pathname.includes('/raw') && format !== 'Văn bản tự do';
 
         if (isSoapInvalid || isEhrInvalid || isTodoInvalid || isRawInvalid) {
-            const startTab = format === 'Tóm tắt lâm sàng' ? 'ehr' : (format === 'Ghi chú SOAP' ? 'soap' : (format === 'Việc cần làm' ? 'todo' : (format === 'Văn bản tự do' ? 'raw' : 'soap')));
+            const startTab = (format === 'Tóm tắt lâm sàng' || format === 'Biên bản phẫu thuật') ? 'ehr' : (format === 'Ghi chú SOAP' ? 'soap' : (format === 'Việc cần làm' ? 'todo' : (format === 'Văn bản tự do' ? 'raw' : 'soap')));
             router.replace(`/${startTab}?id=${recordId}`);
         }
     }, [pathname, record, format, recordId, router]);

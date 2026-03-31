@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, FileText, Info, ListTodo, Loader2, Mic, Sear
 import { getPatientFolderRecords, type SttRecord } from '@/lib/api/sttMetrics';
 import { normalizeOutputFormatToken, outputFormatToReviewRoute } from '@/lib/outputFormat';
 
-type FilterTab = 'all' | 'soap' | 'ehr' | 'todo';
+type FilterTab = 'all' | 'soap' | 'ehr' | 'operative' | 'todo';
 
 function formatDateTime(iso: string, locale: string) {
   return new Intl.DateTimeFormat(locale, {
@@ -39,6 +39,13 @@ function getTypeIndicator(format: ReturnType<typeof normalizeOutputFormatToken>)
       Icon: Stethoscope,
       iconClassName: 'text-[#0D9488]',
       containerClassName: 'bg-[#F0FDFA]',
+    };
+  }
+  if (format === 'operative_note') {
+    return {
+      Icon: Stethoscope,
+      iconClassName: 'text-[#0EA5E9]',
+      containerClassName: 'bg-[#EFF6FF]',
     };
   }
   if (format === 'to-do') {
@@ -93,6 +100,7 @@ export default function PatientFolderRecordsPage() {
       const format = normalizeOutputFormatToken(item.output_format ?? undefined);
       if (activeTab === 'soap' && format !== 'soap_note') return false;
       if (activeTab === 'ehr' && format !== 'ehr') return false;
+      if (activeTab === 'operative' && format !== 'operative_note') return false;
       if (activeTab === 'todo' && format !== 'to-do') return false;
 
       if (!q) return true;
@@ -107,6 +115,7 @@ export default function PatientFolderRecordsPage() {
       { id: 'all' as const, label: t('tabAll') },
       { id: 'soap' as const, label: r('soapNote') },
       { id: 'ehr' as const, label: r('ehrSummary') },
+      { id: 'operative' as const, label: r('operativeNote') },
       { id: 'todo' as const, label: r('todoList') },
     ],
     [r, t]

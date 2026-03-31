@@ -11,7 +11,7 @@ export interface SaveDialogProps {
     initialPatientName?: string;
 }
 
-type FormatKey = 'soap' | 'clinical' | 'todo' | 'raw';
+type FormatKey = 'soap' | 'clinical' | 'operative' | 'todo' | 'raw';
 
 const UNKNOWN_FOLDER_NAMES = new Set([
     'unknown patient',
@@ -53,6 +53,7 @@ export function SaveDialog({ onCancel, onSave, initialPatientName }: SaveDialogP
     const formatOptions: { key: FormatKey; labelKey: string }[] = [
         { key: 'soap', labelKey: 'formatSoap' },
         { key: 'clinical', labelKey: 'formatClinical' },
+        { key: 'operative', labelKey: 'formatOperative' },
         { key: 'todo', labelKey: 'formatTodo' },
         { key: 'raw', labelKey: 'formatRaw' },
     ];

@@ -130,6 +130,7 @@
     "name": "Tên",
     "formatSoap": "Ghi chú SOAP",
     "formatClinical": "Tóm tắt lâm sàng",
+    "formatOperative": "Biên bản phẫu thuật",
     "formatTodo": "Việc cần làm",
     "formatRaw": "Văn bản tự do"
   },
@@ -137,6 +138,7 @@
     "consultation": "Tư vấn bệnh nhân",
     "soapNote": "Ghi chú SOAP",
     "ehrSummary": "Tóm tắt lâm sàng",
+    "operativeNote": "Biên bản phẫu thuật",
     "todoList": "Việc cần làm",
     "unclassified": "Chưa phân loại",
     "raw": "Văn bản tự do",
