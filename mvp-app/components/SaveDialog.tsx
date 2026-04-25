@@ -5,13 +5,15 @@ import { ChevronDown, Loader2, Plus } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { createMyPatientFolder, getMyPatientFolders } from '@/lib/api/sttMetrics';
 
+type FormatKey = 'soap' | 'clinical' | 'operative' | 'todo' | 'raw';
+
 export interface SaveDialogProps {
     onCancel: () => void;
     onSave: (name: string, format: string, patientName: string) => void;
     initialPatientName?: string;
+    /** Pilot108 / checklist: default output = to-do */
+    defaultFormat?: FormatKey;
 }
-
-type FormatKey = 'soap' | 'clinical' | 'operative' | 'todo' | 'raw';
 
 const UNKNOWN_FOLDER_NAMES = new Set([
     'unknown patient',
@@ -35,13 +37,13 @@ const generatePatientName = () => {
     return `Patient_${datePart}_${timePart}`;
 };
 
-export function SaveDialog({ onCancel, onSave, initialPatientName }: SaveDialogProps) {
+export function SaveDialog({ onCancel, onSave, initialPatientName, defaultFormat }: SaveDialogProps) {
     const t = useTranslations('Recording');
     const defaultName = `Ca khám ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '')}` +
         `_${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '')}`;
     const [name, setName] = useState(defaultName);
     const [patientName, setPatientName] = useState((initialPatientName || '').trim());
-    const [format, setFormat] = useState<FormatKey>('soap');
+    const [format, setFormat] = useState<FormatKey>(defaultFormat ?? 'soap');
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
     const [patientOptions, setPatientOptions] = useState<string[]>([]);
@@ -112,6 +114,10 @@ export function SaveDialog({ onCancel, onSave, initialPatientName }: SaveDialogP
         const value = (initialPatientName || '').trim();
         if (value) setPatientName(value);
     }, [initialPatientName]);
+
+    useEffect(() => {
+        if (defaultFormat) setFormat(defaultFormat);
+    }, [defaultFormat]);
 
     const handleAddPatient = async () => {
         const suggested = generatePatientName();

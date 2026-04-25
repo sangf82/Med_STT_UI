@@ -13,7 +13,14 @@ import { Loader2, MoreVertical } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import { getMyUsage, type OutputFormat, AVAILABLE_OUTPUT_FORMATS, initStreamUpload, streamEndUpload, uploadChunkWithRetry } from '@/lib/api/sttMetrics';
+import {
+    getMyUsage,
+    type OutputFormat,
+    AVAILABLE_OUTPUT_FORMATS,
+    initStreamUpload,
+    streamEndUpload,
+    uploadChunkWithRetry,
+} from '@/lib/api/sttMetrics';
 import { saveStreamUploadMetadata, addStreamChunk, cleanupUploadSession, db } from '@/lib/db';
 import { useAppContext } from '@/context/AppContext';
 
@@ -28,6 +35,7 @@ export default function RecordingPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const initialPatientName = (searchParams.get('patient') || '').trim();
+    const pilot108Mode = searchParams.get('pilot108') === '1';
 
     const recorder = useAudioRecorder();
     const { showSurvey, setShowSurvey, addActiveUploadId, removeActiveUploadId } = useAppContext();
@@ -48,7 +56,8 @@ export default function RecordingPage() {
     const [canRecord, setCanRecord] = useState<boolean | null>(null);
     const [durationWarning, setDurationWarning] = useState<string | null>(null);
     const [recordingError, setRecordingError] = useState<string | null>(null);
-    const outputFormatRef = useRef<OutputFormat>('soap_note');
+    const outputFormatRef = useRef<OutputFormat>(pilot108Mode ? 'to-do' : 'soap_note');
+    const [liveUploadId, setLiveUploadId] = useState<string | null>(null);
     const MAX_RECORDING_MS = 30 * 60 * 1000;
     const WARN_RECORDING_MS = 27 * 60 * 1000;
     const warned27MinRef = useRef(false);
@@ -84,16 +93,18 @@ export default function RecordingPage() {
         hasStarted.current = true;
         const sessionId = `sess_${Date.now()}`;
         const defaultName = `Ca khám ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '')}_${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '')}`;
+        const displayForInit = (initialPatientName || '').trim() || defaultName;
         initStreamUpload({
             session_id: sessionId,
             filename: 'record.webm',
-            display_name: defaultName,
-            output_format: 'soap_note',
+            display_name: displayForInit,
+            output_format: pilot108Mode ? 'to-do' : 'soap_note',
         })
             .then(async (initRes) => {
                 streamUploadIdRef.current = initRes.upload_id;
                 streamRecordIdRef.current = initRes.record_id ?? null;
                 streamChunkCountRef.current = 0;
+                setLiveUploadId(initRes.upload_id);
                 addActiveUploadId(initRes.upload_id);
                 pendingChunkUploadsRef.current = [];
                 console.info(STT_LOG, { flow: 'stream_init', record_id: initRes.record_id, upload_id: initRes.upload_id, session_id: sessionId });
@@ -103,9 +114,9 @@ export default function RecordingPage() {
                     filename: 'record.webm',
                     total_chunks: 0,
                     chunk_size: 1,
-                    output_format: 'soap_note',
-                    format: 'soap',
-                    display_name: defaultName,
+                    output_format: pilot108Mode ? 'to-do' : 'soap_note',
+                    format: pilot108Mode ? 'todo' : 'soap',
+                    display_name: displayForInit,
                     record_id: initRes.record_id,
                 });
                 return recorder.start({
@@ -295,6 +306,7 @@ export default function RecordingPage() {
             await cleanupUploadSession(uid).catch(() => {});
             removeActiveUploadId(uid);
             streamUploadIdRef.current = null;
+            setLiveUploadId(null);
         }
         recorder.stop();
         if (typeof window !== 'undefined') {
@@ -504,6 +516,34 @@ export default function RecordingPage() {
             />
 
             <div className="flex-1 flex flex-col items-center pt-6 pb-8.5">
+                {liveUploadId && (recorder.state === 'recording' || recorder.state === 'paused') ? (
+                    <div className="mb-4 w-full max-w-[340px] space-y-2 rounded-xl border border-border bg-bg-surface px-3 py-3 text-left">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                            {pilot108Mode ? 'Pilot 108 · Admin nghe stream' : 'Admin nghe stream (tùy chọn)'}
+                        </p>
+                        <p className="text-[11px] text-text-muted">
+                            Admin nghe live:{' '}
+                            <span className="break-all font-mono text-[10px] text-text-primary">
+                                {typeof window !== 'undefined'
+                                    ? `${window.location.origin}/admin/stt-stream/${liveUploadId}`
+                                    : `/admin/stt-stream/${liveUploadId}`}
+                            </span>
+                        </p>
+                        <button
+                            type="button"
+                            className="w-full rounded-lg border border-border py-1.5 text-[12px] font-medium text-accent-blue active:opacity-70"
+                            onClick={() => {
+                                const href =
+                                    typeof window !== 'undefined'
+                                        ? `${window.location.origin}/admin/stt-stream/${liveUploadId}`
+                                        : '';
+                                if (href) void navigator.clipboard.writeText(href).catch(() => {});
+                            }}
+                        >
+                            Copy link admin
+                        </button>
+                    </div>
+                ) : null}
 
                 {/* Timer (or "Starting..." while mic is being requested) */}
                 <div className="text-[52px] font-light leading-none tracking-tight text-center">
@@ -550,6 +590,7 @@ export default function RecordingPage() {
                     onCancel={handleCancelSave}
                     onSave={handleConfirmSave}
                     initialPatientName={initialPatientName}
+                    defaultFormat={pilot108Mode ? 'todo' : undefined}
                 />
             )}
             {durationWarning && (
