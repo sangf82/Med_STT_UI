@@ -413,3 +413,43 @@
   border-top: 1px solid var(--border);
   margin: 1em 0;
 }
+
+.tiptap-editor.clinical-markdown {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.tiptap-editor.clinical-markdown p {
+  margin: 0.2em 0 0.5em;
+}
+
+.tiptap-editor.clinical-markdown h1,
+.tiptap-editor.clinical-markdown h2,
+.tiptap-editor.clinical-markdown h3 {
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 700;
+  margin: 0.75em 0 0.35em;
+}
+
+.tiptap-editor.clinical-markdown h3:first-child {
+  margin-top: 0;
+}
+
+.tiptap-editor.clinical-markdown ul,
+.tiptap-editor.clinical-markdown ol {
+  margin: 0.2em 0 0.5em;
+}
+
+.tiptap-editor.clinical-markdown-ehr h1,
+.tiptap-editor.clinical-markdown-ehr h2,
+.tiptap-editor.clinical-markdown-ehr h3 {
+  color: var(--accent-orange);
+}
+
+.tiptap-editor.clinical-markdown-soap h1,
+.tiptap-editor.clinical-markdown-soap h2,
+.tiptap-editor.clinical-markdown-soap h3,
+.tiptap-editor.clinical-markdown-soap strong:first-child {
+  color: var(--accent-blue);
+}

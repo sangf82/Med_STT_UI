@@ -1,21 +1,37 @@
 'use client';
 
-import { useTranslations, useLocale } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { soapNoteMockEN, soapNoteMockVI } from '@/lib/mockData';
 import { parseSoapSections } from '@/lib/utils';
 import { Button } from '@/components/Button';
-import { Pencil } from 'lucide-react';
-import { useState } from 'react';
+import { Loader2, Pencil } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useReview } from '../layout';
+import { updateRecord } from '@/lib/api/sttMetrics';
+
+function serializeSoapSections(sections: { label: string; content: string }[]) {
+    return sections
+        .map((section) => `${section.label}: ${section.content}`)
+        .join('\n\n')
+        .trim();
+}
 
 export default function EditSoapPage() {
     const t = useTranslations('Review');
-    const locale = useLocale();
     const router = useRouter();
+    const { record, setSaveStatus } = useReview();
+    const [isSaving, setIsSaving] = useState(false);
 
-    const mockData = locale === 'vi' ? soapNoteMockVI : soapNoteMockEN;
+    const initialContent = useMemo(
+        () => record?.content || record?.refined_text || record?.raw_text || '',
+        [record],
+    );
+    const initialSections = useMemo(() => parseSoapSections(initialContent), [initialContent]);
+    const [sections, setSections] = useState(initialSections);
 
-    const [sections, setSections] = useState(parseSoapSections(mockData));
+    useEffect(() => {
+        setSections(initialSections);
+    }, [initialSections]);
 
     const handleContentChange = (index: number, newContent: string) => {
         const next = [...sections];
@@ -30,10 +46,34 @@ export default function EditSoapPage() {
         target.style.height = `${target.scrollHeight}px`;
     };
 
-    return (
-        <div className="flex flex-col p-6 fade-in pb-[100px] gap-6">
+    const handleSave = async () => {
+        if (!record?.id) {
+            router.push('/soap');
+            return;
+        }
 
-            <div className="flex items-center gap-2 bg-badge-progress-bg text-badge-progress px-4 py-3 rounded-[12px] border border-[#FB8A0A]/20">
+        setIsSaving(true);
+        setSaveStatus('saving');
+        try {
+            const content = serializeSoapSections(sections);
+            await updateRecord(record.id, {
+                content,
+                patient_name: (record as { patient_name?: string }).patient_name,
+            });
+            setSaveStatus('saved');
+            router.push(`/soap?id=${record.id}`);
+        } catch (e) {
+            console.error('Save failed', e);
+            setSaveStatus('error');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="flex flex-col p-6 fade-in pb-25 gap-6">
+
+            <div className="flex items-center gap-2 bg-badge-progress-bg text-badge-progress px-4 py-3 rounded-xl border border-brand-orange/20">
                 <Pencil className="w-4 h-4 shrink-0" />
                 <span className="text-[13px] font-semibold">{t('editModeMsg')}</span>
             </div>
@@ -49,7 +89,7 @@ export default function EditSoapPage() {
                             onChange={(e) => handleContentChange(idx, e.target.value)}
                             onInput={handleInput}
                             rows={4}
-                            className="w-full bg-bg-input rounded-[12px] border border-border-input focus-visible:bg-bg-card p-4 text-[14px] text-text-primary leading-[1.6] resize-y overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue"
+                            className="w-full bg-bg-input rounded-xl border border-border-input focus-visible:bg-bg-card p-4 text-[14px] text-text-primary leading-[1.6] resize-y overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue"
                             style={{ minHeight: '100px' }}
                         />
                     </div>
@@ -57,8 +97,17 @@ export default function EditSoapPage() {
             </div>
 
             <div className="flex flex-col gap-3 mt-6">
-                <Button onClick={() => router.push('/soap')}>{t('save')}</Button>
-                <Button variant="outline" onClick={() => setSections(parseSoapSections(mockData))}>{t('reset')}</Button>
+                <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? (
+                        <span className="inline-flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            {t('saving')}
+                        </span>
+                    ) : (
+                        t('save')
+                    )}
+                </Button>
+                <Button variant="outline" onClick={() => setSections(initialSections)}>{t('reset')}</Button>
                 <Button variant="ghost" onClick={() => router.back()}>{t('cancel')}</Button>
             </div>
 

@@ -17,21 +17,26 @@ export interface UseAudioRecorderReturn {
     audioUrl: string | null;
     /** Raw audio blob */
     audioBlob: Blob | null;
-    /** Start recording (requests mic permission) */
-    start: () => Promise<void>;
+    /** Start recording (requests mic permission). options.onChunk(blob, chunkIndex) called on each dataavailable for streaming upload. */
+    start: (options?: { onChunk?: (blob: Blob, chunkIndex: number) => void }) => Promise<void>;
     /** Pause recording */
     pause: () => void;
     /** Resume recording */
     resume: () => void;
-    /** Stop recording and produce blob */
-    stop: () => void;
+    /** Stop recording and produce blob. Returns a Promise that resolves with the final blob when MediaRecorder has finished (use this blob for upload to avoid race). */
+    stop: () => Promise<Blob | null>;
     /** Reset all state */
     reset: () => void;
     /** Number of levels captured before the most recent pause */
     prePauseLevels: number;
+    /** Get exact count of chunks generated */
+    getChunkCount: () => number;
 }
 
 const LEVEL_INTERVAL = 60; // ms between level samples
+
+/** Opus in WebM: request high bitrate; browser may cap or ignore (common cap ~128–256). */
+const RECORDING_AUDIO_BITS_PER_SECOND = 320_000;
 
 export function useAudioRecorder(): UseAudioRecorderReturn {
     const [state, setState] = useState<RecorderState>('idle');
@@ -51,6 +56,9 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const levelTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+    const stopResolveRef = useRef<((blob: Blob | null) => void) | null>(null);
+    const onChunkRef = useRef<((blob: Blob, chunkIndex: number) => void) | null>(null);
+    const streamChunkIndexRef = useRef(0);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -101,13 +109,33 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         }
     }, []);
 
-    const start = useCallback(async () => {
+    const start = useCallback(async (options?: { onChunk?: (blob: Blob, chunkIndex: number) => void }) => {
+        onChunkRef.current = options?.onChunk ?? null;
+        streamChunkIndexRef.current = 0;
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // No sampleRate constraint: let OS use native mic rate (often 48 kHz), closer to native recorders.
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: { ideal: 1 },
+                    echoCancellation: { ideal: false },
+                    noiseSuppression: { ideal: false },
+                    autoGainControl: { ideal: false },
+                }
+            });
             streamRef.current = stream;
 
             // Set up Web Audio API analyser for levels
-            const audioCtx = new AudioContext();
+            const track = stream.getAudioTracks()[0];
+            const nativeRate = track?.getSettings?.().sampleRate;
+            let audioCtx: AudioContext;
+            try {
+                audioCtx = new AudioContext({
+                    latencyHint: 'interactive',
+                    ...(typeof nativeRate === 'number' && nativeRate > 0 ? { sampleRate: nativeRate } : {}),
+                });
+            } catch {
+                audioCtx = new AudioContext({ latencyHint: 'interactive' });
+            }
             audioCtxRef.current = audioCtx;
             const source = audioCtx.createMediaStreamSource(stream);
             const analyser = audioCtx.createAnalyser();
@@ -121,12 +149,28 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
                 ? 'audio/webm;codecs=opus'
                 : 'audio/webm';
             mimeTypeRef.current = mimeType;
-            const recorder = new MediaRecorder(stream, { mimeType });
+            let recorder: MediaRecorder;
+            try {
+                recorder = new MediaRecorder(stream, {
+                    mimeType,
+                    audioBitsPerSecond: RECORDING_AUDIO_BITS_PER_SECOND,
+                });
+            } catch {
+                recorder = new MediaRecorder(stream, { mimeType });
+            }
             mediaRecorderRef.current = recorder;
             chunksRef.current = [];
 
             recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) chunksRef.current.push(e.data);
+                if (e.data.size > 0) {
+                    chunksRef.current.push(e.data);
+                    const cb = onChunkRef.current;
+                    if (cb) {
+                        const idx = streamChunkIndexRef.current;
+                        cb(e.data, idx);
+                        streamChunkIndexRef.current = idx + 1;
+                    }
+                }
             };
 
             recorder.onstop = () => {
@@ -134,6 +178,11 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
                 const url = URL.createObjectURL(blob);
                 setAudioUrl(prevUrl => { if (prevUrl) URL.revokeObjectURL(prevUrl); return url; });
                 setAudioBlob(blob);
+                const resolve = stopResolveRef.current;
+                if (resolve) {
+                    stopResolveRef.current = null;
+                    resolve(blob);
+                }
             };
 
             recorder.start(200); // collect data every 200ms
@@ -184,18 +233,25 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         startTimers();
     }, [startTimers]);
 
-    const stop = useCallback(() => {
-        stopTimers();
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-        }
-        streamRef.current?.getTracks().forEach(t => t.stop());
-        if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-            audioCtxRef.current.close().catch(() => {});
-        }
-        setAudioLevel(0);
-        setState('idle');
-    }, [stopTimers]);
+    const stop = useCallback((): Promise<Blob | null> => {
+        return new Promise((resolve) => {
+            stopResolveRef.current = resolve;
+            stopTimers();
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+            } else {
+                // Already inactive: no onstop will fire, resolve with current blob
+                stopResolveRef.current = null;
+                resolve(audioBlob);
+            }
+            streamRef.current?.getTracks().forEach(t => t.stop());
+            if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+                audioCtxRef.current.close().catch(() => {});
+            }
+            setAudioLevel(0);
+            setState('idle');
+        });
+    }, [stopTimers, audioBlob]);
 
     const reset = useCallback(() => {
         stopTimers();
@@ -222,6 +278,8 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         dataArrayRef.current = null;
     }, [stopTimers, audioUrl]);
 
+    const getChunkCount = useCallback(() => streamChunkIndexRef.current, []);
+
     return {
         state,
         timeMs,
@@ -235,5 +293,6 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         stop,
         reset,
         prePauseLevels,
+        getChunkCount,
     };
 }

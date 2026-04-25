@@ -1,27 +1,25 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { freeTextMockEN, freeTextMockVI } from '@/lib/mockData';
+import { useRouter } from 'next/navigation';
+import { useState, useRef, useEffect } from 'react';
 import { useReview } from '../layout';
-import { RichTextEditor } from '@/components/RichTextEditor';
 import { updateRecord } from '@/lib/api/sttMetrics';
+import { RichTextEditor } from '@/components/RichTextEditor';
 
-export default function FreeTextPage() {
+export default function RawTextPage() {
     const t = useTranslations('Review');
-    const locale = useLocale();
     const { setSaveStatus, record } = useReview();
 
-    const mockData = locale === 'vi' ? freeTextMockVI : freeTextMockEN;
-    const initialContent = record?.content || record?.raw_text || mockData;
+    const initialContent = record?.content || record?.refined_text || record?.raw_text || '';
     const [content, setContent] = useState(initialContent);
     const timeoutRef = useRef<NodeJS.Timeout>(null);
 
     useEffect(() => {
         if (record) {
-            setContent(record.content || record.raw_text || mockData);
+            setContent(record.content || record.refined_text || record.raw_text || '');
         }
-    }, [record, mockData]);
+    }, [record]);
 
     const handleChange = (newContent: string) => {
         setContent(newContent);

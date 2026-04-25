@@ -26,6 +26,13 @@ export function formatTimeMs(ms: number): string {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${deci}`;
 }
 
+export function formatDurationSec(sec?: number): string {
+    if (typeof sec !== 'number' || isNaN(sec) || sec <= 0) return '--:--';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 export function formatTimeSec(seconds: number): string {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);

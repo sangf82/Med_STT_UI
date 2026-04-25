@@ -1,4 +1,4 @@
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
@@ -17,11 +17,159 @@ interface RichTextEditorProps {
     placeholder?: string;
     className?: string;
     minHeight?: string;
+    coerceTaskListOnLoad?: boolean;
+    markdownMode?: 'default' | 'clinical-ehr' | 'clinical-soap';
+    showToolbar?: boolean;
+    onEditorReady?: (editor: Editor | null) => void;
 }
 
-export function RichTextEditor({ content, onChange, className, minHeight = "none" }: RichTextEditorProps) {
+function normalizeClinicalMarkdown(content: string): string {
+    if (!content || typeof content !== 'string') return content;
+
+    const lines = content.split('\n');
+    const normalized: string[] = [];
+    let activeSoapSection = false;
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (line.length === 0) {
+            normalized.push('');
+            continue;
+        }
+
+        const oneLinerMatch = line.match(/^#\s*One-liner\s*:\s*(.*)$/i);
+        if (oneLinerMatch) {
+            const oneLinerContent = oneLinerMatch[1]?.trim();
+            normalized.push(oneLinerContent ? `**One-liner**: ${oneLinerContent}` : '**One-liner**:');
+            activeSoapSection = false;
+            continue;
+        }
+
+        const soapHeadingMatch = line.match(/^#\s*([SOAP])\s*\(([^)]+)\)\s*:?\s*$/i);
+        if (soapHeadingMatch) {
+            const letter = soapHeadingMatch[1].toUpperCase();
+            const title = soapHeadingMatch[2].trim();
+            normalized.push(`### ${letter} (${title})`);
+            activeSoapSection = true;
+            continue;
+        }
+
+        const inlineSectionHeadingMatch = line.match(/^#\s*([A-Za-z][^:]+)\s*:\s*(.+)$/);
+        if (inlineSectionHeadingMatch) {
+            normalized.push(`### ${inlineSectionHeadingMatch[1].trim()}`);
+            normalized.push(inlineSectionHeadingMatch[2].trim());
+            activeSoapSection = true;
+            continue;
+        }
+
+        const sectionBodyMatch = line.match(/^##\s*(.+)$/);
+        if (sectionBodyMatch) {
+            normalized.push(sectionBodyMatch[1].trim());
+            continue;
+        }
+
+        const genericHeadingMatch = line.match(/^#\s*(.+)$/);
+        if (genericHeadingMatch) {
+            normalized.push(`### ${genericHeadingMatch[1].replace(/:\s*$/, '').trim()}`);
+            activeSoapSection = true;
+            continue;
+        }
+
+        normalized.push(rawLine);
+    }
+
+    if (!activeSoapSection && !/^\s*#\s*One-liner\s*:/im.test(content) && !/^\s*#\s*[SOAP]\s*\(/im.test(content)) {
+        return content;
+    }
+
+    return normalized.join('\n');
+}
+
+function escapeHtml(input: string): string {
+    return input
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function toInlineHtml(text: string): string {
+    const escaped = escapeHtml(text);
+    return escaped
+        .replace(/&lt;mark&gt;(.*?)&lt;\/mark&gt;/g, '<mark>$1</mark>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>');
+}
+
+function normalizeLegacyTodoLine(line: string): string {
+    const match = line.match(/^\s*[-*•]?\s*\[([^\]]+)\]\s*(?:Công việc|Task)\s*:\s*(.*?)\s*(?:•|-)\s*(Mục đích|Purpose)\s*:\s*(.*?)\s*(?:•|-)\s*(?:Trạng thái|Status)\s*:\s*\[\s*([xX]?)\s*\]\s*$/i);
+    if (!match) return line;
+
+    const [, priority, taskText, purposeLabel, purposeText, checked] = match;
+    const status = checked?.toLowerCase() === 'x' ? 'x' : ' ';
+    return `- [${status}] **${priority.trim()}**: ${taskText.trim()} (*${purposeLabel}: ${purposeText.trim()}*)`;
+}
+
+function coerceTaskMarkdownToHtml(content: string): string {
+    const sourceLines = content.split('\n').map((line) => normalizeLegacyTodoLine(line));
+    const hasTaskLine = sourceLines.some((line) => /^\s*[-*]\s*\[\s*[xX ]\s*\]\s+/.test(line));
+    if (!hasTaskLine) return content;
+
+    const html: string[] = [];
+    let inTaskList = false;
+
+    for (const line of sourceLines) {
+        const taskMatch = line.match(/^\s*[-*]\s*\[\s*([xX ]?)\s*\]\s+(.*)$/);
+        if (taskMatch) {
+            if (!inTaskList) {
+                html.push('<ul data-type="taskList">');
+                inTaskList = true;
+            }
+            const checked = taskMatch[1]?.toLowerCase() === 'x';
+            const taskText = taskMatch[2]?.trim() ?? '';
+            html.push(`<li data-type="taskItem" data-checked="${checked ? 'true' : 'false'}"><p>${toInlineHtml(taskText)}</p></li>`);
+            continue;
+        }
+
+        if (inTaskList) {
+            html.push('</ul>');
+            inTaskList = false;
+        }
+
+        if (line.trim().length > 0) {
+            html.push(`<p>${toInlineHtml(line)}</p>`);
+        }
+    }
+
+    if (inTaskList) {
+        html.push('</ul>');
+    }
+
+    return html.join('');
+}
+
+export function RichTextEditor({
+    content,
+    onChange,
+    className,
+    minHeight = "none",
+    coerceTaskListOnLoad = false,
+    markdownMode = 'default',
+    showToolbar = true,
+    onEditorReady,
+}: RichTextEditorProps) {
     const [mounted, setMounted] = useState(false);
     const [isKeyboardActive, setIsKeyboardActive] = useState(false);
+
+    const isClinicalMode = markdownMode === 'clinical-ehr' || markdownMode === 'clinical-soap';
+    const editorClassName = `focus:outline-none w-full h-full text-text-primary leading-relaxed tiptap-editor${isClinicalMode ? ' clinical-markdown' : ''}${markdownMode === 'clinical-ehr' ? ' clinical-markdown-ehr' : ''}${markdownMode === 'clinical-soap' ? ' clinical-markdown-soap' : ''}`;
+    const initialContent = coerceTaskListOnLoad
+        ? coerceTaskMarkdownToHtml(content)
+        : isClinicalMode
+            ? normalizeClinicalMarkdown(content)
+            : content;
 
     const editor = useEditor({
         extensions: [
@@ -48,7 +196,7 @@ export function RichTextEditor({ content, onChange, className, minHeight = "none
             Color,
             FontSize,
         ],
-        content: content,
+        content: initialContent,
         onUpdate: ({ editor }) => {
             const markdown = (editor.storage as any).markdown?.getMarkdown() ?? '';
             onChange(markdown);
@@ -70,7 +218,7 @@ export function RichTextEditor({ content, onChange, className, minHeight = "none
         },
         editorProps: {
             attributes: {
-                class: 'focus:outline-none w-full h-full text-text-primary leading-relaxed tiptap-editor',
+                class: editorClassName,
                 style: `min-height: ${minHeight};`,
             },
             handleDOMEvents: {
@@ -122,14 +270,14 @@ export function RichTextEditor({ content, onChange, className, minHeight = "none
             editor.setOptions({
                 editorProps: {
                     attributes: {
-                        class: 'focus:outline-none w-full h-full text-text-primary leading-relaxed tiptap-editor',
+                        class: editorClassName,
                         style: `min-height: ${minHeight};`,
                         inputmode: isKeyboardActive ? 'text' : 'none',
                     }
                 }
             });
         }
-    }, [isKeyboardActive, editor, minHeight]);
+    }, [isKeyboardActive, editor, minHeight, editorClassName]);
 
     useEffect(() => {
         setMounted(true);
@@ -137,9 +285,19 @@ export function RichTextEditor({ content, onChange, className, minHeight = "none
 
     useEffect(() => {
         if (editor && content !== (editor.storage as any).markdown?.getMarkdown() && !editor.isFocused) {
-            editor.commands.setContent(content);
+            const nextContent = coerceTaskListOnLoad
+                ? coerceTaskMarkdownToHtml(content)
+                : isClinicalMode
+                    ? normalizeClinicalMarkdown(content)
+                    : content;
+            editor.commands.setContent(nextContent);
         }
-    }, [content, editor]);
+    }, [content, editor, coerceTaskListOnLoad, isClinicalMode]);
+
+    useEffect(() => {
+        onEditorReady?.(editor ?? null);
+        return () => onEditorReady?.(null);
+    }, [editor, onEditorReady]);
 
     if (!mounted) {
         return (
@@ -152,7 +310,7 @@ export function RichTextEditor({ content, onChange, className, minHeight = "none
     return (
         <div className={`flex flex-col flex-1 ${className ?? ''}`}>
             {/* Toolbar at top — only when keyboard is intentionally activated */}
-            {isKeyboardActive && (
+            {showToolbar && isKeyboardActive && (
                 <div
                     id="editor-toolbar"
                     className="sticky top-0 z-50 bg-bg-card border-b border-border shadow-sm"
