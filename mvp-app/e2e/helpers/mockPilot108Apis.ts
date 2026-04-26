@@ -1,19 +1,12 @@
 import type { Page } from '@playwright/test';
 
-/** Mocks roster + thong_tin used by `/pilot108/individual` initial load. */
+/** Mocks roster used by `/pilot108/individual` initial load. */
 export async function applyPilot108IndividualMocks(page: Page) {
   await page.route('**/pilot108/individual/roster**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ members: [] }),
-    });
-  });
-  await page.route('**/thong-tin/entries**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ items: [] }),
     });
   });
 }

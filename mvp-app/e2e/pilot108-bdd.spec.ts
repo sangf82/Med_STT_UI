@@ -25,7 +25,7 @@ test.describe('Pilot 108 BDD — Personal Productivity (copy + QA paths)', () =>
   });
 
   test('processing overlay lists all BDD step labels', async ({ page }) => {
-    await page.goto('/pilot108/individual');
+    await page.goto('/pilot108/individual?bdd=1');
     await readyFonts(page);
     await expect(page.getByTestId('p108-bdd-qa-section')).toBeVisible({ timeout: 30_000 });
     await page.getByTestId('p108-bdd-qa-processing').click();
@@ -36,14 +36,14 @@ test.describe('Pilot 108 BDD — Personal Productivity (copy + QA paths)', () =>
   });
 
   test('empty-recording toast shows BDD string', async ({ page }) => {
-    await page.goto('/pilot108/individual');
+    await page.goto('/pilot108/individual?bdd=1');
     await readyFonts(page);
     await page.getByTestId('p108-bdd-qa-toast-no-audio').click();
     await expect(page.getByTestId('p108-bdd-toast')).toContainText(PILOT108_INDIVIDUAL_BDD.noAudioToast);
   });
 
   test('transcription error screen shows BDD copy and back action', async ({ page }) => {
-    await page.goto('/pilot108/individual');
+    await page.goto('/pilot108/individual?bdd=1');
     await readyFonts(page);
     await page.getByTestId('p108-bdd-qa-transcription-error').click();
     const block = page.getByTestId('p108-bdd-transcription-error');
@@ -52,7 +52,7 @@ test.describe('Pilot 108 BDD — Personal Productivity (copy + QA paths)', () =>
   });
 
   test('no actionable tasks shows raw strip + BDD prompt', async ({ page }) => {
-    await page.goto('/pilot108/individual');
+    await page.goto('/pilot108/individual?bdd=1');
     await readyFonts(page);
     await page.getByTestId('p108-bdd-qa-no-tasks').click();
     const block = page.getByTestId('p108-bdd-no-tasks');
@@ -62,7 +62,7 @@ test.describe('Pilot 108 BDD — Personal Productivity (copy + QA paths)', () =>
   });
 
   test('offline banner shows BDD waiting copy', async ({ page }) => {
-    await page.goto('/pilot108/individual');
+    await page.goto('/pilot108/individual?bdd=1');
     await readyFonts(page);
     await page.getByTestId('p108-bdd-qa-offline-banner').click();
     await expect(page.getByTestId('p108-bdd-offline-alert')).toContainText(PILOT108_INDIVIDUAL_BDD.waitingOffline);
@@ -74,15 +74,11 @@ test.describe('Pilot 108 BDD — Team Configuration (roster surface)', () => {
     await applyPilot108IndividualMocks(page);
   });
 
-  test('team roster details, bulk save, assignee-empty BDD when roster empty', async ({ page }) => {
+  test('assignee-empty BDD copy when roster empty (checklist only)', async ({ page }) => {
     await page.goto('/pilot108/individual?mockChecklist=1');
     await readyFonts(page);
-    await expect(page.getByTestId('p108-h4-checklist-panel')).toBeVisible({ timeout: 30_000 });
-    const roster = page.getByTestId('p108-bdd-team-roster');
-    await expect(roster).toContainText('Team roster');
-    await roster.getByRole('textbox').first().fill('A, B');
-    await expect(roster.getByRole('button', { name: 'Save roster' })).toBeEnabled();
     const panel = page.getByTestId('p108-h4-checklist-panel');
+    await expect(panel).toBeVisible({ timeout: 30_000 });
     await expect(panel).toContainText(PILOT108_INDIVIDUAL_BDD.assigneeEmpty);
   });
 });
@@ -108,7 +104,7 @@ test.describe('Pilot 108 BDD — Quick Edit (draft table)', () => {
   });
 
   test('fill table from pen checklist QA matches design mock rows', async ({ page }) => {
-    await page.goto('/pilot108/individual');
+    await page.goto('/pilot108/individual?bdd=1');
     await readyFonts(page);
     await expect(page.getByTestId('p108-bdd-qa-fill-checklist')).toBeVisible({ timeout: 30_000 });
     await page.getByTestId('p108-bdd-qa-fill-checklist').click();

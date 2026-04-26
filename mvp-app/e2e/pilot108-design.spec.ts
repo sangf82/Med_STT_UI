@@ -12,13 +12,6 @@ async function mockIndividualPilot108Apis(page: import('@playwright/test').Page)
       body: JSON.stringify({ members: [] }),
     });
   });
-  await page.route('**/thong-tin/entries**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ items: [] }),
-    });
-  });
 }
 
 async function mockRosterApis(page: import('@playwright/test').Page) {
