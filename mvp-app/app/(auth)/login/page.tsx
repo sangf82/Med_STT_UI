@@ -64,7 +64,10 @@ function LoginContent() {
                     console.error('Failed to fetch profile', profileErr);
                 }
 
-                router.push('/dashboard');
+                const raw = searchParams.get('returnUrl');
+                const next =
+                  raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : '/pilot108';
+                router.push(next);
             }
         } catch (error: any) {
             console.error('Login failed:', error);

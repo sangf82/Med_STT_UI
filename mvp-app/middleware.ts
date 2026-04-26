@@ -23,22 +23,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Protected routes check
-  const protectedPaths = [
-    "/dashboard",
-    "/settings",
-    "/profile",
-    "/patients",
-    "/records",
-    "/tasks",
-    "/unassigned",
-    "/recording",
-    "/soap",
-    "/ehr",
-    "/todo",
-    "/raw",
-    "/edit",
-    "/review",
-  ];
+  const protectedPaths = ["/pilot108", "/admin"];
   const isProtected = protectedPaths.some((path) => pathname.startsWith(path));
   const token = request.cookies.get("auth_token");
 
@@ -48,10 +33,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // If already logged in, redirect from auth pages to dashboard
   const authPaths = ["/login", "/signup"];
   if (authPaths.some((path) => pathname.startsWith(path)) && token) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/pilot108", request.url));
   }
 
   return response;

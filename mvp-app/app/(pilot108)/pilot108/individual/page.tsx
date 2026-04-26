@@ -2,19 +2,16 @@
 
 /**
  * Pilot 108 — Personal Productivity (feature-[BDD] Personal Productivity.md)
- * Layout: mobile-first 390px column, colors aligned to pen-stt-108 (teal / orange / slate).
- * STT record/stop still lives on /recording; this page owns roster + draft lifecycle (API).
- * Pen checklist for AI mocks: `e3zO7` → `x6ccy` → `cc4zw` (not the shadcn root `MzSDs`).
+ * Visual tokens: pen-stt-108 `ERahL` / `VtdW0` (H4.0 Draft To-Do), not the shadcn-only kit frame `MzSDs`.
+ * Mock checklist URL: `/pilot108/individual?mockChecklist=1` (pen e3zO7 · strip 04, see `pilot108DesignAiMock`).
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   ChevronDown,
   Download,
   Loader2,
-  Mic,
   Pencil,
   Plus,
   Search,
@@ -97,22 +94,38 @@ function buildMarkdown(items: Pilot108DraftItem[], members: Pilot108RosterMember
     .join('\n');
 }
 
-const card =
-  'overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-900/5';
-const cardHead = 'border-b border-slate-100 bg-slate-50/90 px-4 py-3';
-const h2 = 'text-[15px] font-semibold tracking-tight text-slate-900';
-const sub = 'mt-0.5 text-xs leading-relaxed text-slate-500';
+/** pen-stt-108 · H4.0 / ERahL — panel (trắng, viền slate nhạt) */
+const p108Panel = 'overflow-hidden rounded-lg border border-[#CBD5E1] bg-white';
+const p108PanelHead = 'border-b border-[#CBD5E1] bg-white px-4 py-3';
+const p108H2 =
+  'text-[15px] font-semibold tracking-tight text-[#020617] [font-family:var(--font-p108-newsreader),Newsreader,ui-serif,Georgia,serif]';
+const p108Sub =
+  'mt-0.5 text-xs leading-relaxed text-[#64748B] [font-family:var(--font-p108-be),\"Be Vietnam Pro\",ui-sans-serif,system-ui,sans-serif]';
+const p108TableOuter = 'overflow-x-auto rounded-lg border border-[#94A3B8] bg-[#F8FAFC]';
+const p108TheadRow = 'border-b border-[#94A3B8] bg-[#F1F5F9]';
+const p108Th =
+  'px-3 py-4 text-left text-[12px] font-semibold text-[#0F172A] [font-family:var(--font-p108-be),\"Be Vietnam Pro\",ui-sans-serif,system-ui,sans-serif] sm:px-4';
+const p108TbodyRow = 'border-b border-[#94A3B8] bg-white last:border-b-0';
 const btnTeal =
-  'inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#219EBC] px-4 text-sm font-medium text-white shadow-sm transition hover:bg-[#1a8bab] disabled:pointer-events-none disabled:opacity-50';
-const btnOrange =
-  'inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#FB8A0A] text-white shadow-lg shadow-orange-500/25 transition hover:bg-[#e67d00] disabled:opacity-50';
+  'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#219EBC] px-4 text-sm font-medium text-white transition hover:bg-[#1a8bab] disabled:pointer-events-none disabled:opacity-50 [font-family:var(--font-p108-be),\"Be Vietnam Pro\",sans-serif]';
 const btnOutline =
-  'inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-50';
-const btnGhost = 'inline-flex h-9 items-center justify-center rounded-lg px-2 text-sm text-slate-600 hover:bg-slate-100';
+  'inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-4 text-sm font-medium text-[#003554] shadow-sm transition hover:bg-[#F1F5F9] disabled:opacity-50 [font-family:var(--font-p108-be),\"Be Vietnam Pro\",sans-serif]';
+const btnGhost =
+  'inline-flex h-9 items-center justify-center rounded-md px-2 text-sm text-[#64748B] transition hover:bg-[#F1F5F9] [font-family:var(--font-p108-be),sans-serif]';
 const inputClass =
-  'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#219EBC] focus:ring-2 focus:ring-[#219EBC]/20';
+  'h-10 w-full rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A] outline-none transition placeholder:text-[#64748B] focus:border-[#219EBC] focus:ring-2 focus:ring-[#219EBC]/20 [font-family:var(--font-p108-be),sans-serif]';
 
 export default function Pilot108IndividualPage() {
+  const p108SessionTitle = useMemo(
+    () =>
+      `Danh sách việc · ${new Date().toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      })}`,
+    [],
+  );
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -141,6 +154,7 @@ export default function Pilot108IndividualPage() {
   const [thongTinForm, setThongTinForm] = useState({ name: '', thong_tin: '' });
   const [thongTinLoading, setThongTinLoading] = useState(false);
   const [thongTinSaving, setThongTinSaving] = useState(false);
+  const mockChecklistAppliedRef = useRef(false);
 
   const isFinalized = draft?.list_status === 'FINALIZED_LIST';
 
@@ -249,6 +263,24 @@ export default function Pilot108IndividualPage() {
     setToast(msg);
     window.setTimeout(() => setToast(''), 3200);
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (loading) return;
+    if (draft) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mockChecklist') !== '1') return;
+    if (mockChecklistAppliedRef.current) return;
+    mockChecklistAppliedRef.current = true;
+    setEditableItems(
+      pilot108PenChecklistToEditableRows(PILOT108_PEN_CHECKLIST_ROWS_STRIP04, {
+        newId: uid,
+        defaultAssigneeId: roster[0]?.member_id || '',
+      }),
+    );
+    setToast('Mock checklist loaded (?mockChecklist=1 · pen strip 04).');
+    window.setTimeout(() => setToast(''), 3200);
+  }, [loading, draft, roster]);
 
   const toEditableItems = (items: Pilot108DraftItem[]) =>
     (items || []).map((item) => ({
@@ -512,18 +544,18 @@ export default function Pilot108IndividualPage() {
 
   if (loading) {
     return (
-      <P108Shell>
-        <div className="mx-auto flex max-w-[390px] min-h-[40vh] items-center justify-center gap-2 text-sm text-slate-500">
+      <P108Shell sessionTitle={p108SessionTitle}>
+        <div className="mx-auto flex min-h-[40vh] max-w-[390px] items-center justify-center gap-2 text-sm text-[#64748B]">
           <Loader2 className="h-5 w-5 animate-spin text-[#219EBC]" />
-          Loading…
+          Đang tải…
         </div>
       </P108Shell>
     );
   }
 
   return (
-    <P108Shell>
-      <div className="relative mx-auto w-full max-w-[390px] space-y-4 pb-16">
+    <P108Shell sessionTitle={p108SessionTitle}>
+      <div className="relative mx-auto w-full max-w-[390px] space-y-4 pb-16 sm:max-w-none">
         {offlineBanner ? (
           <div
             role="status"
@@ -545,32 +577,7 @@ export default function Pilot108IndividualPage() {
           </div>
         ) : null}
 
-        {/* Quick Capture — BDD: Given on Quick Capture; Record on /recording */}
-        <section className={card}>
-          <div className={cardHead}>
-            <h2 className={h2}>Quick Capture</h2>
-            <p className={sub}>
-              Tap Record, speak your tasks, then Stop. You should see a Draft To-Do List (editable, not tickable until
-              finalized).
-            </p>
-          </div>
-          <div className="flex flex-col items-center gap-4 px-4 py-8">
-            <Link
-              href="/recording?pilot108=1"
-              className={btnOrange}
-              aria-label="Record"
-              title="Stream STT to-do + persona / thông tin + link admin live"
-            >
-              <Mic className="h-7 w-7" strokeWidth={2.2} />
-            </Link>
-            <p className="text-center text-xs text-slate-500">Opens Record &amp; STT (stream upload + AI).</p>
-            <button type="button" className={btnOutline} onClick={() => setShowProcessingOverlay(true)}>
-              Preview processing copy
-            </button>
-          </div>
-        </section>
-
-        {/* Processing overlay — BDD exact strings (UI reference until wired to real pipeline) */}
+        {/* Processing overlay — BDD exact strings (UI reference) */}
         {showProcessingOverlay ? (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 px-4"
@@ -596,7 +603,7 @@ export default function Pilot108IndividualPage() {
 
         {/* Transcription error — BDD */}
         {transcriptionError ? (
-          <section className={card} role="alert">
+          <section className={p108Panel} role="alert">
             <div className="border-b border-red-100 bg-red-50/80 px-4 py-3">
               <h2 className="text-[15px] font-semibold text-red-900">Transcription</h2>
             </div>
@@ -618,9 +625,9 @@ export default function Pilot108IndividualPage() {
 
         {/* No actionable tasks — BDD */}
         {noTasksView ? (
-          <section className={card}>
-            <div className={cardHead}>
-              <h2 className={h2}>No actionable items</h2>
+          <section className={p108Panel}>
+            <div className={p108PanelHead}>
+              <h2 className={p108H2}>No actionable items</h2>
             </div>
             <div className="space-y-3 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Raw transcript</p>
@@ -634,11 +641,11 @@ export default function Pilot108IndividualPage() {
         ) : null}
 
         {/* Roster — BDD context + onboarding error when empty */}
-        <details className={`${card} [&[open]_summary_.chevron]:rotate-180`} open={roster.length === 0}>
+        <details className={`${p108Panel} [&[open]_summary_.chevron]:rotate-180`} open={roster.length === 0}>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
             <div>
-              <h2 className={h2}>Team roster</h2>
-              <p className={sub}>Context for names (e.g. Xavier Nguyen). Optional before assignees.</p>
+              <h2 className={p108H2}>Team roster</h2>
+              <p className={p108Sub}>Context for names (e.g. Xavier Nguyen). Optional before assignees.</p>
             </div>
             <ChevronDown className="chevron h-5 w-5 shrink-0 text-slate-400 transition-transform duration-200" />
           </summary>
@@ -699,10 +706,10 @@ export default function Pilot108IndividualPage() {
           </div>
         </details>
 
-        <section className={card}>
-          <div className={cardHead}>
-            <h2 className={h2}>Kho thong_tin</h2>
-            <p className={sub}>Tao va lay list theo name de dung lam input cho API khac.</p>
+        <section className={p108Panel}>
+          <div className={p108PanelHead}>
+            <h2 className={p108H2}>Kho thong_tin</h2>
+            <p className={p108Sub}>Tao va lay list theo name de dung lam input cho API khac.</p>
           </div>
           <div className="space-y-3 p-4">
             <div className="grid gap-2 sm:grid-cols-3">
@@ -743,33 +750,38 @@ export default function Pilot108IndividualPage() {
               </button>
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-slate-100">
-              <table className="w-full min-w-[320px] text-left text-sm">
-                <thead className="border-b border-slate-100 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-2 py-2">Name</th>
-                    <th className="px-2 py-2">Thong tin</th>
-                    <th className="px-2 py-2 text-right">Action</th>
+            <div className={p108TableOuter}>
+              <table className="w-full min-w-[320px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className={p108TheadRow}>
+                    <th className={`${p108Th} border-r border-[#94A3B8]`}>Name</th>
+                    <th className={`${p108Th} border-r border-[#94A3B8]`}>Thông tin</th>
+                    <th className={`${p108Th} text-right`}>Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {thongTinEntries.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="px-2 py-6 text-center text-xs text-slate-500">
+                    <tr className={p108TbodyRow}>
+                      <td
+                        colSpan={3}
+                        className="px-4 py-6 text-center text-xs text-[#64748B] [font-family:var(--font-p108-be),sans-serif]"
+                      >
                         No entries
                       </td>
                     </tr>
                   ) : (
                     thongTinEntries.map((entry) => (
-                      <tr key={entry.id}>
-                        <td className="px-2 py-2 align-top font-medium text-slate-800">{entry.name}</td>
-                        <td className="px-2 py-2 align-top text-slate-700">
+                      <tr key={entry.id} className={p108TbodyRow}>
+                        <td className="border-r border-[#94A3B8] px-3 py-2 align-top font-medium text-[#0F172A] sm:px-4">
+                          {entry.name}
+                        </td>
+                        <td className="border-r border-[#94A3B8] px-3 py-2 align-top text-[#334155] sm:px-4">
                           <p className="whitespace-pre-wrap break-words">{entry.thong_tin || '—'}</p>
                         </td>
-                        <td className="px-2 py-2 text-right align-top">
+                        <td className="px-3 py-2 text-right align-top sm:px-4">
                           <button
                             type="button"
-                            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 px-2 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            className="inline-flex h-9 items-center justify-center rounded-md border border-[#E2E8F0] bg-white px-2 text-red-600 hover:bg-red-50 disabled:opacity-50"
                             disabled={thongTinSaving}
                             onClick={() => void handleDeleteThongTin(entry.id)}
                           >
@@ -787,14 +799,16 @@ export default function Pilot108IndividualPage() {
 
         {/* Draft / Finalized checklist */}
         {!noTasksView && !transcriptionError ? (
-          <section className={card}>
-            <div className="flex items-start justify-between gap-2 border-b border-slate-100 bg-slate-50/90 px-4 py-3">
+          <section className={p108Panel}>
+            <div className={`flex items-start justify-between gap-2 ${p108PanelHead}`}>
               <div>
-                <h2 className={h2}>{isFinalized ? 'To-Do · Finalized' : 'Draft To-Do List'}</h2>
-                <p className={sub}>
+                <h2 className={p108H2}>
+                  {isFinalized ? 'Việc cần làm · Đã chốt' : 'Danh sách nháp'}
+                </h2>
+                <p className={p108Sub}>
                   {isFinalized
-                    ? 'FINALIZED_LIST — tickable (tick / cross). Edit (pencil) returns to draft.'
-                    : 'DRAFT — not tickable. Assignee column uses roster IDs.'}
+                    ? 'Đã chốt — đánh dấu hoàn thành / hủy. Bút chỉnh sửa để mở lại bản nháp.'
+                    : 'Bản nháp — chưa tick. Cột người thực hiện gắn với danh sách thành viên.'}
                 </p>
               </div>
               {isFinalized ? (
@@ -812,20 +826,29 @@ export default function Pilot108IndividualPage() {
             </div>
 
             <div className="space-y-3 p-4">
-              <div className="overflow-x-auto rounded-lg border border-slate-100">
-                <table className="w-full min-w-[320px] text-left text-sm">
-                  <thead className="border-b border-slate-100 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-2 py-2">Task</th>
-                      <th className="px-2 py-2">Assignee</th>
-                      {isFinalized ? <th className="px-2 py-2 text-right">Actions</th> : <th className="w-8" />}
+              <div className={p108TableOuter}>
+                <table className="w-full min-w-[300px] border-collapse text-left text-sm">
+                  <thead>
+                    <tr className={p108TheadRow}>
+                      <th className={`${p108Th} min-w-[130px] border-r border-[#94A3B8]`}>Việc làm</th>
+                      <th className={`${p108Th} w-[88px] min-w-[65px] border-r border-[#94A3B8] text-center sm:w-[110px]`}>
+                        Người TH
+                      </th>
+                      {isFinalized ? (
+                        <th className={`${p108Th} text-right`}>Thao tác</th>
+                      ) : (
+                        <th className={`${p108Th} w-10 px-1 text-center`} aria-label="Xóa dòng" />
+                      )}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody>
                     {editableItems.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="px-2 py-6 text-center text-xs text-slate-500">
-                          Add rows below, then Create draft.
+                      <tr className={p108TbodyRow}>
+                        <td
+                          colSpan={3}
+                          className="px-4 py-10 text-center text-xs text-[#64748B] [font-family:var(--font-p108-be),sans-serif]"
+                        >
+                          Thêm dòng bên dưới, rồi tạo bản nháp trên máy chủ.
                         </td>
                       </tr>
                     ) : (
@@ -833,13 +856,13 @@ export default function Pilot108IndividualPage() {
                         const disp = mergedItemsForDisplay.find((i) => i.id === item.id);
                         const st = disp?.status;
                         return (
-                          <tr key={item.id} className={st === 'CANCELLED' ? 'opacity-50' : ''}>
-                            <td className="px-2 py-2 align-top">
+                          <tr key={item.id} className={`${p108TbodyRow} ${st === 'CANCELLED' ? 'opacity-50' : ''}`}>
+                            <td className="border-r border-[#94A3B8] px-3 py-3 align-top sm:px-4 sm:py-4">
                               {isFinalized ? (
                                 <span
-                                  className={
-                                    st === 'COMPLETED' ? 'text-slate-400 line-through' : 'font-medium text-slate-900'
-                                  }
+                                  className={`text-[13px] [font-family:var(--font-p108-be),sans-serif] ${
+                                    st === 'COMPLETED' ? 'text-[#94A3B8] line-through' : 'font-medium text-[#0F172A]'
+                                  }`}
                                 >
                                   {item.text}
                                 </span>
@@ -856,12 +879,14 @@ export default function Pilot108IndividualPage() {
                                 />
                               )}
                             </td>
-                            <td className="px-2 py-2 align-top">
+                            <td className="border-r border-[#94A3B8] px-2 py-3 text-center align-top sm:py-4">
                               {roster.length === 0 ? (
-                                <p className="text-xs text-amber-800">{BDD.assigneeEmpty}</p>
+                                <p className="text-left text-[11px] text-amber-800 [font-family:var(--font-p108-be),sans-serif]">
+                                  {BDD.assigneeEmpty}
+                                </p>
                               ) : (
                                 <select
-                                  className={inputClass}
+                                  className={`${inputClass} text-center text-[13px]`}
                                   value={item.assignee_id}
                                   disabled={isFinalized}
                                   onChange={(e) =>
@@ -880,11 +905,11 @@ export default function Pilot108IndividualPage() {
                               )}
                             </td>
                             {isFinalized ? (
-                              <td className="px-2 py-2 text-right">
+                              <td className="px-2 py-3 text-right sm:py-4">
                                 <div className="flex justify-end gap-1">
                                   <button
                                     type="button"
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-emerald-600 hover:bg-emerald-50"
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#E2E8F0] bg-white text-emerald-600 hover:bg-emerald-50"
                                     aria-label="Tick completed"
                                     onClick={() => tickCross(item.id, 'COMPLETED')}
                                   >
@@ -892,7 +917,7 @@ export default function Pilot108IndividualPage() {
                                   </button>
                                   <button
                                     type="button"
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-red-600 hover:bg-red-50"
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#E2E8F0] bg-white text-red-600 hover:bg-red-50"
                                     aria-label="Cross cancelled"
                                     onClick={() => tickCross(item.id, 'CANCELLED')}
                                   >
@@ -901,7 +926,7 @@ export default function Pilot108IndividualPage() {
                                 </div>
                               </td>
                             ) : (
-                              <td className="px-2 py-2 text-right">
+                              <td className="px-1 py-3 text-center sm:py-4">
                                 <button
                                   type="button"
                                   className={btnGhost}
@@ -980,9 +1005,12 @@ export default function Pilot108IndividualPage() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="share-title"
-              className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+              className="w-full max-w-sm rounded-lg border border-[#CBD5E1] bg-white p-5 shadow-xl"
             >
-              <h3 id="share-title" className="text-center font-serif text-lg font-semibold text-slate-900">
+              <h3
+                id="share-title"
+                className="text-center text-lg font-semibold text-[#020617] [font-family:var(--font-p108-newsreader),serif]"
+              >
                 {BDD.shareTitle}
               </h3>
               <div className="mt-5 grid gap-2">
@@ -1014,6 +1042,9 @@ export default function Pilot108IndividualPage() {
         <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 px-3 py-3 text-xs text-slate-600">
           <p className="font-medium text-slate-700">QA / BDD edge paths</p>
           <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className={btnOutline + ' h-8 text-xs'} onClick={() => setShowProcessingOverlay(true)}>
+              Preview processing copy
+            </button>
             <button type="button" className={btnOutline + ' h-8 text-xs'} onClick={() => pushToast(BDD.noAudioToast)}>
               Toast: empty recording
             </button>

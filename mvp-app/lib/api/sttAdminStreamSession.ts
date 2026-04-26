@@ -1,80 +1,99 @@
 import { getAuthToken } from "../auth";
-import { apiClient } from "../apiClient";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://medmate-backend-k25riftvia-as.a.run.app";
 
-/** GET /stt-metrics/admin/stream-sessions/{upload_id} — admin only */
-export interface AdminStreamUploadSnapshot {
-  upload_id: string;
-  user_id?: string;
-  session_id?: string;
-  filename?: string;
-  total_chunks: number;
-  chunk_size: number;
-  status?: string;
-  record_id?: string;
-  display_name?: string;
-  stored_chunk_count?: number;
-  min_chunk_index?: number;
-  max_chunk_index?: number;
-  created_at?: string;
-  updated_at?: string;
-}
+export type WebRtcSdp = { type: "offer" | "answer"; sdp: string };
+export type WebRtcCandidate = {
+  seq: number;
+  candidate: string;
+  sdpMid?: string;
+  sdpMLineIndex?: number;
+  usernameFragment?: string;
+};
 
-export async function fetchAdminStreamSnapshot(
-  uploadId: string,
-): Promise<AdminStreamUploadSnapshot> {
-  return apiClient<AdminStreamUploadSnapshot>(
-    `/stt-metrics/admin/stream-sessions/${encodeURIComponent(uploadId)}`,
-  );
-}
-
-export async function fetchAdminAssembledAudio(
-  uploadId: string,
-  maxChunkIndex?: number,
-): Promise<Blob> {
+async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = getAuthToken();
-  const params = new URLSearchParams();
-  if (maxChunkIndex !== undefined && maxChunkIndex >= 0) {
-    params.set("max_chunk_index", String(maxChunkIndex));
-  }
-  const qs = params.toString();
-  const url = `${BASE_URL}/stt-metrics/admin/stream-sessions/${encodeURIComponent(uploadId)}/assembled${qs ? `?${qs}` : ""}`;
-  const res = await fetch(url, {
-    method: "GET",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return fetch(`${BASE_URL}${path}`, {
+    ...init,
+    headers,
     cache: "no-store",
   });
-  if (!res.ok) {
-    throw new Error(`assembled audio failed: ${res.status}`);
-  }
-  return res.blob();
 }
 
-export async function fetchAdminStreamChunk(
-  uploadId: string,
-  chunkIndex: number,
-): Promise<Blob> {
-  const token = getAuthToken();
-  const url = `${BASE_URL}/stt-metrics/admin/stream-sessions/${encodeURIComponent(uploadId)}/chunks/${chunkIndex}`;
-  const res = await fetch(url, {
-    method: "GET",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    throw new Error(`chunk ${chunkIndex} failed: ${res.status}`);
-  }
-  return res.blob();
+export async function getLiveOffer(liveSessionId: string): Promise<WebRtcSdp | null> {
+  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/offer`);
+  if (!res.ok) throw new Error(`get offer failed: ${res.status}`);
+  const body = (await res.json()) as { offer?: WebRtcSdp | null };
+  return body.offer || null;
 }
 
-/** EventSource cannot send Authorization; pass JWT as query (same pattern as STT /me/events). */
-export function adminStreamLiveSseUrl(uploadId: string, accessToken: string, pollMs = 400): string {
-  const q = new URLSearchParams({
-    access_token: accessToken,
-    poll_ms: String(pollMs),
+export async function postLiveAnswer(liveSessionId: string, answer: WebRtcSdp): Promise<void> {
+  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/answer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(answer),
   });
-  return `${BASE_URL}/stt-metrics/admin/stream-sessions/${encodeURIComponent(uploadId)}/live?${q}`;
+  if (!res.ok) throw new Error(`post answer failed: ${res.status}`);
+}
+
+export async function postLiveOffer(liveSessionId: string, offer: WebRtcSdp): Promise<void> {
+  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/offer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(offer),
+  });
+  if (!res.ok) throw new Error(`post offer failed: ${res.status}`);
+}
+
+export async function getLiveAnswer(liveSessionId: string): Promise<WebRtcSdp | null> {
+  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/answer`);
+  if (!res.ok) throw new Error(`get answer failed: ${res.status}`);
+  const body = (await res.json()) as { answer?: WebRtcSdp | null };
+  return body.answer || null;
+}
+
+export async function getLiveSnapshot(
+  liveSessionId: string,
+): Promise<{ display_name?: string; status?: string; has_offer?: boolean; has_answer?: boolean }> {
+  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/snapshot`);
+  if (!res.ok) throw new Error(`snapshot failed: ${res.status}`);
+  return res.json();
+}
+
+export async function addLiveCandidate(
+  liveSessionId: string,
+  role: "offerer" | "answerer",
+  candidate: RTCIceCandidateInit,
+): Promise<void> {
+  if (!candidate.candidate) return;
+  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/candidate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      role,
+      candidate: candidate.candidate,
+      sdpMid: candidate.sdpMid ?? null,
+      sdpMLineIndex: candidate.sdpMLineIndex ?? null,
+      usernameFragment: candidate.usernameFragment ?? null,
+    }),
+  });
+  if (!res.ok) throw new Error(`add candidate failed: ${res.status}`);
+}
+
+export async function getLiveCandidates(
+  liveSessionId: string,
+  role: "offerer" | "answerer",
+  after = 0,
+): Promise<WebRtcCandidate[]> {
+  const q = new URLSearchParams({ role, after: String(after) });
+  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/candidates?${q.toString()}`);
+  if (!res.ok) throw new Error(`get candidates failed: ${res.status}`);
+  const body = (await res.json()) as { items?: WebRtcCandidate[] };
+  return body.items || [];
 }

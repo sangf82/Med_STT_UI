@@ -1,97 +1,119 @@
 'use client';
 
 /**
- * Admin-only: listen to live STT stream upload (same chunks as clinician) + session display_name.
- * Open: /admin/stt-stream/{upload_id} (upload_id from recording screen link).
+ * Admin-only: low-latency WebRTC live audio monitor.
+ * Open: /admin/stt-stream/{live_session_id} from recording screen link.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getAuthToken } from '@/lib/auth';
 import {
-  adminStreamLiveSseUrl,
-  fetchAdminAssembledAudio,
-  fetchAdminStreamSnapshot,
-  type AdminStreamUploadSnapshot,
+  addLiveCandidate,
+  getLiveCandidates,
+  getLiveOffer,
+  getLiveSnapshot,
+  postLiveAnswer,
 } from '@/lib/api/sttAdminStreamSession';
 
 export default function AdminSttStreamMonitorPage() {
   const params = useParams();
-  const uploadId = String(params.uploadId || '');
-  const [snap, setSnap] = useState<AdminStreamUploadSnapshot | null>(null);
+  const liveSessionId = String(params.uploadId || '');
+  const [snap, setSnap] = useState<{ display_name?: string; status?: string } | null>(null);
   const [err, setErr] = useState('');
+  const [connected, setConnected] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const lastUrlRef = useRef<string | null>(null);
-  const lastPairRef = useRef<{ max: number; cnt: number }>({ max: -1, cnt: -1 });
-
-  const refreshAudio = useCallback(
-    async (maxChunk: number, storedCount: number) => {
-      if (!uploadId || maxChunk < 0) return;
-      const prev = lastPairRef.current;
-      if (prev.max === maxChunk && prev.cnt === storedCount) return;
-      lastPairRef.current = { max: maxChunk, cnt: storedCount };
-      try {
-        const blob = await fetchAdminAssembledAudio(uploadId, maxChunk);
-        const url = URL.createObjectURL(blob);
-        if (lastUrlRef.current) URL.revokeObjectURL(lastUrlRef.current);
-        lastUrlRef.current = url;
-        const el = audioRef.current;
-        if (el) {
-          const wasPlaying = !el.paused && el.currentTime > 0;
-          el.src = url;
-          el.load();
-          if (wasPlaying) void el.play().catch(() => {});
-        }
-      } catch {
-        /* partial blob may fail briefly */
-      }
-    },
-    [uploadId],
-  );
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const pollRef = useRef<number | null>(null);
+  const answererSeqRef = useRef(0);
+  const offererSeqRef = useRef(0);
 
   useEffect(() => {
-    if (!uploadId) return;
-    const t = getAuthToken();
-    if (!t) {
-      setErr('Cần đăng nhập (token admin).');
-      return;
-    }
+    if (!liveSessionId) return;
     setErr('');
-    lastPairRef.current = { max: -1, cnt: -1 };
-    fetchAdminStreamSnapshot(uploadId)
-      .then((s) => {
-        setSnap(s);
-        const mx = typeof s.max_chunk_index === 'number' ? s.max_chunk_index : -1;
-        const cnt = typeof s.stored_chunk_count === 'number' ? s.stored_chunk_count : 0;
-        if (mx >= 0) void refreshAudio(mx, cnt);
-      })
-      .catch((e: { message?: string }) => setErr(e?.message || '403/404 — kiểm tra quyền admin và upload_id'));
+    let alive = true;
 
-    const url = adminStreamLiveSseUrl(uploadId, t, 400);
-    const es = new EventSource(url);
-    es.onmessage = (ev) => {
+    const run = async () => {
       try {
-        const d = JSON.parse(ev.data) as Record<string, unknown>;
-        if (d.error) return;
-        setSnap((prev) => ({ ...(prev || {}), ...d }) as AdminStreamUploadSnapshot);
-        const mx = typeof d.max_chunk_index === 'number' ? d.max_chunk_index : -1;
-        const cnt = typeof d.stored_chunk_count === 'number' ? d.stored_chunk_count : 0;
-        if (mx >= 0) void refreshAudio(mx, cnt);
-      } catch {
-        /* ignore */
+        const meta = await getLiveSnapshot(liveSessionId);
+        if (alive) setSnap(meta);
+
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+        });
+        pcRef.current = pc;
+        pc.ontrack = (event) => {
+          const [remoteStream] = event.streams;
+          if (!remoteStream || !audioRef.current) return;
+          audioRef.current.srcObject = remoteStream;
+          void audioRef.current.play().catch(() => {});
+          setConnected(true);
+        };
+        pc.onicecandidate = (event) => {
+          if (!event.candidate) return;
+          void addLiveCandidate(liveSessionId, 'answerer', event.candidate.toJSON()).catch(() => {});
+        };
+
+        const pullOffer = async (): Promise<void> => {
+          if (!alive) return;
+          const offer = await getLiveOffer(liveSessionId);
+          if (!offer) {
+            window.setTimeout(() => void pullOffer(), 1000);
+            return;
+          }
+          await pc.setRemoteDescription(new RTCSessionDescription(offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await postLiveAnswer(liveSessionId, { type: 'answer', sdp: answer.sdp || '' });
+        };
+
+        await pullOffer();
+        pollRef.current = window.setInterval(() => {
+          void (async () => {
+            try {
+              const incoming = await getLiveCandidates(liveSessionId, 'offerer', offererSeqRef.current);
+              for (const c of incoming) {
+                offererSeqRef.current = Math.max(offererSeqRef.current, c.seq);
+                await pc.addIceCandidate({
+                  candidate: c.candidate,
+                  sdpMid: c.sdpMid,
+                  sdpMLineIndex: c.sdpMLineIndex,
+                  usernameFragment: c.usernameFragment,
+                });
+              }
+              const own = await getLiveCandidates(liveSessionId, 'answerer', answererSeqRef.current);
+              for (const c of own) answererSeqRef.current = Math.max(answererSeqRef.current, c.seq);
+            } catch {
+              /* keep polling */
+            }
+          })();
+        }, 1200);
+      } catch (e: unknown) {
+        if (!alive) return;
+        const msg = e instanceof Error ? e.message : 'Không kết nối được live session';
+        setErr(msg);
       }
     };
+
+    void run();
     return () => {
-      es.close();
-      if (lastUrlRef.current) URL.revokeObjectURL(lastUrlRef.current);
-      lastUrlRef.current = null;
+      alive = false;
+      if (pollRef.current) window.clearInterval(pollRef.current);
+      pollRef.current = null;
+      const pc = pcRef.current;
+      pcRef.current = null;
+      if (pc) pc.close();
+      const el = audioRef.current;
+      if (el) {
+        el.pause();
+        el.srcObject = null;
+      }
     };
-  }, [uploadId, refreshAudio]);
+  }, [liveSessionId]);
 
   return (
     <div className="mx-auto max-w-lg space-y-4 p-4">
-      <h1 className="text-lg font-semibold text-zinc-900">Admin · Nghe stream STT live</h1>
-      <p className="font-mono text-xs text-zinc-500">upload_id: {uploadId}</p>
+      <h1 className="text-lg font-semibold text-zinc-900">Admin · Nghe live WebRTC</h1>
+      <p className="font-mono text-xs text-zinc-500">live_session_id: {liveSessionId}</p>
       {err ? <p className="text-sm text-red-600">{err}</p> : null}
       {snap ? (
         <div className="space-y-2 rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-800 shadow-sm">
@@ -99,14 +121,12 @@ export default function AdminSttStreamMonitorPage() {
             <span className="text-zinc-500">display_name:</span>{' '}
             <span className="font-medium">{snap.display_name || '—'}</span>
           </p>
-          <p className="text-xs text-zinc-500">
-            Chunks: {snap.stored_chunk_count ?? 0} · max_idx {snap.max_chunk_index ?? '—'} · {snap.status ?? '—'}
-          </p>
+          <p className="text-xs text-zinc-500">status: {snap.status || (connected ? 'connected' : 'waiting')}</p>
         </div>
       ) : null}
-      <audio ref={audioRef} controls className="w-full rounded-lg border border-zinc-200 bg-zinc-50 p-1" />
+      <audio ref={audioRef} autoPlay controls className="w-full rounded-lg border border-zinc-200 bg-zinc-50 p-1" />
       <p className="text-xs text-zinc-500">
-        Audio = ghép các chunk đã lên server (tăng dần theo SSE). Dùng để đối chiếu với transcript AI / tên bệnh nhân.
+        Luồng nghe live tách riêng khỏi chunk upload STT, ưu tiên độ trễ thấp bằng WebRTC.
       </p>
     </div>
   );
