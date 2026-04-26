@@ -34,6 +34,12 @@ export type Pilot108ApiError = {
   raw?: unknown;
 };
 
+export type Pilot108SystemUser = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+};
+
 function normalizeError(error: unknown): Pilot108ApiError {
   const unknownMessage = "Unexpected error";
   if (!error || typeof error !== "object") {
@@ -102,6 +108,11 @@ export const pilot108DeleteRosterMember = (memberId: string) =>
     apiClient<{ members: Pilot108RosterMember[] }>(`/pilot108/individual/roster/members/${memberId}`, {
       method: "DELETE",
     }),
+  );
+
+export const pilot108ListSystemUsers = (limit = 200) =>
+  apiCall(() =>
+    apiClient<Pilot108SystemUser[]>(`/users?skip=0&limit=${encodeURIComponent(String(limit))}`),
   );
 
 export const pilot108CreateDraft = (payload: {

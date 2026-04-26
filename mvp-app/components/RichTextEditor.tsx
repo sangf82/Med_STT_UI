@@ -11,6 +11,15 @@ import { FontSize } from '@/lib/tiptap-extensions/fontSize';
 import { EditorToolbar } from './EditorToolbar';
 import { useEffect, useState } from 'react';
 
+type MarkdownEditorStorage = {
+    markdown?: { getMarkdown: () => string };
+};
+
+function getMarkdownFromStorage(editor: Editor): string {
+    const s = editor.storage as MarkdownEditorStorage;
+    return s.markdown?.getMarkdown() ?? '';
+}
+
 interface RichTextEditorProps {
     content: string;
     onChange: (content: string) => void;
@@ -198,8 +207,7 @@ export function RichTextEditor({
         ],
         content: initialContent,
         onUpdate: ({ editor }) => {
-            const markdown = (editor.storage as any).markdown?.getMarkdown() ?? '';
-            onChange(markdown);
+            onChange(getMarkdownFromStorage(editor));
         },
         onFocus: () => {
             // Focus happens, but we don't necessarily show toolbar/keyboard yet
@@ -280,11 +288,13 @@ export function RichTextEditor({
     }, [isKeyboardActive, editor, minHeight, editorClassName]);
 
     useEffect(() => {
-        setMounted(true);
+        globalThis.queueMicrotask(() => {
+            setMounted(true);
+        });
     }, []);
 
     useEffect(() => {
-        if (editor && content !== (editor.storage as any).markdown?.getMarkdown() && !editor.isFocused) {
+        if (editor && content !== getMarkdownFromStorage(editor) && !editor.isFocused) {
             const nextContent = coerceTaskListOnLoad
                 ? coerceTaskMarkdownToHtml(content)
                 : isClinicalMode

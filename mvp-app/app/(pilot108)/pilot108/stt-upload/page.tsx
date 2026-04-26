@@ -1,200 +1,339 @@
 'use client';
 
 /**
- * Ghi âm stream (chunk PUT liên tục + stream/end) hoặc upload file chia chunk + retry —
- * cùng backend /ai/stt/upload/* và queue AI. IndexedDB (lib/db) dự phòng recover / gửi lại chunk thiếu.
+ * Pilot 108 BDD capture: record audio, call P108 AI step1/step2, then create a checklist draft.
+ * This page must not use legacy `/ai/stt/upload/stream/init` because that quota flow is outside P108 BDD.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Mic, Square, Upload } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Upload } from 'lucide-react';
 import { P108Shell } from '@/components/pilot108/P108Shell';
+import { P108TerminalLog } from '@/components/medmate/P108TerminalLog';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  sttGetJob,
-  sttUploadChunkWithRetry,
-  sttUploadComplete,
-  sttUploadInit,
-  sttUploadListIncomplete,
-  sttUploadStatus,
-  sttUploadStreamEnd,
-  sttUploadStreamInit,
-  type SttJob,
-  type SttOutputFormat,
-} from '@/lib/api/sttUpload';
+  addLiveCandidate,
+  closeLiveSession,
+  getLiveAnswer,
+  getLiveCandidates,
+  initLiveSession,
+  postLiveOffer,
+} from '@/lib/api/sttAdminStreamSession';
 import {
-  addStreamChunk,
-  cleanupUploadSession,
-  db,
-  saveStreamUploadMetadata,
-  saveUploadSession,
-} from '@/lib/db';
+  P108MobileTopBar,
+  P108PhoneFrame,
+  P108RecordingControls,
+  P108Waveform,
+  p108Be,
+  p108Mono,
+  p108News,
+} from '@/components/pilot108/P108Design';
+import { pilot108CreateDraft } from '@/lib/api/pilot108Individual';
+import { getAuthToken } from '@/lib/auth';
+import { setP108LiveSessionId } from '@/lib/p108LiveSession';
+import { cn } from '@/lib/utils';
 
-/** Match backend default `stt_upload_chunk_size_bytes` (524288) so init total_chunks stays consistent. */
-const CHUNK_SIZE_DEFAULT = 524288;
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  'https://medmate-backend-k25riftvia-as.a.run.app';
 
-const formats: { value: SttOutputFormat; label: string }[] = [
-  { value: 'soap_note', label: 'SOAP' },
-  { value: 'ehr', label: 'EHR' },
-  { value: 'operative_note', label: 'Operative' },
-  { value: 'to-do', label: 'To-do' },
-];
+type P108Step1Heard = {
+  patient_code: string;
+  spoken_name?: string;
+  confidence?: number;
+};
+
+type P108Step1Response = {
+  heard?: P108Step1Heard[];
+  raw_transcript?: string;
+};
+
+type P108Step2ChecklistItem = {
+  id: string;
+  text: string;
+  patient_code?: string;
+  patient_name?: string;
+};
+
+type P108Step2Response = {
+  checklist?: P108Step2ChecklistItem[];
+};
 
 function uid() {
   return crypto.randomUUID();
 }
 
-async function pollJob(jobId: string, onTick: (j: SttJob) => void): Promise<SttJob> {
-  const deadline = Date.now() + 8 * 60 * 1000;
-  for (;;) {
-    const j = await sttGetJob(jobId);
-    onTick(j);
-    if (j.status === 'done' || j.status === 'failed') return j;
-    if (Date.now() > deadline) throw new Error('Job poll timeout');
-    await new Promise((r) => setTimeout(r, 1200));
+async function p108Fetch(path: string, init: RequestInit): Promise<Response> {
+  const token = getAuthToken();
+  const headers: HeadersInit = { ...(init.headers as HeadersInit | undefined) };
+  if (token) {
+    (headers as Record<string, string>).Authorization = `Bearer ${token}`;
   }
+  return fetch(`${API_BASE_URL}${path}`, { ...init, headers, cache: 'no-store' });
+}
+
+async function readJsonOrThrow<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const detail = (data as { detail?: string }).detail;
+    throw new Error(detail || response.statusText);
+  }
+  return response.json() as Promise<T>;
 }
 
 export default function Pilot108SttUploadPage() {
-  const [outputFormat, setOutputFormat] = useState<SttOutputFormat>('to-do');
+  const router = useRouter();
   const [log, setLog] = useState('');
   const [busy, setBusy] = useState(false);
   const [streamOn, setStreamOn] = useState(false);
-  const [job, setJob] = useState<SttJob | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [draftId, setDraftId] = useState('');
+  const [stepResult, setStepResult] = useState<P108Step2Response | null>(null);
+  const [liveSessionId, setLiveSessionId] = useState('');
+  const [liveStatus, setLiveStatus] = useState('Live audio idle');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const streamUploadChainRef = useRef(Promise.resolve());
-  const uploadCtxRef = useRef<{
-    upload_id: string;
-    record_id: string;
-    chunk_index: number;
-    started_at: number;
-  } | null>(null);
+  const p108AudioChunksRef = useRef<Blob[]>([]);
+  const uploadCtxRef = useRef<{ upload_id: string; record_id: string; started_at: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const livePcRef = useRef<RTCPeerConnection | null>(null);
+  const livePollRef = useRef<number | null>(null);
+  const answererSeqRef = useRef(0);
+
+  useEffect(() => {
+    if (!streamOn || paused) return;
+    const started = uploadCtxRef.current?.started_at || Date.now();
+    const id = window.setInterval(() => setElapsedMs(Date.now() - started), 250);
+    return () => window.clearInterval(id);
+  }, [streamOn, paused]);
+
+  const timerLabel = useMemo(() => {
+    const total = Math.max(0, Math.floor(elapsedMs / 1000));
+    const minutes = Math.floor(total / 60)
+      .toString()
+      .padStart(2, '0');
+    const seconds = (total % 60).toString().padStart(2, '0');
+    const tenth = Math.floor((elapsedMs % 1000) / 100);
+    return `${minutes}:${seconds}.${tenth}`;
+  }, [elapsedMs]);
 
   const pushLog = useCallback((line: string) => {
     setLog((prev) => (prev ? `${prev}\n` : '') + line);
   }, []);
 
+  const cleanupLiveAudio = useCallback(async () => {
+    if (livePollRef.current) {
+      window.clearInterval(livePollRef.current);
+      livePollRef.current = null;
+    }
+    const pc = livePcRef.current;
+    livePcRef.current = null;
+    if (pc) pc.close();
+    const id = liveSessionId;
+    if (id) {
+      await closeLiveSession(id).catch(() => {});
+    }
+    setP108LiveSessionId(null);
+    setLiveSessionId('');
+    setLiveStatus('Live audio closed');
+  }, [liveSessionId]);
+
+  const startLiveAudioOffer = useCallback(
+    async (stream: MediaStream) => {
+      const live = await initLiveSession('Pilot 108 live recording');
+      const sessionId = live.live_session_id;
+      setLiveSessionId(sessionId);
+      setP108LiveSessionId(sessionId);
+      setLiveStatus(`Live session ready: ${sessionId}`);
+      answererSeqRef.current = 0;
+
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      });
+      livePcRef.current = pc;
+      stream.getAudioTracks().forEach((track) => pc.addTrack(track, stream));
+      pc.onicecandidate = (event) => {
+        if (!event.candidate) return;
+        void addLiveCandidate(sessionId, 'offerer', event.candidate.toJSON()).catch(() => {});
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await postLiveOffer(sessionId, { type: 'offer', sdp: offer.sdp || '' });
+      setLiveStatus(`Live offer published: ${sessionId}`);
+
+      livePollRef.current = window.setInterval(() => {
+        void (async () => {
+          try {
+            const answer = await getLiveAnswer(sessionId);
+            if (answer && !pc.currentRemoteDescription) {
+              await pc.setRemoteDescription(new RTCSessionDescription(answer));
+              setLiveStatus(`Admin connected: ${sessionId}`);
+            }
+            const candidates = await getLiveCandidates(sessionId, 'answerer', answererSeqRef.current);
+            for (const candidate of candidates) {
+              answererSeqRef.current = Math.max(answererSeqRef.current, candidate.seq);
+              await pc.addIceCandidate({
+                candidate: candidate.candidate,
+                sdpMid: candidate.sdpMid,
+                sdpMLineIndex: candidate.sdpMLineIndex,
+                usernameFragment: candidate.usernameFragment,
+              });
+            }
+          } catch {
+            /* keep live polling while recording */
+          }
+        })();
+      }, 1200);
+    },
+    [],
+  );
+
+  const processP108Audio = useCallback(
+    async (audio: File) => {
+      pushLog('P108 step1-hear → sending audio');
+      const formData = new FormData();
+      formData.set('thread_id', uid());
+      formData.set('audio', audio, audio.name);
+      formData.set(
+        'patient_contexts',
+        JSON.stringify([
+          { patient_name: 'Nguyễn Văn Tuấn', summary: '', latest: '' },
+          { patient_name: 'Trần Thị Lan', summary: '', latest: '' },
+        ]),
+      );
+      const step1 = await readJsonOrThrow<P108Step1Response>(
+        await p108Fetch('/internal/ai/p108/step1-hear', { method: 'POST', body: formData }),
+      );
+      const heard = Array.isArray(step1.heard) ? step1.heard : [];
+      pushLog(`P108 step1-hear ← heard ${heard.length} patient(s)`);
+      const actual_patients = heard.map((row) => ({
+        patient_code: row.patient_code,
+        patient_name: row.spoken_name || '',
+        summary: '',
+        latest: '',
+      }));
+      const step2 = await readJsonOrThrow<P108Step2Response>(
+        await p108Fetch('/internal/ai/p108/step2-resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ thread_id: formData.get('thread_id'), actual_patients }),
+        }),
+      );
+      const checklist = Array.isArray(step2.checklist) ? step2.checklist : [];
+      setStepResult(step2);
+      pushLog(`P108 step2-resolve ← checklist ${checklist.length} item(s)`);
+      if (!checklist.length) {
+        throw new Error('P108 AI did not return checklist items');
+      }
+      const draft = await pilot108CreateDraft({
+        items: checklist.map((item) => ({
+          id: item.id,
+          text: item.text,
+        })),
+        idempotency_key: `p108_capture_${Date.now()}`,
+      });
+      setDraftId(draft.id);
+      pushLog(`P108 draft created → ${draft.id}`);
+      router.push(`/pilot108/processing?state=success&draftId=${encodeURIComponent(draft.id)}`);
+    },
+    [pushLog, router],
+  );
+
   const handleStreamStart = async () => {
     setBusy(true);
-    setJob(null);
+    setDraftId('');
+    setStepResult(null);
+    setLiveStatus('Live audio starting...');
     setLog('');
+    p108AudioChunksRef.current = [];
     try {
-      const session_id = uid();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : 'audio/webm';
-      const init = await sttUploadStreamInit({
-        session_id,
-        filename: 'stream.webm',
-        output_format: outputFormat,
+      await startLiveAudioOffer(stream).catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        setLiveStatus(`Live audio unavailable: ${message}`);
+        pushLog(`Live audio unavailable: ${message}`);
       });
-      uploadCtxRef.current = {
-        upload_id: init.upload_id,
-        record_id: init.record_id,
-        chunk_index: 0,
-        started_at: Date.now(),
-      };
-      await saveStreamUploadMetadata({
-        upload_id: init.upload_id,
-        session_id,
-        filename: 'stream.webm',
-        total_chunks: 0,
-        chunk_size: 1,
-        output_format: outputFormat,
-        format: 'todo',
-      });
-      pushLog(`stream/init → upload_id=${init.upload_id} record_id=${init.record_id}`);
-
-      const rec = new MediaRecorder(stream, { mimeType: mime });
-      mediaRecorderRef.current = rec;
-      streamUploadChainRef.current = Promise.resolve();
-
-      rec.ondataavailable = (ev) => {
-        if (ev.data.size === 0) return;
-        const blob = ev.data;
-        streamUploadChainRef.current = streamUploadChainRef.current
-          .catch(() => {})
-          .then(async () => {
-            const ctx = uploadCtxRef.current;
-            if (!ctx) return;
-            const idx = ctx.chunk_index;
-            await sttUploadChunkWithRetry(ctx.upload_id, idx, blob, `c${idx}.webm`);
-            await addStreamChunk(ctx.upload_id, idx, blob).catch(() => {});
-            ctx.chunk_index = idx + 1;
-            pushLog(`chunk ${idx} ok (${blob.size} B)`);
-          })
-          .catch((e) => {
-            pushLog(`chunk pipeline (dừng upload session này): ${String(e)}`);
-            uploadCtxRef.current = null;
-          });
-      };
-
-      rec.start(900);
+      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current = mr;
       setStreamOn(true);
-      pushLog('Recording… (Stop khi xong)');
+      setPaused(false);
+      setElapsedMs(0);
+      mr.ondataavailable = (ev) => {
+        if (ev.data.size > 0) {
+          p108AudioChunksRef.current.push(ev.data);
+        }
+      };
+      uploadCtxRef.current = { upload_id: 'p108-bdd-capture', record_id: 'p108-bdd-capture', started_at: Date.now() };
+      mr.start(1000);
+      pushLog('P108 live audio recording started');
     } catch (e) {
-      pushLog(`Start failed: ${String(e)}`);
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
+      pushLog(`P108 recording start failed: ${String(e)}`);
+      setStreamOn(false);
+      setPaused(false);
       uploadCtxRef.current = null;
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handlePauseResume = () => {
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+    if (mr.state === 'recording') {
+      mr.pause();
+      setPaused(true);
+      pushLog('recording paused');
+      return;
+    }
+    if (mr.state === 'paused') {
+      mr.resume();
+      setPaused(false);
+      pushLog('recording resumed');
     }
   };
 
   const handleStreamStop = async () => {
     setBusy(true);
     try {
-      const rec = mediaRecorderRef.current;
-      const ctx = uploadCtxRef.current;
-      if (rec && rec.state !== 'inactive') {
+      const mr = mediaRecorderRef.current;
+      const stream = streamRef.current;
+      if (mr && mr.state !== 'inactive') {
         await new Promise<void>((resolve) => {
-          rec.onstop = () => resolve();
-          rec.stop();
+          mr.addEventListener('stop', () => resolve(), { once: true });
+          mr.stop();
         });
-        await new Promise((r) => setTimeout(r, 300));
       }
-      await streamUploadChainRef.current.catch(() => {});
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
+      stream?.getTracks().forEach((t) => t.stop());
       mediaRecorderRef.current = null;
-
-      if (!ctx) {
-        pushLog('No active stream session');
-        return;
-      }
-      const total = ctx.chunk_index;
-      if (total < 1) {
-        pushLog('Không có chunk âm thanh — ghi lại lâu hơn một chút.');
-        uploadCtxRef.current = null;
-        return;
-      }
-      const sec = (Date.now() - ctx.started_at) / 1000;
-      pushLog(`stream/end total_chunks=${total} …`);
-      const end = await sttUploadStreamEnd({
-        upload_id: ctx.upload_id,
-        record_id: ctx.record_id,
-        total_chunks: total,
-        output_format: outputFormat,
-        recording_duration_sec: sec,
-      });
+      streamRef.current = null;
+      const ctx = uploadCtxRef.current;
       uploadCtxRef.current = null;
-      pushLog(`Queued job_id=${end.job_id}`);
-      const finalJob = await pollJob(end.job_id, setJob);
-      pushLog(`Job ${finalJob.status}`);
-      await cleanupUploadSession(end.upload_id).catch(() => {});
-    } catch (e) {
-      pushLog(`Stop/end failed: ${String(e)}`);
-    } finally {
       setStreamOn(false);
+      if (!ctx) {
+        pushLog('No active P108 recording context.');
+        return;
+      }
+      const audioBlob = new Blob(p108AudioChunksRef.current, { type: 'audio/webm' });
+      if (audioBlob.size <= 0) {
+        pushLog('Không có âm thanh — không gọi P108 AI.');
+        return;
+      }
+      const audio = new File([audioBlob], `p108-live-${Date.now()}.webm`, { type: 'audio/webm' });
+      await processP108Audio(audio);
+      await cleanupLiveAudio();
+    } catch (e) {
+      pushLog(`P108 recording stop failed: ${String(e)}`);
+      await cleanupLiveAudio();
+    } finally {
       setBusy(false);
     }
   };
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async () => {
     const input = fileInputRef.current;
@@ -204,220 +343,95 @@ export default function Pilot108SttUploadPage() {
       return;
     }
     setBusy(true);
-    setJob(null);
+    setDraftId('');
+    setStepResult(null);
     setLog('');
-    const session_id = uid();
-    let upload_id = '';
     try {
-      const preTotal = Math.max(1, Math.ceil(file.size / CHUNK_SIZE_DEFAULT));
-      const init = await sttUploadInit({
-        session_id,
-        filename: file.name || 'audio.m4a',
-        total_chunks: preTotal,
-        chunk_size: CHUNK_SIZE_DEFAULT,
-        output_format: outputFormat,
-        recording_duration_sec: undefined,
-      });
-      upload_id = init.upload_id;
-      const sliceSize = init.chunk_size;
-      const total_chunks = Math.max(1, Math.ceil(file.size / sliceSize));
-      if (sliceSize !== CHUNK_SIZE_DEFAULT || total_chunks !== preTotal) {
-        throw new Error(
-          `chunk_size/total_chunks không khớp (server=${sliceSize}, cần ${total_chunks} chunk, đã init ${preTotal}). Hãy thử lại.`,
-        );
-      }
-      pushLog(`init → upload_id=${init.upload_id} chunk_size=${sliceSize} total_chunks=${total_chunks}`);
-
-      await saveUploadSession(
-        {
-          upload_id: init.upload_id,
-          session_id,
-          filename: file.name || 'audio',
-          total_chunks,
-          chunk_size: sliceSize,
-          output_format: outputFormat,
-          format: 'todo',
-          record_id: init.record_id,
-        },
-        file,
-      );
-
-      for (let i = 0; i < total_chunks; i++) {
-        const start = i * sliceSize;
-        const end = Math.min(start + sliceSize, file.size);
-        const blob = file.slice(start, end);
-        await sttUploadChunkWithRetry(init.upload_id, i, blob, `chunk-${i}`);
-        pushLog(`chunk ${i + 1}/${total_chunks} uploaded`);
-      }
-
-      const done = await sttUploadComplete({
-        upload_id: init.upload_id,
-        record_id: init.record_id,
-        output_format: outputFormat,
-      });
-      pushLog(`complete → job_id=${done.job_id}`);
-      const finalJob = await pollJob(done.job_id, setJob);
-      pushLog(`Job ${finalJob.status}`);
-      await cleanupUploadSession(init.upload_id).catch(() => {});
+      await processP108Audio(file);
       if (input) input.value = '';
     } catch (e) {
-      pushLog(`File upload failed: ${String(e)}`);
-      if (upload_id) await cleanupUploadSession(upload_id).catch(() => {});
+      pushLog(`P108 file capture failed: ${String(e)}`);
     } finally {
       setBusy(false);
     }
   };
-
-  const handleResumeIncomplete = async () => {
-    setBusy(true);
-    setLog('');
-    try {
-      const { uploads } = await sttUploadListIncomplete();
-      if (!uploads?.length) {
-        pushLog('Không có upload đang dở trên server.');
-        return;
-      }
-      for (const row of uploads) {
-        const upload_id = String((row as { upload_id?: string }).upload_id || '');
-        if (!upload_id) continue;
-        const { missing_chunk_indexes } = await sttUploadStatus(upload_id);
-        if (!missing_chunk_indexes?.length) {
-          pushLog(`${upload_id}: không thiếu chunk`);
-          continue;
-        }
-        pushLog(`${upload_id}: thiếu ${missing_chunk_indexes.length} chunk — thử gửi lại từ IndexedDB…`);
-        for (const idx of missing_chunk_indexes) {
-          const local = await db.chunks
-            .where('upload_id')
-            .equals(upload_id)
-            .filter((c) => c.chunk_index === idx)
-            .first();
-          if (!local?.blob) {
-            pushLog(`  chunk ${idx}: không có trong trình duyệt (IndexedDB)`);
-            continue;
-          }
-          await sttUploadChunkWithRetry(upload_id, idx, local.blob, `retry-${idx}`);
-          pushLog(`  chunk ${idx}: đã gửi lại`);
-        }
-        const again = await sttUploadStatus(upload_id);
-        if (!again.missing_chunk_indexes?.length) {
-          pushLog(`${upload_id}: đủ chunk — bấm Complete trên UI cũ hoặc gọi API complete nếu session chunked.`);
-        }
-      }
-    } catch (e) {
-      pushLog(`Resume: ${String(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const card = 'overflow-hidden rounded-lg border border-[#CBD5E1] bg-white';
-  const head = 'border-b border-[#CBD5E1] bg-white px-4 py-3';
-  const h2 =
-    'text-[15px] font-semibold tracking-tight text-[#020617] [font-family:var(--font-p108-newsreader),Newsreader,serif]';
-  const sub = 'mt-0.5 text-xs text-[#64748B] [font-family:var(--font-p108-be),sans-serif]';
-  const btn =
-    'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#219EBC] px-4 text-sm font-medium text-white transition hover:bg-[#1a8bab] disabled:opacity-50 [font-family:var(--font-p108-be),sans-serif]';
-  const btnOutline =
-    'inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-4 text-sm font-medium text-[#003554] transition hover:bg-[#F1F5F9] disabled:opacity-50 [font-family:var(--font-p108-be),sans-serif]';
 
   return (
-    <P108Shell sessionTitle="STT · stream & file" showSessionBadge={false}>
-      <div className="mx-auto max-w-lg space-y-4 pb-12">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Link
-            href="/pilot108"
-            className="text-sm font-medium text-[#219EBC] hover:underline [font-family:var(--font-p108-be),sans-serif]"
-          >
-            ← Pilot hub
-          </Link>
-          <select
-            className="rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-2 py-1.5 text-sm text-[#0F172A]"
-            value={outputFormat}
-            onChange={(e) => setOutputFormat(e.target.value as SttOutputFormat)}
-          >
-            {formats.map((f) => (
-              <option key={f.value} value={f.value}>
-                {f.label}
-              </option>
-            ))}
-          </select>
+    <P108Shell sessionTitle="New Recording" showSessionBadge={false}>
+      <P108PhoneFrame data-testid="p108-h2-stt-root" className="min-h-[760px]">
+        <P108MobileTopBar title="New Recording" subtitle={streamOn ? (paused ? 'Paused' : 'Recording') : 'Ready'} actionHref="/pilot108/team" />
+        <main className="flex min-h-[646px] flex-col items-center justify-center gap-12 px-5 py-10">
+          <h1 className={cn('text-center text-[28px] font-semibold leading-tight text-[#020617]', p108News)}>New Recording</h1>
+          <P108Waveform active={streamOn && !paused} />
+          <p className={cn('tabular-nums text-[48px] font-medium leading-none text-[#0F172A]', p108Mono)}>
+            {streamOn ? timerLabel : '00:00.0'}
+          </p>
+          <P108RecordingControls
+            recording={streamOn}
+            paused={paused}
+            busy={busy}
+            onStart={() => void handleStreamStart()}
+            onPause={handlePauseResume}
+            onStop={() => void handleStreamStop()}
+          />
+          <div className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-center shadow-sm">
+            <p className={cn('text-xs font-medium text-[#64748B]', p108Be)}>{liveStatus}</p>
+            {liveSessionId ? <p className={cn('mt-1 font-mono text-[10px] text-[#94A3B8]', p108Be)}>{liveSessionId}</p> : null}
+          </div>
+          {draftId ? (
+            <Link href={`/pilot108/individual?draftId=${encodeURIComponent(draftId)}`} className={cn('text-sm font-medium text-[#FB8A0A] underline-offset-2 hover:underline', p108Be)}>
+              Review generated checklist
+            </Link>
+          ) : null}
+        </main>
+      </P108PhoneFrame>
+
+      <details className="mx-auto mt-4 max-w-[390px] rounded-xl border border-[#E2E8F0] bg-white p-3 text-sm sm:max-w-2xl">
+        <summary className={cn('cursor-pointer font-medium text-[#475569]', p108Be)}>
+          Debug upload / file tools
+        </summary>
+        <div className="mt-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <Link href="/pilot108/processing?state=upload" className={cn('text-sm font-medium text-[#FB8A0A] hover:underline', p108Be)}>
+              Preview H3
+            </Link>
+            <span className={cn('text-xs text-[#64748B]', p108Be)}>BDD endpoint: /internal/ai/p108</span>
+          </div>
+
+          <Card>
+            <CardHeader className="border-b border-border">
+              <CardTitle className={cn('text-[15px]', p108News)}>Upload audio file</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center">
+              <input ref={fileInputRef} type="file" accept="audio/*,.m4a,.webm,.mp3,.wav,.ogg" className="text-sm" />
+              <Button type="button" variant="default" className={cn('h-10', p108Be)} disabled={busy} onClick={() => void handleFileUpload()}>
+                <Upload className="h-4 w-4" />
+                Run P108 AI
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="border-b border-border">
+              <CardTitle className={cn('text-[15px]', p108News)}>Log</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-2">
+              <P108TerminalLog value={log} maxHeight={192} />
+            </CardContent>
+          </Card>
+
+          {stepResult ? (
+            <Card>
+              <CardHeader className="border-b border-border">
+                <CardTitle className={cn('text-[15px]', p108News)}>P108 checklist JSON</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <P108TerminalLog value={JSON.stringify(stepResult, null, 2)} maxHeight={256} />
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
-
-        <section className={card}>
-          <div className={head}>
-            <h2 className={h2}>Stream ghi âm → AI</h2>
-            <p className={sub}>POST stream/init, PUT từng chunk (retry), POST stream/end → job queue.</p>
-          </div>
-          <div className="flex flex-wrap gap-3 p-4">
-            <button
-              type="button"
-              className={btn}
-              disabled={busy || streamOn}
-              onClick={() => void handleStreamStart()}
-            >
-              {busy && !streamOn ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-              Start
-            </button>
-            <button
-              type="button"
-              className={btnOutline}
-              disabled={busy || !streamOn}
-              onClick={() => void handleStreamStop()}
-            >
-              {busy && streamOn ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
-              Stop &amp; gửi AI
-            </button>
-          </div>
-        </section>
-
-        <section className={card}>
-          <div className={head}>
-            <h2 className={h2}>Upload file (chunk + retry)</h2>
-            <p className={sub}>POST init, PUT chunk có retry, POST complete. Lưu chunk vào IndexedDB để resume.</p>
-          </div>
-          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-            <input ref={fileInputRef} type="file" accept="audio/*,.m4a,.webm,.mp3,.wav,.ogg" className="text-sm" />
-            <button type="button" className={btn} disabled={busy} onClick={() => void handleFileUpload()}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              Upload
-            </button>
-          </div>
-        </section>
-
-        <section className={card}>
-          <div className={head}>
-            <h2 className={h2}>Resume chunk thiếu</h2>
-            <p className={sub}>GET incomplete + status; gửi lại chunk thiếu từ IndexedDB (cùng máy đã lưu).</p>
-          </div>
-          <div className="p-4">
-            <button type="button" className={btnOutline} disabled={busy} onClick={() => void handleResumeIncomplete()}>
-              Quét &amp; gửi lại chunk thiếu
-            </button>
-          </div>
-        </section>
-
-        <section className={card}>
-          <div className={head}>
-            <h2 className={h2}>Log</h2>
-          </div>
-          <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all p-4 font-mono text-xs text-[#475569]">
-            {log || '—'}
-          </pre>
-        </section>
-
-        {job ? (
-          <section className={card}>
-            <div className={head}>
-              <h2 className={h2}>Job: {job.status}</h2>
-              <p className={sub}>id={job.id}</p>
-            </div>
-            <pre className="max-h-64 overflow-auto p-4 font-mono text-xs text-[#475569]">
-              {JSON.stringify(job, null, 2)}
-            </pre>
-          </section>
-        ) : null}
-      </div>
+      </details>
     </P108Shell>
   );
 }

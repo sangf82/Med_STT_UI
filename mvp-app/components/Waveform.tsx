@@ -35,6 +35,7 @@ export function Waveform({
     className,
     ...props
 }: WaveformProps) {
+    void active;
     const containerRef = React.useRef<HTMLDivElement>(null);
     const trackRef = React.useRef<HTMLDivElement>(null);
     const stripRef = React.useRef<HTMLDivElement>(null);
@@ -42,6 +43,8 @@ export function Waveform({
     const isDragging = React.useRef(false);
     const rafId = React.useRef(0);
     const [halfBars, setHalfBars] = React.useState(40);
+    const [layoutWidth, setLayoutWidth] = React.useState(350);
+    const [layoutCenterX, setLayoutCenterX] = React.useState(175);
     const centerXRef = React.useRef(175);
 
     React.useEffect(() => {
@@ -50,7 +53,10 @@ export function Waveform({
                 const w = containerRef.current.clientWidth;
                 const half = w / 2 - 20;
                 setHalfBars(Math.floor(half / BAR_STEP));
-                centerXRef.current = w / 2;
+                const cx = w / 2;
+                centerXRef.current = cx;
+                setLayoutCenterX(cx);
+                setLayoutWidth(w);
             }
         };
         measure();
@@ -150,7 +156,7 @@ export function Waveform({
         const barsH = WAVEFORM_HEIGHT;
         const totalW = totalLevels * BAR_STEP;
         const pos = Math.max(0, Math.min(1, seekPosition));
-        const initialOffset = centerXRef.current - pos * totalW;
+        const initialOffset = layoutCenterX - pos * totalW;
 
         return (
             <div ref={containerRef} className={cn("w-full", className)} {...props}>
@@ -217,7 +223,7 @@ export function Waveform({
                         style={{
                             width: 36,
                             height: 5,
-                            left: Math.max(0, pos * ((containerRef.current?.clientWidth ?? 350) - 36)),
+                            left: Math.max(0, pos * (layoutWidth - 36)),
                             top: '50%',
                             transform: 'translateY(-50%)',
                             background: 'var(--text-muted)',

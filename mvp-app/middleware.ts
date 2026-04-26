@@ -35,7 +35,7 @@ export function middleware(request: NextRequest) {
 
   const authPaths = ["/login", "/signup"];
   if (authPaths.some((path) => pathname.startsWith(path)) && token) {
-    return NextResponse.redirect(new URL("/pilot108", request.url));
+    return NextResponse.redirect(new URL("/pilot108/stt-upload", request.url));
   }
 
   return response;

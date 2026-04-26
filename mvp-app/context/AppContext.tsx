@@ -5,6 +5,14 @@ import type { Profile, Recording } from '@/lib/types/app';
 import { apiClient } from '@/lib/apiClient';
 import { getAuthToken } from '@/lib/auth';
 
+type AuthMeResponse = {
+    name?: string;
+    role?: string;
+    email?: string;
+    phone?: string;
+    npi?: string;
+};
+
 const EMPTY_PROFILE: Profile = {
     name: '',
     initials: '',
@@ -87,28 +95,34 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }, []);
 
     useEffect(() => {
-        // Load initially from localStorage to avoid UI flicker
         const savedProfile = localStorage.getItem('user_profile');
         if (savedProfile) {
-            try {
-                setProfile(JSON.parse(savedProfile));
-            } catch (e) {
-                console.error("Failed to parse cached profile", e);
-            }
+            globalThis.queueMicrotask(() => {
+                try {
+                    setProfile(JSON.parse(savedProfile) as Profile);
+                } catch (e) {
+                    console.error('Failed to parse cached profile', e);
+                }
+            });
         }
 
         const fetchProfile = async () => {
             if (!getAuthToken()) return;
             try {
-                const userProfile = await apiClient<any>('/auth/me');
-                const newProfile = {
+                const userProfile = await apiClient<AuthMeResponse>('/auth/me');
+                const newProfile: Profile = {
                     name: userProfile.name || 'User',
-                    initials: (userProfile.name || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2),
+                    initials: (userProfile.name || 'U')
+                        .split(' ')
+                        .map((n: string) => n[0])
+                        .join('')
+                        .toUpperCase()
+                        .substring(0, 2),
                     specialty: userProfile.role || 'Doctor',
                     hospital: 'Memorial Hospital',
                     email: userProfile.email || '',
                     phone: userProfile.phone || '',
-                    npi: userProfile.npi || '1234567890'
+                    npi: userProfile.npi || '1234567890',
                 };
                 setProfile(newProfile);
                 localStorage.setItem('user_profile', JSON.stringify(newProfile));
@@ -117,7 +131,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             }
         };
 
-        fetchProfile();
+        void fetchProfile();
     }, []);
 
     // Keep localStorage in sync if profile is manually set elsewhere (e.g. login)
@@ -126,30 +140,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         if (!profile.name && !profile.email && !profile.phone && !profile.npi) return;
         localStorage.setItem('user_profile', JSON.stringify(profile));
     }, [profile]);
-
-    useEffect(() => {
-        const fetchProfile = async () => {
-            const token = getAuthToken();
-            if (!token) return;
-
-            try {
-                const userProfile = await apiClient<any>('/auth/me');
-                setProfile({
-                    name: userProfile.name || 'User',
-                    initials: (userProfile.name || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2),
-                    specialty: userProfile.role || 'Doctor',
-                    hospital: 'Memorial Hospital', // Default or fetch if available
-                    email: userProfile.email || '',
-                    phone: userProfile.phone || '',
-                    npi: userProfile.npi || '1234567890'
-                });
-            } catch (error) {
-                console.error('Failed to fetch profile in AppContext', error);
-            }
-        };
-
-        fetchProfile();
-    }, []);
 
     return (
         <AppContext.Provider value={{

@@ -13,6 +13,14 @@ export type WebRtcCandidate = {
   usernameFragment?: string;
 };
 
+export async function initLiveSession(displayName?: string): Promise<{ live_session_id: string }> {
+  const fd = new FormData();
+  if (displayName) fd.set("display_name", displayName);
+  const res = await authedFetch("/ai/stt/live/init", { method: "POST", body: fd });
+  if (!res.ok) throw new Error(`live init failed: ${res.status}`);
+  return res.json();
+}
+
 async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = getAuthToken();
   const headers: Record<string, string> = {
@@ -96,4 +104,9 @@ export async function getLiveCandidates(
   if (!res.ok) throw new Error(`get candidates failed: ${res.status}`);
   const body = (await res.json()) as { items?: WebRtcCandidate[] };
   return body.items || [];
+}
+
+export async function closeLiveSession(liveSessionId: string): Promise<void> {
+  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/close`, { method: "POST" });
+  if (!res.ok) throw new Error(`close live session failed: ${res.status}`);
 }

@@ -6,9 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:e2e": "playwright test --project=chromium-local",
+    "test:e2e:live": "playwright test --project=chromium-live",
+    "test:e2e:bs": "playwright test --project=browserstack-chrome",
+    "test:e2e:bs:design": "playwright test --project=browserstack-chrome e2e/pilot108-design.spec.ts",
+    "test:e2e:ui": "playwright test --project=chromium-local --ui"
   },
   "dependencies": {
+    "@base-ui/react": "^1.4.1",
     "@tailwindcss/typography": "^0.5.19",
     "@tiptap/extension-color": "^3.20.0",
     "@tiptap/extension-highlight": "^3.20.0",
@@ -19,6 +25,7 @@
     "@tiptap/pm": "^3.20.0",
     "@tiptap/react": "^3.20.0",
     "@tiptap/starter-kit": "^3.20.0",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dexie": "^4.3.0",
     "dexie-react-hooks": "^4.2.0",
@@ -28,10 +35,13 @@
     "next-themes": "^0.4.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "shadcn": "^4.5.0",
     "tailwind-merge": "^3.5.0",
-    "tiptap-markdown": "^0.9.0"
+    "tiptap-markdown": "^0.9.0",
+    "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

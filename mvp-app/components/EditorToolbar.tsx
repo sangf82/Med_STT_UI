@@ -18,7 +18,7 @@ import {
     Pilcrow,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 interface EditorToolbarProps {
@@ -141,17 +141,29 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
     };
 
     const setFontSize = (size: number) => {
-        size === 16 ? editor.chain().focus().unsetFontSize().run() : editor.chain().focus().setFontSize(`${size}px`).run();
+        if (size === 16) {
+            editor.chain().focus().unsetFontSize().run();
+        } else {
+            editor.chain().focus().setFontSize(`${size}px`).run();
+        }
         setOpenDropdown(null);
     };
 
     const setTextColor = (color: string) => {
-        color ? editor.chain().focus().setColor(color).run() : editor.chain().focus().unsetColor().run();
+        if (color) {
+            editor.chain().focus().setColor(color).run();
+        } else {
+            editor.chain().focus().unsetColor().run();
+        }
         setOpenDropdown(null);
     };
 
     const setBgColor = (color: string) => {
-        color ? editor.chain().focus().toggleHighlight({ color }).run() : editor.chain().focus().unsetHighlight().run();
+        if (color) {
+            editor.chain().focus().toggleHighlight({ color }).run();
+        } else {
+            editor.chain().focus().unsetHighlight().run();
+        }
         setOpenDropdown(null);
     };
 

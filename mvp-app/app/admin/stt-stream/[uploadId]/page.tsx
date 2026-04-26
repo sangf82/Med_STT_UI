@@ -14,6 +14,11 @@ import {
   getLiveSnapshot,
   postLiveAnswer,
 } from '@/lib/api/sttAdminStreamSession';
+import { P108Shell } from '@/components/pilot108/P108Shell';
+import { P108TerminalLog } from '@/components/medmate/P108TerminalLog';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function AdminSttStreamMonitorPage() {
   const params = useParams();
@@ -29,8 +34,8 @@ export default function AdminSttStreamMonitorPage() {
 
   useEffect(() => {
     if (!liveSessionId) return;
-    setErr('');
     let alive = true;
+    const audioEl = audioRef.current;
 
     const run = async () => {
       try {
@@ -102,32 +107,50 @@ export default function AdminSttStreamMonitorPage() {
       const pc = pcRef.current;
       pcRef.current = null;
       if (pc) pc.close();
-      const el = audioRef.current;
-      if (el) {
-        el.pause();
-        el.srcObject = null;
+      if (audioEl) {
+        audioEl.pause();
+        audioEl.srcObject = null;
       }
     };
   }, [liveSessionId]);
 
+  const statusLine =
+    snap?.status || (connected ? 'connected' : 'waiting');
+
   return (
-    <div className="mx-auto max-w-lg space-y-4 p-4">
-      <h1 className="text-lg font-semibold text-zinc-900">Admin · Nghe live WebRTC</h1>
-      <p className="font-mono text-xs text-zinc-500">live_session_id: {liveSessionId}</p>
-      {err ? <p className="text-sm text-red-600">{err}</p> : null}
-      {snap ? (
-        <div className="space-y-2 rounded-xl border border-zinc-200 bg-white p-4 text-sm text-zinc-800 shadow-sm">
-          <p>
-            <span className="text-zinc-500">display_name:</span>{' '}
-            <span className="font-medium">{snap.display_name || '—'}</span>
-          </p>
-          <p className="text-xs text-zinc-500">status: {snap.status || (connected ? 'connected' : 'waiting')}</p>
+    <P108Shell sessionTitle="Admin · STT live stream" showSessionBadge={false}>
+      <div className="mx-auto max-w-lg space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="font-mono text-xs">
+            {liveSessionId || '—'}
+          </Badge>
+          <Badge variant="outline">{statusLine}</Badge>
         </div>
-      ) : null}
-      <audio ref={audioRef} autoPlay controls className="w-full rounded-lg border border-zinc-200 bg-zinc-50 p-1" />
-      <p className="text-xs text-zinc-500">
-        Luồng nghe live tách riêng khỏi chunk upload STT, ưu tiên độ trễ thấp bằng WebRTC.
-      </p>
-    </div>
+
+        {err ? (
+          <Alert variant="destructive">
+            <AlertTitle>Không kết nối</AlertTitle>
+            <AlertDescription>{err}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {snap ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Snapshot</CardTitle>
+              <CardDescription>Meta từ server cho phiên live</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <P108TerminalLog value={JSON.stringify(snap, null, 2)} maxHeight={160} />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        <audio ref={audioRef} autoPlay controls className="w-full rounded-lg border border-border bg-muted/30 p-1" />
+        <p className="text-xs text-muted-foreground">
+          Luồng nghe live tách riêng khỏi chunk upload STT, ưu tiên độ trễ thấp bằng WebRTC.
+        </p>
+      </div>
+    </P108Shell>
   );
 }

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function RootPage() {
-  redirect('/pilot108');
+  redirect('/pilot108/stt-upload');
 }

@@ -63,8 +63,8 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            timerRef.current && clearInterval(timerRef.current);
-            levelTimerRef.current && clearInterval(levelTimerRef.current);
+            if (timerRef.current) clearInterval(timerRef.current);
+            if (levelTimerRef.current) clearInterval(levelTimerRef.current);
             streamRef.current?.getTracks().forEach(t => t.stop());
             if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
                 audioCtxRef.current.close().catch(() => {});
@@ -222,7 +222,6 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         }, 100);
 
         setState('paused');
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stopTimers, levels.length]);
 
     const resume = useCallback(() => {

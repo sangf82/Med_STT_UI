@@ -2,13 +2,13 @@
 
 /**
  * Pilot 108 — Personal Productivity (feature-[BDD] Personal Productivity.md)
- * Visual tokens: pen-stt-108 `ERahL` / `VtdW0` (H4.0 Draft To-Do), not the shadcn-only kit frame `MzSDs`.
- * Mock checklist URL: `/pilot108/individual?mockChecklist=1` (pen e3zO7 · strip 04, see `pilot108DesignAiMock`).
+ * Visual: pen `ERahL` / `VtdW0` (H4) + design tokens / components từ pen `MzSDs` / `rmCmK`.
+ * Mock checklist: `/pilot108/individual?mockChecklist=1` (pen e3zO7 · strip 04, `pilot108DesignAiMock`).
+ * Finalized UI (design/E2E only): `?designMockFinalized=1` — local finalized draft + checklist rows, no server draft APIs.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Check,
   ChevronDown,
   Download,
   Loader2,
@@ -27,6 +27,7 @@ import {
   pilot108DeleteRosterMember,
   pilot108ExportDocx,
   pilot108FinalizeDraft,
+  pilot108GetDraft,
   pilot108GetRoster,
   pilot108PatchDraftItems,
   pilot108ReopenDraft,
@@ -37,7 +38,6 @@ import {
   type Pilot108Draft,
   type Pilot108DraftItem,
   type Pilot108RosterMember,
-  type Pilot108ShareScope,
 } from '@/lib/api/pilot108Individual';
 import {
   createThongTinEntry,
@@ -49,27 +49,18 @@ import {
   PILOT108_PEN_CHECKLIST_ROWS_STRIP04,
   pilot108PenChecklistToEditableRows,
 } from '@/lib/mocks/pilot108DesignAiMock';
+import { PILOT108_INDIVIDUAL_BDD as BDD } from '@/lib/bdd/pilot108IndividualBdd';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { IndividualAlerts } from '@/components/pilot108/individual/IndividualAlerts';
+import { P108TranscriptionTable } from '@/components/medmate/P108TranscriptionTable';
+import { P108OrderRow } from '@/components/medmate/P108OrderRow';
+import { P108StatusChip } from '@/components/medmate/P108StatusChip';
+import { cn } from '@/lib/utils';
 
 type EditableDraftItem = { id: string; text: string; assignee_id: string };
 type LocalTaskUi = 'PENDING' | 'COMPLETED' | 'CANCELLED';
-
-const BDD = {
-  processingSteps: [
-    'Uploading Audio...',
-    'Transcribing...',
-    'Identifying Team Members...',
-    'Formatting To-Do List...',
-  ] as const,
-  transcriptionError: "Sorry, I couldn't hear that clearly. Try again?",
-  noAudioToast: 'No audio captured',
-  noTasksPrompt:
-    "I couldn't find any to-do items. Would you like to create one manually?",
-  shareTitle: 'Do you want to share this?',
-  shareExternal: 'External',
-  shareOnlyMe: 'Only Me',
-  assigneeEmpty: 'No team members found. [Upload List Now]',
-  waitingOffline: 'Waiting for connection...',
-} as const;
 
 function uid() {
   return `item_${Date.now()}_${Math.random().toString(16).slice(2, 7)}`;
@@ -94,26 +85,25 @@ function buildMarkdown(items: Pilot108DraftItem[], members: Pilot108RosterMember
     .join('\n');
 }
 
-/** pen-stt-108 · H4.0 / ERahL — panel (trắng, viền slate nhạt) */
-const p108Panel = 'overflow-hidden rounded-lg border border-[#CBD5E1] bg-white';
-const p108PanelHead = 'border-b border-[#CBD5E1] bg-white px-4 py-3';
-const p108H2 =
-  'text-[15px] font-semibold tracking-tight text-[#020617] [font-family:var(--font-p108-newsreader),Newsreader,ui-serif,Georgia,serif]';
-const p108Sub =
-  'mt-0.5 text-xs leading-relaxed text-[#64748B] [font-family:var(--font-p108-be),\"Be Vietnam Pro\",ui-sans-serif,system-ui,sans-serif]';
-const p108TableOuter = 'overflow-x-auto rounded-lg border border-[#94A3B8] bg-[#F8FAFC]';
-const p108TheadRow = 'border-b border-[#94A3B8] bg-[#F1F5F9]';
-const p108Th =
-  'px-3 py-4 text-left text-[12px] font-semibold text-[#0F172A] [font-family:var(--font-p108-be),\"Be Vietnam Pro\",ui-sans-serif,system-ui,sans-serif] sm:px-4';
-const p108TbodyRow = 'border-b border-[#94A3B8] bg-white last:border-b-0';
-const btnTeal =
-  'inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#219EBC] px-4 text-sm font-medium text-white transition hover:bg-[#1a8bab] disabled:pointer-events-none disabled:opacity-50 [font-family:var(--font-p108-be),\"Be Vietnam Pro\",sans-serif]';
-const btnOutline =
-  'inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-4 text-sm font-medium text-[#003554] shadow-sm transition hover:bg-[#F1F5F9] disabled:opacity-50 [font-family:var(--font-p108-be),\"Be Vietnam Pro\",sans-serif]';
-const btnGhost =
-  'inline-flex h-9 items-center justify-center rounded-md px-2 text-sm text-[#64748B] transition hover:bg-[#F1F5F9] [font-family:var(--font-p108-be),sans-serif]';
-const inputClass =
-  'h-10 w-full rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A] outline-none transition placeholder:text-[#64748B] focus:border-[#219EBC] focus:ring-2 focus:ring-[#219EBC]/20 [font-family:var(--font-p108-be),sans-serif]';
+const be =
+  '[font-family:var(--font-p108-be),\"Be Vietnam Pro\",ui-sans-serif,system-ui,sans-serif]';
+const news =
+  '[font-family:var(--font-p108-newsreader),Newsreader,ui-serif,Georgia,serif]';
+const p108Panel = 'overflow-hidden rounded-lg border border-border bg-card shadow-sm';
+const p108PanelHead = 'border-b border-border px-4 py-3';
+const p108H2 = cn('text-[15px] font-semibold tracking-tight text-foreground', news);
+const p108Sub = cn('mt-0.5 text-xs leading-relaxed text-muted-foreground', be);
+const p108TheadRow = 'border-b border-[#94A3B8] bg-muted';
+const p108Th = cn(
+  'px-3 py-4 text-left text-[12px] font-semibold text-foreground sm:px-4',
+  be
+);
+const p108TbodyRow = 'border-b border-[#94A3B8] bg-card last:border-b-0';
+const p108TableOuter = 'overflow-x-auto rounded-lg border border-[#94A3B8] bg-muted/40';
+const inputPilot = cn(
+  'h-10 border-border bg-muted/40 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/30',
+  be
+);
 
 export default function Pilot108IndividualPage() {
   const p108SessionTitle = useMemo(
@@ -140,14 +130,13 @@ export default function Pilot108IndividualPage() {
   const [draft, setDraft] = useState<Pilot108Draft | null>(null);
   const [editableItems, setEditableItems] = useState<EditableDraftItem[]>([]);
   const [initialDraftItems, setInitialDraftItems] = useState<EditableDraftItem[]>([]);
-  const [shareModalOpen, setShareModalOpen] = useState(false);
   const [localTaskUi, setLocalTaskUi] = useState<Record<string, LocalTaskUi>>({});
 
   const [showProcessingOverlay, setShowProcessingOverlay] = useState(false);
   const [processingStep, setProcessingStep] = useState(0);
   const [transcriptionError, setTranscriptionError] = useState(false);
   const [noTasksView, setNoTasksView] = useState(false);
-  const [noTasksRaw, setNoTasksRaw] = useState('The weather is nice today');
+  const noTasksRaw = 'The weather is nice today';
   const [offlineBanner, setOfflineBanner] = useState(false);
   const [thongTinEntries, setThongTinEntries] = useState<ThongTinEntry[]>([]);
   const [thongTinQuery, setThongTinQuery] = useState('');
@@ -155,6 +144,8 @@ export default function Pilot108IndividualPage() {
   const [thongTinLoading, setThongTinLoading] = useState(false);
   const [thongTinSaving, setThongTinSaving] = useState(false);
   const mockChecklistAppliedRef = useRef(false);
+  const designMockFinalizedAppliedRef = useRef(false);
+  const draftIdAppliedRef = useRef(false);
 
   const isFinalized = draft?.list_status === 'FINALIZED_LIST';
 
@@ -269,6 +260,36 @@ export default function Pilot108IndividualPage() {
     if (loading) return;
     if (draft) return;
     const params = new URLSearchParams(window.location.search);
+    const draftId = params.get('draftId');
+    if (!draftId) return;
+    if (draftIdAppliedRef.current) return;
+    draftIdAppliedRef.current = true;
+    const run = async () => {
+      setSaving(true);
+      setError('');
+      try {
+        const res = await pilot108GetDraft(draftId);
+        const mapped = toEditableItems(res.items || []);
+        setDraft(res);
+        setEditableItems(mapped);
+        setInitialDraftItems(mapped);
+        setLocalTaskUi({});
+        pushToast('Admin-reviewed checklist loaded.');
+      } catch (err) {
+        setError(getErrorMessage(err));
+      } finally {
+        setSaving(false);
+      }
+    };
+    void run();
+  }, [loading, draft]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (loading) return;
+    if (draft) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('designMockFinalized') === '1') return;
     if (params.get('mockChecklist') !== '1') return;
     if (mockChecklistAppliedRef.current) return;
     mockChecklistAppliedRef.current = true;
@@ -281,6 +302,36 @@ export default function Pilot108IndividualPage() {
     setToast('Mock checklist loaded (?mockChecklist=1 · pen strip 04).');
     window.setTimeout(() => setToast(''), 3200);
   }, [loading, draft, roster]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (loading) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('designMockFinalized') !== '1') return;
+    if (designMockFinalizedAppliedRef.current) return;
+    designMockFinalizedAppliedRef.current = true;
+    const rows = pilot108PenChecklistToEditableRows(PILOT108_PEN_CHECKLIST_ROWS_STRIP04, {
+      newId: uid,
+      defaultAssigneeId: roster[0]?.member_id || '',
+    });
+    const items: Pilot108DraftItem[] = rows.map((r) => ({
+      id: r.id,
+      text: r.text,
+      assignee_id: r.assignee_id || undefined,
+      status: 'PENDING',
+    }));
+    const mockDraft: Pilot108Draft = {
+      id: 'design-mock-finalized',
+      user_id: 'design-preview',
+      list_status: 'FINALIZED_LIST',
+      items,
+      share_scope: 'ONLY_ME',
+    };
+    setLocalTaskUi({});
+    setEditableItems(rows);
+    setInitialDraftItems(rows.map((r) => ({ ...r })));
+    setDraft(mockDraft);
+  }, [loading, roster]);
 
   const toEditableItems = (items: Pilot108DraftItem[]) =>
     (items || []).map((item) => ({
@@ -432,34 +483,18 @@ export default function Pilot108IndividualPage() {
     }
   };
 
-  const handleConfirmFinalize = async (scope: Pilot108ShareScope) => {
+  const handleFinalize = async () => {
     if (!draft) return;
     setSaving(true);
     setError('');
-    setShareModalOpen(false);
     try {
-      const res = await pilot108FinalizeDraft(draft.id, `finalize_${Date.now()}`, scope);
+      const res = await pilot108FinalizeDraft(draft.id, `finalize_${Date.now()}`, 'ONLY_ME');
       setDraft(res);
       const mapped = toEditableItems(res.items || []);
       setEditableItems(mapped);
       setInitialDraftItems(mapped);
       setLocalTaskUi({});
-      if (scope === 'EXTERNAL') {
-        const md = buildMarkdown(res.items || [], roster);
-        const line = (res.items || [])
-          .map((item) => {
-            const n = item.assignee_id ? rosterName(roster, item.assignee_id) : '';
-            return `[ ] ${item.text.trim()}${n ? ` (@${n})` : ''}`;
-          })
-          .join('\n');
-        try {
-          if (navigator.share) {
-            await navigator.share({ text: line || md, title: 'To-do list' });
-          }
-        } catch {
-          /* user cancelled share sheet */
-        }
-      }
+      pushToast('Finalized list ready.');
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -556,26 +591,12 @@ export default function Pilot108IndividualPage() {
   return (
     <P108Shell sessionTitle={p108SessionTitle}>
       <div className="relative mx-auto w-full max-w-[390px] space-y-4 pb-16 sm:max-w-none">
-        {offlineBanner ? (
-          <div
-            role="status"
-            className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs font-medium text-amber-900"
-          >
-            {BDD.waitingOffline}
-          </div>
-        ) : null}
-
-        {toast ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-center text-xs text-emerald-900">
-            {toast}
-          </div>
-        ) : null}
-
-        {error ? (
-          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-            {error}
-          </div>
-        ) : null}
+        <IndividualAlerts
+          offline={offlineBanner}
+          waitingOffline={BDD.waitingOffline}
+          toast={toast}
+          error={error}
+        />
 
         {/* Processing overlay — BDD exact strings (UI reference) */}
         {showProcessingOverlay ? (
@@ -583,6 +604,7 @@ export default function Pilot108IndividualPage() {
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 px-4"
             role="status"
             aria-live="polite"
+            data-testid="p108-bdd-processing-overlay"
           >
             <div className="w-full max-w-sm rounded-2xl bg-slate-950 p-6 text-white shadow-xl">
               <p className="text-center font-serif text-lg font-semibold text-white">Processing</p>
@@ -603,29 +625,30 @@ export default function Pilot108IndividualPage() {
 
         {/* Transcription error — BDD */}
         {transcriptionError ? (
-          <section className={p108Panel} role="alert">
+          <section className={p108Panel} role="alert" data-testid="p108-bdd-transcription-error">
             <div className="border-b border-red-100 bg-red-50/80 px-4 py-3">
               <h2 className="text-[15px] font-semibold text-red-900">Transcription</h2>
             </div>
             <div className="space-y-4 p-4">
               <p className="text-sm text-red-800">{BDD.transcriptionError}</p>
-              <button
+              <Button
                 type="button"
-                className={btnTeal}
+                variant="default"
+                className={cn('h-10', be)}
                 onClick={() => {
                   setTranscriptionError(false);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
               >
                 Back to Quick Capture
-              </button>
+              </Button>
             </div>
           </section>
         ) : null}
 
         {/* No actionable tasks — BDD */}
         {noTasksView ? (
-          <section className={p108Panel}>
+          <section className={p108Panel} data-testid="p108-bdd-no-tasks">
             <div className={p108PanelHead}>
               <h2 className={p108H2}>No actionable items</h2>
             </div>
@@ -633,15 +656,27 @@ export default function Pilot108IndividualPage() {
               <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Raw transcript</p>
               <p className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">{noTasksRaw}</p>
               <p className="text-sm text-slate-600">{BDD.noTasksPrompt}</p>
-              <button type="button" className={btnOutline} onClick={() => setNoTasksView(false)}>
-                Close
-              </button>
+              <Button
+                type="button"
+                variant="default"
+                className={cn('h-10', be)}
+                onClick={() => {
+                  setNoTasksView(false);
+                  setEditableItems((prev) => (prev.length ? prev : [{ id: uid(), text: '', assignee_id: roster[0]?.member_id || '' }]));
+                }}
+              >
+                Add Manually
+              </Button>
             </div>
           </section>
         ) : null}
 
         {/* Roster — BDD context + onboarding error when empty */}
-        <details className={`${p108Panel} [&[open]_summary_.chevron]:rotate-180`} open={roster.length === 0}>
+        <details
+          className={`${p108Panel} [&[open]_summary_.chevron]:rotate-180`}
+          open={roster.length === 0}
+          data-testid="p108-bdd-team-roster"
+        >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
             <div>
               <h2 className={p108H2}>Team roster</h2>
@@ -649,55 +684,77 @@ export default function Pilot108IndividualPage() {
             </div>
             <ChevronDown className="chevron h-5 w-5 shrink-0 text-slate-400 transition-transform duration-200" />
           </summary>
-          <div className="space-y-3 border-t border-slate-100 p-4">
-            <textarea
+          <div className="space-y-3 border-t border-border p-4">
+            <Textarea
               value={bulkRosterText}
               onChange={(e) => setBulkRosterText(e.target.value)}
               placeholder="Comma-separated names"
               rows={2}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#219EBC]"
+              className={cn('min-h-[72px] text-sm', be)}
             />
-            <button type="button" className={btnTeal} onClick={handleBulkRoster} disabled={saving || !bulkRosterText.trim()}>
+            <Button
+              type="button"
+              variant="default"
+              className={cn('h-10', be)}
+              onClick={handleBulkRoster}
+              disabled={saving || !bulkRosterText.trim()}
+            >
               Save roster
-            </button>
+            </Button>
             <div className="grid gap-2 sm:grid-cols-3">
-              <input
-                className={inputClass}
+              <Input
+                className={inputPilot}
                 placeholder="New name"
                 value={newMember.name}
                 onChange={(e) => setNewMember((p) => ({ ...p, name: e.target.value }))}
               />
-              <button type="button" className={btnOutline} onClick={handleAddMember} disabled={saving || !newMember.name.trim()}>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn('h-10', be)}
+                onClick={handleAddMember}
+                disabled={saving || !newMember.name.trim()}
+              >
                 <Plus className="h-4 w-4" />
                 Add
-              </button>
+              </Button>
             </div>
             <div className="max-h-40 space-y-1 overflow-y-auto text-sm">
               {roster.map((m) =>
                 editingMemberId === m.member_id ? (
-                  <div key={m.member_id} className="flex flex-wrap gap-1 rounded-lg border border-slate-100 p-2">
-                    <input
-                      className={inputClass}
+                  <div key={m.member_id} className="flex flex-wrap gap-1 rounded-lg border border-border p-2">
+                    <Input
+                      className={inputPilot}
                       value={editingMember.name}
                       onChange={(e) => setEditingMember((p) => ({ ...p, name: e.target.value }))}
                     />
-                    <button type="button" className={btnTeal} onClick={handleSaveMember} disabled={saving}>
+                    <Button type="button" variant="default" className={cn('h-10', be)} onClick={handleSaveMember} disabled={saving}>
                       Save
-                    </button>
-                    <button type="button" className={btnGhost} onClick={() => setEditingMemberId('')}>
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className={be} onClick={() => setEditingMemberId('')}>
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 ) : (
-                  <div key={m.member_id} className="flex items-center justify-between rounded-lg border border-slate-100 px-2 py-1.5">
-                    <span className="font-medium text-slate-800">{m.name}</span>
+                  <div
+                    key={m.member_id}
+                    className="flex items-center justify-between rounded-lg border border-border px-2 py-1.5"
+                  >
+                    <span className={cn('font-medium text-foreground', be)}>{m.name}</span>
                     <span className="flex gap-1">
-                      <button type="button" className={btnGhost} onClick={() => beginEditMember(m)}>
+                      <Button type="button" variant="ghost" size="icon-sm" onClick={() => beginEditMember(m)} aria-label="Sửa">
                         <Pencil className="h-4 w-4" />
-                      </button>
-                      <button type="button" className={btnGhost} onClick={() => void handleDeleteMember(m.member_id)}>
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </button>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-destructive"
+                        onClick={() => void handleDeleteMember(m.member_id)}
+                        aria-label="Xóa"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </span>
                   </div>
                 ),
@@ -713,98 +770,97 @@ export default function Pilot108IndividualPage() {
           </div>
           <div className="space-y-3 p-4">
             <div className="grid gap-2 sm:grid-cols-3">
-              <input
-                className={inputClass}
+              <Input
+                className={inputPilot}
                 placeholder="Filter by name"
                 value={thongTinQuery}
                 onChange={(e) => setThongTinQuery(e.target.value)}
               />
-              <button
+              <Button
                 type="button"
-                className={btnOutline}
+                variant="outline"
+                className={cn('h-10', be)}
                 disabled={thongTinLoading}
                 onClick={() => void loadThongTin(thongTinQuery)}
               >
                 {thongTinLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 Get list
-              </button>
+              </Button>
             </div>
 
-            <div className="space-y-2 rounded-lg border border-slate-100 bg-slate-50/50 p-3">
-              <input
-                className={inputClass}
+            <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+              <Input
+                className={inputPilot}
                 placeholder="name (required)"
                 value={thongTinForm.name}
                 onChange={(e) => setThongTinForm((p) => ({ ...p, name: e.target.value }))}
               />
-              <textarea
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#219EBC]"
+              <Textarea
+                className={cn('min-h-[100px] text-sm', be)}
                 rows={4}
                 placeholder="thong_tin"
                 value={thongTinForm.thong_tin}
                 onChange={(e) => setThongTinForm((p) => ({ ...p, thong_tin: e.target.value }))}
               />
-              <button type="button" className={btnTeal} disabled={thongTinSaving} onClick={() => void handleCreateThongTin()}>
+              <Button
+                type="button"
+                variant="default"
+                className={cn('h-10', be)}
+                disabled={thongTinSaving}
+                onClick={() => void handleCreateThongTin()}
+              >
                 {thongTinSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Save entry
-              </button>
+              </Button>
             </div>
 
-            <div className={p108TableOuter}>
-              <table className="w-full min-w-[320px] border-collapse text-left text-sm">
-                <thead>
-                  <tr className={p108TheadRow}>
-                    <th className={`${p108Th} border-r border-[#94A3B8]`}>Name</th>
-                    <th className={`${p108Th} border-r border-[#94A3B8]`}>Thông tin</th>
-                    <th className={`${p108Th} text-right`}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {thongTinEntries.length === 0 ? (
-                    <tr className={p108TbodyRow}>
-                      <td
-                        colSpan={3}
-                        className="px-4 py-6 text-center text-xs text-[#64748B] [font-family:var(--font-p108-be),sans-serif]"
-                      >
-                        No entries
-                      </td>
-                    </tr>
-                  ) : (
-                    thongTinEntries.map((entry) => (
-                      <tr key={entry.id} className={p108TbodyRow}>
-                        <td className="border-r border-[#94A3B8] px-3 py-2 align-top font-medium text-[#0F172A] sm:px-4">
-                          {entry.name}
-                        </td>
-                        <td className="border-r border-[#94A3B8] px-3 py-2 align-top text-[#334155] sm:px-4">
-                          <p className="whitespace-pre-wrap break-words">{entry.thong_tin || '—'}</p>
-                        </td>
-                        <td className="px-3 py-2 text-right align-top sm:px-4">
-                          <button
-                            type="button"
-                            className="inline-flex h-9 items-center justify-center rounded-md border border-[#E2E8F0] bg-white px-2 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                            disabled={thongTinSaving}
-                            onClick={() => void handleDeleteThongTin(entry.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <P108TranscriptionTable
+              headers={['Name', 'Thông tin', 'Action']}
+              rows={thongTinEntries.map((entry) => [
+                <span key={`${entry.id}-n`} className={cn('font-medium', be)}>
+                  {entry.name}
+                </span>,
+                <p key={`${entry.id}-t`} className={cn('whitespace-pre-wrap break-words text-muted-foreground', be)}>
+                  {entry.thong_tin || '—'}
+                </p>,
+                <div key={`${entry.id}-a`} className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    className="text-destructive"
+                    disabled={thongTinSaving}
+                    onClick={() => void handleDeleteThongTin(entry.id)}
+                    aria-label="Xóa mục"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>,
+              ])}
+              emptyLabel="No entries"
+            />
           </div>
         </section>
 
         {/* Draft / Finalized checklist */}
         {!noTasksView && !transcriptionError ? (
-          <section className={p108Panel}>
+          <section className={p108Panel} data-testid="p108-h4-checklist-panel">
             <div className={`flex items-start justify-between gap-2 ${p108PanelHead}`}>
               <div>
-                <h2 className={p108H2}>
-                  {isFinalized ? 'Việc cần làm · Đã chốt' : 'Danh sách nháp'}
-                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className={p108H2} data-testid="p108-h4-checklist-title">
+                    {isFinalized ? 'Việc cần làm · Đã chốt' : 'Danh sách nháp'}
+                  </h2>
+                  <P108StatusChip
+                    testId="p108-h4-status-chip"
+                    className={cn(
+                      'px-3 py-0.5 text-xs',
+                      be,
+                    )}
+                    tone={isFinalized ? 'finalized' : 'draft'}
+                    label={isFinalized ? 'FINALIZED' : 'DRAFT'}
+                  />
+                </div>
                 <p className={p108Sub}>
                   {isFinalized
                     ? 'Đã chốt — đánh dấu hoàn thành / hủy. Bút chỉnh sửa để mở lại bản nháp.'
@@ -812,16 +868,17 @@ export default function Pilot108IndividualPage() {
                 </p>
               </div>
               {isFinalized ? (
-                <button
+                <Button
                   type="button"
-                  className={btnGhost}
+                  variant="ghost"
+                  size="icon-sm"
                   title="Edit (reopen draft)"
                   aria-label="Edit list"
                   onClick={() => void handleReopen()}
                   disabled={saving}
                 >
-                  <Pencil className="h-5 w-5 text-[#219EBC]" />
-                </button>
+                  <Pencil className="h-5 w-5 text-primary" />
+                </Button>
               ) : null}
             </div>
 
@@ -859,24 +916,42 @@ export default function Pilot108IndividualPage() {
                           <tr key={item.id} className={`${p108TbodyRow} ${st === 'CANCELLED' ? 'opacity-50' : ''}`}>
                             <td className="border-r border-[#94A3B8] px-3 py-3 align-top sm:px-4 sm:py-4">
                               {isFinalized ? (
-                                <span
-                                  className={`text-[13px] [font-family:var(--font-p108-be),sans-serif] ${
-                                    st === 'COMPLETED' ? 'text-[#94A3B8] line-through' : 'font-medium text-[#0F172A]'
-                                  }`}
+                                <P108OrderRow
+                                  checked={st === 'COMPLETED'}
+                                  disabled={st === 'CANCELLED'}
+                                  onCheckedChange={(checked) =>
+                                    tickCross(item.id, checked ? 'COMPLETED' : 'PENDING')
+                                  }
+                                  contentClassName={cn(
+                                    'text-[13px] font-medium',
+                                    be,
+                                    st === 'COMPLETED' && 'text-muted-foreground line-through',
+                                    st === 'CANCELLED' && 'text-muted-foreground'
+                                  )}
+                                  className={cn(
+                                    'border-0 bg-transparent p-0 shadow-none',
+                                    st === 'CANCELLED' && 'opacity-60'
+                                  )}
                                 >
                                   {item.text}
-                                </span>
+                                </P108OrderRow>
                               ) : (
-                                <input
-                                  className={inputClass}
-                                  value={item.text}
-                                  disabled={isFinalized}
-                                  onChange={(e) =>
-                                    setEditableItems((prev) =>
-                                      prev.map((row, i) => (i === idx ? { ...row, text: e.target.value } : row)),
-                                    )
-                                  }
-                                />
+                                <P108OrderRow
+                                  checked={false}
+                                  checkboxDisabled
+                                  contentClassName={cn('min-w-0 flex-1', be)}
+                                  className="border-0 bg-transparent p-0 py-2 shadow-none sm:py-2.5"
+                                >
+                                  <Input
+                                    className={cn(inputPilot, 'h-auto border-0 bg-transparent p-0 text-[13px] shadow-none focus-visible:ring-0')}
+                                    value={item.text}
+                                    onChange={(e) =>
+                                      setEditableItems((prev) =>
+                                        prev.map((row, i) => (i === idx ? { ...row, text: e.target.value } : row)),
+                                      )
+                                    }
+                                  />
+                                </P108OrderRow>
                               )}
                             </td>
                             <td className="border-r border-[#94A3B8] px-2 py-3 text-center align-top sm:py-4">
@@ -886,7 +961,7 @@ export default function Pilot108IndividualPage() {
                                 </p>
                               ) : (
                                 <select
-                                  className={`${inputClass} text-center text-[13px]`}
+                                  className={cn(inputPilot, 'text-center text-[13px]')}
                                   value={item.assignee_id}
                                   disabled={isFinalized}
                                   onChange={(e) =>
@@ -906,35 +981,28 @@ export default function Pilot108IndividualPage() {
                             </td>
                             {isFinalized ? (
                               <td className="px-2 py-3 text-right sm:py-4">
-                                <div className="flex justify-end gap-1">
-                                  <button
-                                    type="button"
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#E2E8F0] bg-white text-emerald-600 hover:bg-emerald-50"
-                                    aria-label="Tick completed"
-                                    onClick={() => tickCross(item.id, 'COMPLETED')}
-                                  >
-                                    <Check className="h-4 w-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#E2E8F0] bg-white text-red-600 hover:bg-red-50"
-                                    aria-label="Cross cancelled"
-                                    onClick={() => tickCross(item.id, 'CANCELLED')}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </button>
-                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon-sm"
+                                  className="text-destructive hover:bg-destructive/10"
+                                  aria-label="Đánh dấu hủy"
+                                  onClick={() => tickCross(item.id, 'CANCELLED')}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
                               </td>
                             ) : (
                               <td className="px-1 py-3 text-center sm:py-4">
-                                <button
+                                <Button
                                   type="button"
-                                  className={btnGhost}
+                                  variant="ghost"
+                                  size="icon-sm"
                                   aria-label="Remove row"
                                   onClick={() => setEditableItems((prev) => prev.filter((row) => row.id !== item.id))}
                                 >
                                   <Trash2 className="h-4 w-4" />
-                                </button>
+                                </Button>
                               </td>
                             )}
                           </tr>
@@ -946,46 +1014,59 @@ export default function Pilot108IndividualPage() {
               </div>
 
               {!isFinalized ? (
-                <button
+                <Button
                   type="button"
-                  className={btnOutline}
+                  variant="outline"
+                  className={cn('h-10', be)}
                   onClick={() =>
                     setEditableItems((prev) => [...prev, { id: uid(), text: '', assignee_id: roster[0]?.member_id || '' }])
                   }
                 >
                   <Plus className="h-4 w-4" />
                   Add task
-                </button>
+                </Button>
               ) : null}
 
               <div className="flex flex-wrap gap-2 pt-1">
                 {!draft ? (
-                  <button type="button" className={btnTeal} onClick={handleCreateDraft} disabled={saving || !canCreateDraft}>
+                  <Button
+                    type="button"
+                    variant="default"
+                    className={cn('h-10', be)}
+                    onClick={handleCreateDraft}
+                    disabled={saving || !canCreateDraft}
+                  >
                     <Save className="h-4 w-4" />
                     Create draft
-                  </button>
+                  </Button>
                 ) : !isFinalized ? (
                   <>
-                    <button type="button" className={btnOutline} onClick={handlePatchDraft} disabled={saving}>
+                    <Button type="button" variant="outline" className={cn('h-10', be)} onClick={handlePatchDraft} disabled={saving}>
                       Save changes
-                    </button>
-                    <button type="button" className={btnTeal} onClick={() => setShareModalOpen(true)} disabled={saving}>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      className={cn('h-10', be)}
+                      onClick={() => void handleFinalize()}
+                      disabled={saving}
+                    >
                       Finalize
-                    </button>
+                    </Button>
                   </>
                 ) : (
                   <>
-                    <button type="button" className={btnOutline} onClick={handleExportMarkdown} disabled={saving}>
+                    <Button type="button" variant="outline" className={cn('h-10', be)} onClick={handleExportMarkdown} disabled={saving}>
                       <Share2 className="h-4 w-4" />
                       Export &amp; Share
-                    </button>
-                    <button type="button" className={btnOutline} onClick={handleShareSnapshot} disabled={saving}>
+                    </Button>
+                    <Button type="button" variant="outline" className={cn('h-10', be)} onClick={handleShareSnapshot} disabled={saving}>
                       Snapshot
-                    </button>
-                    <button type="button" className={btnOutline} onClick={handleExportDocx} disabled={saving}>
+                    </Button>
+                    <Button type="button" variant="outline" className={cn('h-10', be)} onClick={handleExportDocx} disabled={saving}>
                       <Download className="h-4 w-4" />
                       Export DOCX
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -998,66 +1079,70 @@ export default function Pilot108IndividualPage() {
           </section>
         ) : null}
 
-        {/* Share modal — BDD exact */}
-        {shareModalOpen ? (
-          <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/50 px-3 pb-8 sm:items-center">
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="share-title"
-              className="w-full max-w-sm rounded-lg border border-[#CBD5E1] bg-white p-5 shadow-xl"
-            >
-              <h3
-                id="share-title"
-                className="text-center text-lg font-semibold text-[#020617] [font-family:var(--font-p108-newsreader),serif]"
-              >
-                {BDD.shareTitle}
-              </h3>
-              <div className="mt-5 grid gap-2">
-                <button
-                  type="button"
-                  className={btnOutline}
-                  onClick={() => void handleConfirmFinalize('EXTERNAL')}
-                  disabled={saving}
-                >
-                  {BDD.shareExternal}
-                </button>
-                <button
-                  type="button"
-                  className={btnTeal}
-                  onClick={() => void handleConfirmFinalize('ONLY_ME')}
-                  disabled={saving}
-                >
-                  {BDD.shareOnlyMe}
-                </button>
-                <button type="button" className={btnGhost} onClick={() => setShareModalOpen(false)} disabled={saving}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         {/* QA triggers — exact BDD copy for edge paths (manual until STT wires auto) */}
-        <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 px-3 py-3 text-xs text-slate-600">
-          <p className="font-medium text-slate-700">QA / BDD edge paths</p>
+        <section
+          className="rounded-xl border border-dashed border-border bg-muted/40 px-3 py-3 text-xs text-muted-foreground"
+          data-testid="p108-bdd-qa-section"
+        >
+          <p className="font-medium text-foreground">QA / BDD edge paths</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" className={btnOutline + ' h-8 text-xs'} onClick={() => setShowProcessingOverlay(true)}>
-              Preview processing copy
-            </button>
-            <button type="button" className={btnOutline + ' h-8 text-xs'} onClick={() => pushToast(BDD.noAudioToast)}>
-              Toast: empty recording
-            </button>
-            <button type="button" className={btnOutline + ' h-8 text-xs'} onClick={() => setTranscriptionError(true)}>
-              Screen: transcription error
-            </button>
-            <button type="button" className={btnOutline + ' h-8 text-xs'} onClick={() => setNoTasksView(true)}>
-              Screen: no actionable tasks
-            </button>
-            <button
+            <Button
               type="button"
-              className={btnOutline + ' h-8 text-xs'}
+              variant="outline"
+              size="sm"
+              className={cn('h-8 text-xs', be)}
+              data-testid="p108-bdd-qa-processing"
+              onClick={() => setShowProcessingOverlay(true)}
+            >
+              Preview processing copy
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn('h-8 text-xs', be)}
+              data-testid="p108-bdd-qa-toast-no-audio"
+              onClick={() => pushToast(BDD.noAudioToast)}
+            >
+              Toast: empty recording
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn('h-8 text-xs', be)}
+              data-testid="p108-bdd-qa-transcription-error"
+              onClick={() => setTranscriptionError(true)}
+            >
+              Screen: transcription error
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn('h-8 text-xs', be)}
+              data-testid="p108-bdd-qa-no-tasks"
+              onClick={() => setNoTasksView(true)}
+            >
+              Screen: no actionable tasks
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn('h-8 text-xs', be)}
+              data-testid="p108-bdd-qa-offline-banner"
+              onClick={() => setOfflineBanner((v) => !v)}
+            >
+              Toggle offline banner
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn('h-8 text-xs', be)}
               disabled={!!draft}
+              data-testid="p108-bdd-qa-fill-checklist"
               onClick={() => {
                 if (draft) {
                   pushToast('Reopen draft or start without a server draft to refill rows from pen.');
@@ -1073,7 +1158,7 @@ export default function Pilot108IndividualPage() {
               }}
             >
               Fill table from pen checklist (e3zO7·04)
-            </button>
+            </Button>
           </div>
         </section>
       </div>
