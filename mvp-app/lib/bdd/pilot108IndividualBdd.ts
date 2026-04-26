@@ -4,11 +4,12 @@
  * Single source for UI + Playwright assertions.
  */
 export const PILOT108_INDIVIDUAL_BDD = {
+  /** Aligns with real capture: blob → step1-hear → step2-resolve → create draft (not legacy generic “team identify”). */
   processingSteps: [
-    'Uploading Audio...',
-    'Transcribing...',
-    'Identifying Team Members...',
-    'Formatting To-Do List...',
+    'Đang gửi bản ghi…',
+    'Step 1 — Nghe phiên & chuyển văn bản…',
+    'Step 2 — Tạo checklist việc…',
+    'Lưu bản nháp…',
   ] as const,
   transcriptionError: "Sorry, I couldn't hear that clearly. Try again?",
   noAudioToast: 'No audio captured',

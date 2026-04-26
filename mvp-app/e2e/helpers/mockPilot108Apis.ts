@@ -45,7 +45,15 @@ export async function applyPilot108SttCaptureMocks(page: Page) {
         id: 'e2e-p108-draft',
         user_id: 'e2e',
         list_status: 'DRAFT_LIST',
-        items: [{ id: 'task_1', text: 'Tuấn: kiểm tra sinh hiệu', status: 'DRAFT' }],
+        items: [
+          {
+            id: 'task_1',
+            text: 'Tuấn: kiểm tra sinh hiệu',
+            status: 'DRAFT',
+            patient_code: 'P001',
+            patient_name: 'Tuấn',
+          },
+        ],
       }),
     });
   });

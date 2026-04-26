@@ -37,7 +37,7 @@ import { P108OrderRow } from '@/components/medmate/P108OrderRow';
 import { P108StatusChip } from '@/components/medmate/P108StatusChip';
 import { cn } from '@/lib/utils';
 
-type EditableDraftItem = { id: string; text: string; assignee_id: string };
+type EditableDraftItem = { id: string; text: string; assignee_id: string; patient_code: string; patient_name: string };
 type LocalTaskUi = 'PENDING' | 'COMPLETED' | 'CANCELLED';
 
 function uid() {
@@ -58,7 +58,10 @@ function buildMarkdown(items: Pilot108DraftItem[], members: Pilot108RosterMember
     .map((item) => {
       const name = item.assignee_id ? rosterName(members, item.assignee_id) : '';
       const tag = name ? ` (@${name})` : '';
-      return `- [ ] ${(item.text || '').trim()}${tag}`;
+      const pc = (item.patient_code || '').trim();
+      const pn = (item.patient_name || '').trim();
+      const patientTag = pc || pn ? ` [${[pc, pn].filter(Boolean).join(' · ')}]` : '';
+      return `- [ ]${patientTag} ${(item.text || '').trim()}${tag}`;
     })
     .join('\n');
 }
@@ -238,6 +241,8 @@ export default function Pilot108IndividualPage() {
       id: r.id,
       text: r.text,
       assignee_id: r.assignee_id || undefined,
+      patient_code: r.patient_code || undefined,
+      patient_name: r.patient_name || undefined,
       status: 'PENDING',
     }));
     const mockDraft: Pilot108Draft = {
@@ -258,6 +263,8 @@ export default function Pilot108IndividualPage() {
       id: item.id,
       text: item.text,
       assignee_id: item.assignee_id || '',
+      patient_code: item.patient_code ?? '',
+      patient_name: item.patient_name ?? '',
     }));
 
   const mergedItemsForDisplay = useMemo((): Pilot108DraftItem[] => {
@@ -269,6 +276,8 @@ export default function Pilot108IndividualPage() {
         id: row.id,
         text: row.text,
         assignee_id: row.assignee_id || undefined,
+        patient_code: row.patient_code || undefined,
+        patient_name: row.patient_name || undefined,
         status,
       };
     });
@@ -286,6 +295,8 @@ export default function Pilot108IndividualPage() {
         id: item.id.trim(),
         text: item.text.trim(),
         assignee_id: item.assignee_id || undefined,
+        patient_code: item.patient_code.trim() || undefined,
+        patient_name: item.patient_name.trim() || undefined,
       }));
       const res = await pilot108CreateDraft({
         items: payloadItems,
@@ -315,6 +326,8 @@ export default function Pilot108IndividualPage() {
         id: item.id,
         text: item.text.trim(),
         assignee_id: item.assignee_id || undefined,
+        patient_code: item.patient_code.trim(),
+        patient_name: item.patient_name.trim(),
       }));
       const res = await pilot108PatchDraftItems(draft.id, { updates, delete_item_ids: deleteItemIds });
       const mapped = toEditableItems(res.items || []);
@@ -453,7 +466,7 @@ export default function Pilot108IndividualPage() {
                 data-testid="p108-bdd-processing-overlay"
               >
                 <div className="w-full max-w-sm rounded-2xl bg-slate-950 p-6 text-white shadow-xl">
-                  <p className="text-center font-serif text-lg font-semibold text-white">Processing</p>
+                  <p className="text-center font-serif text-lg font-semibold text-white">Đang xử lý</p>
                   <ul className="mt-4 space-y-2 font-mono text-sm">
                     {BDD.processingSteps.map((label, i) => (
                       <li
@@ -507,7 +520,17 @@ export default function Pilot108IndividualPage() {
                     onClick={() => {
                       setNoTasksView(false);
                       setEditableItems((prev) =>
-                        prev.length ? prev : [{ id: uid(), text: '', assignee_id: roster[0]?.member_id || '' }],
+                        prev.length
+                          ? prev
+                          : [
+                              {
+                                id: uid(),
+                                text: '',
+                                assignee_id: roster[0]?.member_id || '',
+                                patient_code: '',
+                                patient_name: '',
+                              },
+                            ],
                       );
                     }}
                   >
@@ -569,18 +592,16 @@ export default function Pilot108IndividualPage() {
 
             <div className="space-y-3 p-4">
               <div className={p108TableOuter}>
-                <table className="w-full min-w-[300px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[420px] border-collapse text-left text-sm">
                   <thead>
                     <tr className={p108TheadRow}>
+                      <th className={`${p108Th} min-w-[120px] max-w-[200px] border-r border-[#94A3B8]`}>
+                        Thông tin bệnh nhân
+                      </th>
                       <th className={`${p108Th} min-w-[130px] border-r border-[#94A3B8]`}>Việc làm</th>
-                      <th className={`${p108Th} w-[88px] min-w-[65px] border-r border-[#94A3B8] text-center sm:w-[110px]`}>
+                      <th className={`${p108Th} w-[88px] min-w-[65px] text-center sm:w-[110px]`}>
                         Người TH
                       </th>
-                      {isFinalized ? (
-                        <th className={`${p108Th} text-right`}>Thao tác</th>
-                      ) : (
-                        <th className={`${p108Th} w-10 px-1 text-center`} aria-label="Xóa dòng" />
-                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -599,47 +620,124 @@ export default function Pilot108IndividualPage() {
                         const st = disp?.status;
                         return (
                           <tr key={item.id} className={`${p108TbodyRow} ${st === 'CANCELLED' ? 'opacity-50' : ''}`}>
-                            <td className="border-r border-[#94A3B8] px-3 py-3 align-top sm:px-4 sm:py-4">
+                            <td className="border-r border-[#94A3B8] bg-white px-3 py-3 align-top sm:px-4 sm:py-4">
                               {isFinalized ? (
-                                <P108OrderRow
-                                  checked={st === 'COMPLETED'}
-                                  disabled={st === 'CANCELLED'}
-                                  onCheckedChange={(checked) =>
-                                    tickCross(item.id, checked ? 'COMPLETED' : 'PENDING')
-                                  }
-                                  contentClassName={cn(
-                                    'text-[13px] font-medium',
-                                    be,
-                                    st === 'COMPLETED' && 'text-muted-foreground line-through',
-                                    st === 'CANCELLED' && 'text-muted-foreground'
-                                  )}
-                                  className={cn(
-                                    'border-0 bg-transparent p-0 shadow-none',
-                                    st === 'CANCELLED' && 'opacity-60'
-                                  )}
-                                >
-                                  {item.text}
-                                </P108OrderRow>
+                                <div className={cn('space-y-1', be)}>
+                                  <p className="font-mono text-[11px] font-medium text-[#64748B]">
+                                    {item.patient_code.trim() || '—'}
+                                  </p>
+                                  <p className="text-[13px] font-semibold text-[#0F172A]">
+                                    {item.patient_name.trim() || '—'}
+                                  </p>
+                                </div>
                               ) : (
-                                <P108OrderRow
-                                  checked={false}
-                                  checkboxDisabled
-                                  contentClassName={cn('min-w-0 flex-1', be)}
-                                  className="border-0 bg-transparent p-0 py-2 shadow-none sm:py-2.5"
-                                >
-                                  <Input
-                                    className={cn(inputPilot, 'h-auto border-0 bg-transparent p-0 text-[13px] shadow-none focus-visible:ring-0')}
-                                    value={item.text}
-                                    onChange={(e) =>
-                                      setEditableItems((prev) =>
-                                        prev.map((row, i) => (i === idx ? { ...row, text: e.target.value } : row)),
-                                      )
-                                    }
-                                  />
-                                </P108OrderRow>
+                                <div className="space-y-2">
+                                  <div>
+                                    <label className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-[#64748B]">
+                                      Mã BN
+                                    </label>
+                                    <Input
+                                      className={cn(inputPilot, 'h-8 font-mono text-xs')}
+                                      value={item.patient_code}
+                                      onChange={(e) =>
+                                        setEditableItems((prev) =>
+                                          prev.map((row, i) =>
+                                            i === idx ? { ...row, patient_code: e.target.value } : row,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-[#64748B]">
+                                      Họ tên
+                                    </label>
+                                    <Input
+                                      className={cn(inputPilot, 'h-8 text-[13px]')}
+                                      value={item.patient_name}
+                                      onChange={(e) =>
+                                        setEditableItems((prev) =>
+                                          prev.map((row, i) =>
+                                            i === idx ? { ...row, patient_name: e.target.value } : row,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </div>
                               )}
                             </td>
-                            <td className="border-r border-[#94A3B8] px-2 py-3 text-center align-top sm:py-4">
+                            <td className="border-r border-[#94A3B8] px-3 py-3 align-top sm:px-4 sm:py-4">
+                              {isFinalized ? (
+                                <div className="flex items-start gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <P108OrderRow
+                                      checked={st === 'COMPLETED'}
+                                      disabled={st === 'CANCELLED'}
+                                      onCheckedChange={(checked) =>
+                                        tickCross(item.id, checked ? 'COMPLETED' : 'PENDING')
+                                      }
+                                      contentClassName={cn(
+                                        'text-[13px] font-medium',
+                                        be,
+                                        st === 'COMPLETED' && 'text-muted-foreground line-through',
+                                        st === 'CANCELLED' && 'text-muted-foreground'
+                                      )}
+                                      className={cn(
+                                        'border-0 bg-transparent p-0 shadow-none',
+                                        st === 'CANCELLED' && 'opacity-60'
+                                      )}
+                                    >
+                                      {item.text}
+                                    </P108OrderRow>
+                                  </div>
+                                  {st !== 'CANCELLED' ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      className="shrink-0 text-destructive hover:bg-destructive/10"
+                                      aria-label="Đánh dấu hủy"
+                                      onClick={() => tickCross(item.id, 'CANCELLED')}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <div className="flex items-start gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <P108OrderRow
+                                      checked={false}
+                                      checkboxDisabled
+                                      contentClassName={cn('min-w-0 flex-1', be)}
+                                      className="border-0 bg-transparent p-0 py-2 shadow-none sm:py-2.5"
+                                    >
+                                      <Input
+                                        className={cn(inputPilot, 'h-auto border-0 bg-transparent p-0 text-[13px] shadow-none focus-visible:ring-0')}
+                                        value={item.text}
+                                        onChange={(e) =>
+                                          setEditableItems((prev) =>
+                                            prev.map((row, i) => (i === idx ? { ...row, text: e.target.value } : row)),
+                                          )
+                                        }
+                                      />
+                                    </P108OrderRow>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                                    aria-label="Xóa dòng"
+                                    onClick={() => setEditableItems((prev) => prev.filter((row) => row.id !== item.id))}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-2 py-3 text-center align-top sm:py-4">
                               {roster.length === 0 ? (
                                 <p className="text-left text-[11px] text-amber-800 [font-family:var(--font-p108-be),sans-serif]">
                                   {BDD.assigneeEmpty}
@@ -664,32 +762,6 @@ export default function Pilot108IndividualPage() {
                                 </select>
                               )}
                             </td>
-                            {isFinalized ? (
-                              <td className="px-2 py-3 text-right sm:py-4">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon-sm"
-                                  className="text-destructive hover:bg-destructive/10"
-                                  aria-label="Đánh dấu hủy"
-                                  onClick={() => tickCross(item.id, 'CANCELLED')}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </td>
-                            ) : (
-                              <td className="px-1 py-3 text-center sm:py-4">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  aria-label="Remove row"
-                                  onClick={() => setEditableItems((prev) => prev.filter((row) => row.id !== item.id))}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </td>
-                            )}
                           </tr>
                         );
                       })
@@ -704,7 +776,16 @@ export default function Pilot108IndividualPage() {
                   variant="outline"
                   className={cn('h-10', be)}
                   onClick={() =>
-                    setEditableItems((prev) => [...prev, { id: uid(), text: '', assignee_id: roster[0]?.member_id || '' }])
+                    setEditableItems((prev) => [
+                      ...prev,
+                      {
+                        id: uid(),
+                        text: '',
+                        assignee_id: roster[0]?.member_id || '',
+                        patient_code: '',
+                        patient_name: '',
+                      },
+                    ])
                   }
                 >
                   <Plus className="h-4 w-4" />

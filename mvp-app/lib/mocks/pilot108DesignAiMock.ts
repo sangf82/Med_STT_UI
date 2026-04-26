@@ -28,11 +28,13 @@ export const PILOT108_PEN_MARKDOWN_EXPORT_BLOCK =
 export function pilot108PenChecklistToEditableRows(
   items: readonly Pilot108PenChecklistRow[],
   opts: { newId: () => string; defaultAssigneeId: string },
-): Array<{ id: string; text: string; assignee_id: string }> {
+): Array<{ id: string; text: string; assignee_id: string; patient_code: string; patient_name: string }> {
   return items.map((it) => ({
     id: opts.newId(),
     text: it.text,
     assignee_id:
       it.assignee_id === null ? '' : it.assignee_id !== undefined ? it.assignee_id : opts.defaultAssigneeId,
+    patient_code: '',
+    patient_name: '',
   }));
 }

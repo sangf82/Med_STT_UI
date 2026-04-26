@@ -24,12 +24,14 @@ import {
 import {
   P108MobileTopBar,
   P108PhoneFrame,
+  P108ProcessingSteps,
   P108RecordingControls,
   P108Waveform,
   p108Be,
   p108Mono,
   p108News,
 } from '@/components/pilot108/P108Design';
+import { PILOT108_INDIVIDUAL_BDD as BDD } from '@/lib/bdd/pilot108IndividualBdd';
 import { pilot108CreateDraft } from '@/lib/api/pilot108Individual';
 import { getAuthToken } from '@/lib/auth';
 import { setP108LiveSessionId } from '@/lib/p108LiveSession';
@@ -93,7 +95,9 @@ export default function Pilot108SttUploadPage() {
   const [draftId, setDraftId] = useState('');
   const [stepResult, setStepResult] = useState<P108Step2Response | null>(null);
   const [liveSessionId, setLiveSessionId] = useState('');
-  const [liveStatus, setLiveStatus] = useState('Live audio idle');
+  const [liveStatus, setLiveStatus] = useState('Sẵn sàng ghi — chưa bật micro');
+  /** Server pipeline (step1 → step2 → draft); null = không chạy AI. */
+  const [processingStepIndex, setProcessingStepIndex] = useState<number | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -110,6 +114,12 @@ export default function Pilot108SttUploadPage() {
     const id = window.setInterval(() => setElapsedMs(Date.now() - started), 250);
     return () => window.clearInterval(id);
   }, [streamOn, paused]);
+
+  const captureSubtitle = useMemo(() => {
+    if (processingStepIndex !== null) return BDD.processingSteps[processingStepIndex] ?? 'Đang xử lý…';
+    if (streamOn) return paused ? 'Tạm dừng ghi' : 'Đang ghi âm';
+    return 'Sẵn sàng';
+  }, [paused, processingStepIndex, streamOn]);
 
   const timerLabel = useMemo(() => {
     const total = Math.max(0, Math.floor(elapsedMs / 1000));
@@ -139,7 +149,7 @@ export default function Pilot108SttUploadPage() {
     }
     setP108LiveSessionId(null);
     setLiveSessionId('');
-    setLiveStatus('Live audio closed');
+    setLiveStatus('Live: đã đóng');
   }, [liveSessionId]);
 
   const startLiveAudioOffer = useCallback(
@@ -148,7 +158,7 @@ export default function Pilot108SttUploadPage() {
       const sessionId = live.live_session_id;
       setLiveSessionId(sessionId);
       setP108LiveSessionId(sessionId);
-      setLiveStatus(`Live session ready: ${sessionId}`);
+      setLiveStatus('Live: phiên đã tạo — chờ admin bắt tay nối');
       answererSeqRef.current = 0;
 
       const pc = new RTCPeerConnection({
@@ -164,7 +174,7 @@ export default function Pilot108SttUploadPage() {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       await postLiveOffer(sessionId, { type: 'offer', sdp: offer.sdp || '' });
-      setLiveStatus(`Live offer published: ${sessionId}`);
+      setLiveStatus('Live: đã gửi offer — chờ admin');
 
       livePollRef.current = window.setInterval(() => {
         void (async () => {
@@ -172,7 +182,7 @@ export default function Pilot108SttUploadPage() {
             const answer = await getLiveAnswer(sessionId);
             if (answer && !pc.currentRemoteDescription) {
               await pc.setRemoteDescription(new RTCSessionDescription(answer));
-              setLiveStatus(`Admin connected: ${sessionId}`);
+              setLiveStatus('Live: admin đã kết nối');
             }
             const candidates = await getLiveCandidates(sessionId, 'answerer', answererSeqRef.current);
             for (const candidate of candidates) {
@@ -195,6 +205,8 @@ export default function Pilot108SttUploadPage() {
 
   const processP108Audio = useCallback(
     async (audio: File) => {
+      try {
+      setProcessingStepIndex(0);
       pushLog('P108 step1-hear → sending audio');
       const formData = new FormData();
       formData.set('thread_id', uid());
@@ -217,6 +229,7 @@ export default function Pilot108SttUploadPage() {
         summary: '',
         latest: '',
       }));
+      setProcessingStepIndex(1);
       const step2 = await readJsonOrThrow<P108Step2Response>(
         await p108Fetch('/internal/ai/p108/step2-resolve', {
           method: 'POST',
@@ -230,16 +243,25 @@ export default function Pilot108SttUploadPage() {
       if (!checklist.length) {
         throw new Error('P108 AI did not return checklist items');
       }
+      setProcessingStepIndex(2);
       const draft = await pilot108CreateDraft({
         items: checklist.map((item) => ({
           id: item.id,
           text: item.text,
+          patient_code: item.patient_code?.trim() || undefined,
+          patient_name: item.patient_name?.trim() || undefined,
         })),
         idempotency_key: `p108_capture_${Date.now()}`,
       });
       setDraftId(draft.id);
       pushLog(`P108 draft created → ${draft.id}`);
+      setProcessingStepIndex(null);
       router.push(`/pilot108/processing?state=success&draftId=${encodeURIComponent(draft.id)}`);
+      } catch (err) {
+        setProcessingStepIndex(null);
+        setLiveStatus('Xử lý AI thất bại — kiểm tra mạng / log');
+        throw err;
+      }
     },
     [pushLog, router],
   );
@@ -248,7 +270,8 @@ export default function Pilot108SttUploadPage() {
     setBusy(true);
     setDraftId('');
     setStepResult(null);
-    setLiveStatus('Live audio starting...');
+    setProcessingStepIndex(null);
+    setLiveStatus('Đang mở micro & live…');
     setLog('');
     p108AudioChunksRef.current = [];
     try {
@@ -256,7 +279,7 @@ export default function Pilot108SttUploadPage() {
       streamRef.current = stream;
       await startLiveAudioOffer(stream).catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
-        setLiveStatus(`Live audio unavailable: ${message}`);
+        setLiveStatus(`Live không khả dụng: ${message}`);
         pushLog(`Live audio unavailable: ${message}`);
       });
       const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
@@ -264,6 +287,7 @@ export default function Pilot108SttUploadPage() {
       setStreamOn(true);
       setPaused(false);
       setElapsedMs(0);
+      setLiveStatus('Đang ghi âm…');
       mr.ondataavailable = (ev) => {
         if (ev.data.size > 0) {
           p108AudioChunksRef.current.push(ev.data);
@@ -277,6 +301,7 @@ export default function Pilot108SttUploadPage() {
       setStreamOn(false);
       setPaused(false);
       uploadCtxRef.current = null;
+      setLiveStatus('Sẵn sàng ghi — chưa bật micro');
     } finally {
       setBusy(false);
     }
@@ -288,12 +313,14 @@ export default function Pilot108SttUploadPage() {
     if (mr.state === 'recording') {
       mr.pause();
       setPaused(true);
+      setLiveStatus('Tạm dừng ghi…');
       pushLog('recording paused');
       return;
     }
     if (mr.state === 'paused') {
       mr.resume();
       setPaused(false);
+      setLiveStatus('Đang ghi âm…');
       pushLog('recording resumed');
     }
   };
@@ -317,11 +344,13 @@ export default function Pilot108SttUploadPage() {
       setStreamOn(false);
       if (!ctx) {
         pushLog('No active P108 recording context.');
+        setLiveStatus('Sẵn sàng ghi — chưa bật micro');
         return;
       }
       const audioBlob = new Blob(p108AudioChunksRef.current, { type: 'audio/webm' });
       if (audioBlob.size <= 0) {
         pushLog('Không có âm thanh — không gọi P108 AI.');
+        setLiveStatus('Không có dữ liệu âm thanh');
         return;
       }
       const audio = new File([audioBlob], `p108-live-${Date.now()}.webm`, { type: 'audio/webm' });
@@ -329,6 +358,8 @@ export default function Pilot108SttUploadPage() {
       await cleanupLiveAudio();
     } catch (e) {
       pushLog(`P108 recording stop failed: ${String(e)}`);
+      setProcessingStepIndex(null);
+      setLiveStatus('Xử lý thất bại — xem log hoặc thử lại');
       await cleanupLiveAudio();
     } finally {
       setBusy(false);
@@ -345,12 +376,15 @@ export default function Pilot108SttUploadPage() {
     setBusy(true);
     setDraftId('');
     setStepResult(null);
+    setProcessingStepIndex(null);
     setLog('');
     try {
       await processP108Audio(file);
       if (input) input.value = '';
     } catch (e) {
       pushLog(`P108 file capture failed: ${String(e)}`);
+      setProcessingStepIndex(null);
+      setLiveStatus('Xử lý file thất bại — xem log');
     } finally {
       setBusy(false);
     }
@@ -359,7 +393,7 @@ export default function Pilot108SttUploadPage() {
   return (
     <P108Shell sessionTitle="New Recording" showSessionBadge={false}>
       <P108PhoneFrame data-testid="p108-h2-stt-root" className="min-h-[760px]">
-        <P108MobileTopBar title="New Recording" subtitle={streamOn ? (paused ? 'Paused' : 'Recording') : 'Ready'} actionHref="/pilot108/team" />
+        <P108MobileTopBar title="Phiên ghi" subtitle={captureSubtitle} actionHref="/pilot108/team" />
         <main className="flex min-h-[646px] flex-col items-center justify-center gap-12 px-5 py-10">
           <h1 className={cn('text-center text-[28px] font-semibold leading-tight text-[#020617]', p108News)}>New Recording</h1>
           <P108Waveform active={streamOn && !paused} />
@@ -374,10 +408,19 @@ export default function Pilot108SttUploadPage() {
             onPause={handlePauseResume}
             onStop={() => void handleStreamStop()}
           />
-          <div className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-center shadow-sm">
-            <p className={cn('text-xs font-medium text-[#64748B]', p108Be)}>{liveStatus}</p>
-            {liveSessionId ? <p className={cn('mt-1 font-mono text-[10px] text-[#94A3B8]', p108Be)}>{liveSessionId}</p> : null}
-          </div>
+          {processingStepIndex !== null ? (
+            <div className="w-full max-w-[360px] rounded-xl border border-[#E2E8F0] bg-white px-3 py-4 text-left shadow-sm">
+              <p className={cn('mb-3 text-center text-xs font-semibold uppercase tracking-wide text-[#64748B]', p108Be)}>
+                Luồng xử lý sau khi dừng ghi
+              </p>
+              <P108ProcessingSteps steps={BDD.processingSteps} activeIndex={processingStepIndex} />
+            </div>
+          ) : (
+            <div className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-center shadow-sm">
+              <p className={cn('text-xs font-medium text-[#64748B]', p108Be)}>{liveStatus}</p>
+              {liveSessionId ? <p className={cn('mt-1 font-mono text-[10px] text-[#94A3B8]', p108Be)}>{liveSessionId}</p> : null}
+            </div>
+          )}
           {draftId ? (
             <Link href={`/pilot108/individual?draftId=${encodeURIComponent(draftId)}`} className={cn('text-sm font-medium text-[#FB8A0A] underline-offset-2 hover:underline', p108Be)}>
               Review generated checklist

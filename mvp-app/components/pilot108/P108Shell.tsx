@@ -2,7 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarDays, ClipboardList, Home, LogOut, Mic, Settings, UserPlus, Users } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronRight,
+  ClipboardList,
+  Home,
+  LogOut,
+  Mic,
+  PanelLeftClose,
+  Settings,
+  Stethoscope,
+  User,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { logout } from '@/lib/auth';
 import { Badge } from '@/components/ui/badge';
@@ -65,13 +78,16 @@ export function P108Shell({
       data-testid="p108-shell"
       className="min-h-screen bg-[#F8FAFC] text-[#020617] antialiased selection:bg-[#FB8A0A]/25"
     >
-      <header data-testid="p108-header" className="sticky top-0 z-30 border-b border-[#E2E8F0] bg-white">
+      <header
+        data-testid="p108-header"
+        className="sticky top-0 z-30 border-b border-[#CBD5E1] bg-white"
+      >
         {chrome === 'mobile' ? (
           <div className="mx-auto max-w-[390px] sm:hidden">
             <P108StatusBar />
           </div>
         ) : null}
-        <div className="mx-auto flex h-[52px] w-full max-w-[1440px] items-center gap-2 px-4 sm:h-14 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-[52px] w-full max-w-[1440px] items-center gap-3 px-4 sm:h-16 sm:px-[15px]">
           {backHref ? (
             <Link
               href={backHref}
@@ -84,7 +100,7 @@ export function P108Shell({
             <CalendarDays className="h-4 w-4 shrink-0 text-[#FB8A0A] sm:h-5 sm:w-5" aria-hidden />
           )}
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <div className="flex shrink-0 flex-col leading-tight" aria-hidden>
+            <div className="flex shrink-0 flex-col leading-tight sm:hidden" aria-hidden>
               <span className={cn('text-[11px] font-bold tracking-tight text-[#FB8A0A] sm:text-[13px]', p108Be)}>
                 MedMate
               </span>
@@ -100,7 +116,7 @@ export function P108Shell({
             <h1
               data-testid="p108-session-title"
               className={cn(
-                'min-w-0 flex-1 truncate text-[15px] font-semibold leading-tight text-[#020617] sm:text-lg',
+                'min-w-0 flex-1 truncate text-[15px] font-semibold leading-tight text-[#020617] sm:text-xl sm:font-semibold',
                 p108News
               )}
             >
@@ -134,7 +150,7 @@ export function P108Shell({
               variant="ghost"
               size="icon-sm"
               onClick={() => logout()}
-              className="text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground sm:hidden"
               aria-label="Đăng xuất"
             >
               <LogOut className="h-4 w-4" aria-hidden />
@@ -147,12 +163,33 @@ export function P108Shell({
       <div className="mx-auto flex w-full max-w-[1440px] min-h-0 flex-1">
         <aside
           data-testid="p108-sidebar"
-          className="sticky top-[52px] z-20 hidden h-[calc(100dvh-52px)] w-[232px] shrink-0 flex-col border-r border-[#E2E8F0] bg-white sm:top-14 sm:flex sm:h-[calc(100dvh-3.5rem)] lg:w-[248px]"
+          className="sticky top-[52px] z-20 hidden h-[calc(100dvh-52px)] w-64 shrink-0 flex-col gap-4 border-r border-[#CBD5E1] bg-white p-2 sm:top-16 sm:flex sm:h-[calc(100dvh-4rem)]"
         >
-          <nav className={cn('flex flex-col gap-0.5 p-3', p108Be)} aria-label="Pilot 108">
-            <p className={cn('px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#94A3B8]', p108Be)}>
-              Điều hướng
-            </p>
+          <div
+            className={cn(
+              'flex shrink-0 items-center justify-between gap-2 rounded-lg border border-[#CBD5E1] bg-[#FAFAFA] p-2',
+              p108Be,
+            )}
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-[#219EBC]"
+                aria-hidden
+              >
+                <Stethoscope className="h-4 w-4 text-white" strokeWidth={2} />
+              </div>
+              <div className={cn('flex min-w-0 flex-col leading-none', p108News)}>
+                <div className="flex flex-wrap items-baseline text-lg font-semibold tracking-tight">
+                  <span className="text-[#219EBC]">Med</span>
+                  <span className="text-[#FB8A0A]">Mate</span>
+                  <span className="text-[#05191E]"> Scribe</span>
+                </div>
+              </div>
+            </div>
+            <PanelLeftClose className="h-4 w-4 shrink-0 text-[#64748B]" aria-hidden />
+          </div>
+
+          <nav className={cn('flex flex-1 flex-col gap-1.5', p108Be)} aria-label="Pilot 108">
             {SIDEBAR_NAV.map(({ href, label, icon: Icon, match }) => {
               const active = match(pathname);
               return (
@@ -160,22 +197,61 @@ export function P108Shell({
                   key={href}
                   href={href}
                   className={cn(
-                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors',
+                    'flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm font-medium transition-colors',
                     active
-                      ? 'bg-[#FB8A0A]/14 text-[#020617] ring-1 ring-[#FB8A0A]/25'
-                      : 'text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0F172A]',
+                      ? 'bg-[#219EBC] text-[#FAFAFA]'
+                      : 'text-[#020617] hover:bg-[#F1F5F9]',
                   )}
                   aria-current={active ? 'page' : undefined}
                 >
-                  <Icon className={cn('h-5 w-5 shrink-0', active ? 'text-[#FB8A0A]' : 'text-[#94A3B8]')} aria-hidden />
-                  {label}
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Icon
+                      className={cn('h-4 w-4 shrink-0', active ? 'text-[#FAFAFA]' : 'text-[#475569]')}
+                      aria-hidden
+                    />
+                    <span className="truncate">{label}</span>
+                  </span>
+                  <ChevronRight
+                    className={cn('h-4 w-4 shrink-0', active ? 'text-[#FAFAFA]/70' : 'text-[#CBD5E1]')}
+                    aria-hidden
+                  />
                 </Link>
               );
             })}
           </nav>
+
+          <div
+            className={cn(
+              'mt-auto flex shrink-0 items-center justify-between gap-2 rounded-lg border border-[#CBD5E1] bg-[#FAFAFA] p-2',
+              p108Be,
+            )}
+          >
+            <Link href={settingsHref} className="flex min-w-0 flex-1 items-center gap-2 rounded-md hover:bg-black/[0.03]">
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[#64748B]"
+                aria-hidden
+              >
+                <User className="h-5 w-5" strokeWidth={1.75} />
+              </div>
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-sm font-medium text-[#05191E]">Tài khoản</span>
+                <span className="truncate text-xs text-[#475569]">Cài đặt team</span>
+              </div>
+            </Link>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => logout()}
+              className="shrink-0 text-[#64748B] hover:text-[#020617]"
+              aria-label="Đăng xuất"
+            >
+              <LogOut className="h-4 w-4" aria-hidden />
+            </Button>
+          </div>
         </aside>
 
-        <div className="min-w-0 flex-1 px-[15px] py-4 sm:px-6 lg:px-8 lg:py-6">
+        <div className="min-w-0 flex-1 px-[15px] py-[15px]">
           <div className="mx-auto w-full max-w-[390px] sm:max-w-none">{children}</div>
         </div>
       </div>

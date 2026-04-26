@@ -33,11 +33,12 @@ function stateFrom(value: string | string[] | undefined): State {
   return 'upload';
 }
 
+/** Indices match `PILOT108_INDIVIDUAL_BDD.processingSteps` (4 steps; success = all done). */
 const stepIndex: Record<State, number> = {
   upload: 0,
   transcribing: 1,
-  identifying: 2,
-  formatting: 3,
+  identifying: 1,
+  formatting: 2,
   success: 4,
   error: 1,
   offline: 0,
@@ -70,7 +71,7 @@ export default async function Pilot108ProcessingPage({
                 <Mic className="h-12 w-12 text-[#FB8A0A]" />
               )}
               <h1 className={cn('mt-8 text-[24px] font-semibold leading-tight text-[#0F172A]', p108News)}>
-                {state === 'success' ? 'Processing Complete!' : BDD.processingSteps[Math.min(activeIndex, 3)]}
+                {state === 'success' ? 'Hoàn tất xử lý' : BDD.processingSteps[Math.min(activeIndex, 3)]}
               </h1>
               <div className="mt-10 w-full text-left">
                 <P108ProcessingSteps steps={BDD.processingSteps} activeIndex={activeIndex} />

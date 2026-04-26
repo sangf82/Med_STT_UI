@@ -13,6 +13,8 @@ export type Pilot108DraftItem = {
   text: string;
   assignee_id?: string | null;
   status?: string;
+  patient_code?: string | null;
+  patient_name?: string | null;
 };
 
 export type Pilot108ShareScope = "ONLY_ME" | "EXTERNAL";
@@ -116,7 +118,13 @@ export const pilot108ListSystemUsers = (limit = 200) =>
   );
 
 export const pilot108CreateDraft = (payload: {
-  items: Array<{ id: string; text: string; assignee_id?: string | null }>;
+  items: Array<{
+    id: string;
+    text: string;
+    assignee_id?: string | null;
+    patient_code?: string | null;
+    patient_name?: string | null;
+  }>;
   idempotency_key?: string;
 }) =>
   apiCall(() =>
@@ -132,7 +140,13 @@ export const pilot108GetDraft = (draftId: string) =>
 export const pilot108PatchDraftItems = (
   draftId: string,
   payload: {
-    updates: Array<{ id: string; text?: string; assignee_id?: string | null }>;
+    updates: Array<{
+      id: string;
+      text?: string;
+      assignee_id?: string | null;
+      patient_code?: string | null;
+      patient_name?: string | null;
+    }>;
     delete_item_ids: string[];
   },
 ) =>
