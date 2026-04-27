@@ -190,7 +190,7 @@ export const pilot108ShareSnapshot = (draftId: string) =>
 export const pilot108ExportDocx = async (draftId: string): Promise<Blob> => {
   const token = getAuthToken();
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL || "https://medmate-backend-k25riftvia-as.a.run.app"}/pilot108/individual/drafts/${draftId}/export-docx`,
+    `${process.env.NEXT_PUBLIC_API_URL || "https://medmate-backend-176393011547.asia-southeast1.run.app"}/pilot108/individual/drafts/${draftId}/export-docx`,
     {
       method: "POST",
       headers: {

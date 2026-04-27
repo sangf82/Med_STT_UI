@@ -2,7 +2,7 @@ import { getAuthToken, logout } from "./auth";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://medmate-backend-k25riftvia-as.a.run.app";
+  "https://medmate-backend-176393011547.asia-southeast1.run.app";
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string>;

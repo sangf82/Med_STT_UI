@@ -44,7 +44,7 @@ import { cn } from '@/lib/utils';
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  'https://medmate-backend-k25riftvia-as.a.run.app';
+  'https://medmate-backend-176393011547.asia-southeast1.run.app';
 
 async function p108Fetch(path: string, init: RequestInit): Promise<Response> {
   const token = getAuthToken();

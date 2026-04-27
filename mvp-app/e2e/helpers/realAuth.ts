@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
 
-const DEFAULT_API = 'https://medmate-backend-k25riftvia-as.a.run.app';
+const DEFAULT_API = 'https://medmate-backend-176393011547.asia-southeast1.run.app';
 
 export function defaultApiBase(): string {
   const raw = process.env.E2E_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? DEFAULT_API;
