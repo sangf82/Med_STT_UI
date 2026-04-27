@@ -16,7 +16,7 @@ export type WebRtcCandidate = {
 export async function initLiveSession(displayName?: string): Promise<{ live_session_id: string }> {
   const fd = new FormData();
   if (displayName) fd.set("display_name", displayName);
-  const res = await authedFetch("/ai/stt/live/init", { method: "POST", body: fd });
+  const res = await authedFetch("/live-monitor/init", { method: "POST", body: fd });
   if (!res.ok) throw new Error(`live init failed: ${res.status}`);
   return res.json();
 }
@@ -35,14 +35,14 @@ async function authedFetch(path: string, init?: RequestInit): Promise<Response> 
 }
 
 export async function getLiveOffer(liveSessionId: string): Promise<WebRtcSdp | null> {
-  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/offer`);
+  const res = await authedFetch(`/live-monitor/${encodeURIComponent(liveSessionId)}/offer`);
   if (!res.ok) throw new Error(`get offer failed: ${res.status}`);
   const body = (await res.json()) as { offer?: WebRtcSdp | null };
   return body.offer || null;
 }
 
 export async function postLiveAnswer(liveSessionId: string, answer: WebRtcSdp): Promise<void> {
-  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/answer`, {
+  const res = await authedFetch(`/live-monitor/${encodeURIComponent(liveSessionId)}/answer`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(answer),
@@ -51,7 +51,7 @@ export async function postLiveAnswer(liveSessionId: string, answer: WebRtcSdp): 
 }
 
 export async function postLiveOffer(liveSessionId: string, offer: WebRtcSdp): Promise<void> {
-  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/offer`, {
+  const res = await authedFetch(`/live-monitor/${encodeURIComponent(liveSessionId)}/offer`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(offer),
@@ -60,7 +60,7 @@ export async function postLiveOffer(liveSessionId: string, offer: WebRtcSdp): Pr
 }
 
 export async function getLiveAnswer(liveSessionId: string): Promise<WebRtcSdp | null> {
-  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/answer`);
+  const res = await authedFetch(`/live-monitor/${encodeURIComponent(liveSessionId)}/answer`);
   if (!res.ok) throw new Error(`get answer failed: ${res.status}`);
   const body = (await res.json()) as { answer?: WebRtcSdp | null };
   return body.answer || null;
@@ -69,7 +69,7 @@ export async function getLiveAnswer(liveSessionId: string): Promise<WebRtcSdp | 
 export async function getLiveSnapshot(
   liveSessionId: string,
 ): Promise<{ display_name?: string; status?: string; has_offer?: boolean; has_answer?: boolean }> {
-  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/snapshot`);
+  const res = await authedFetch(`/live-monitor/${encodeURIComponent(liveSessionId)}/snapshot`);
   if (!res.ok) throw new Error(`snapshot failed: ${res.status}`);
   return res.json();
 }
@@ -80,7 +80,7 @@ export async function addLiveCandidate(
   candidate: RTCIceCandidateInit,
 ): Promise<void> {
   if (!candidate.candidate) return;
-  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/candidate`, {
+  const res = await authedFetch(`/live-monitor/${encodeURIComponent(liveSessionId)}/candidate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -100,13 +100,14 @@ export async function getLiveCandidates(
   after = 0,
 ): Promise<WebRtcCandidate[]> {
   const q = new URLSearchParams({ role, after: String(after) });
-  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/candidates?${q.toString()}`);
+  const res = await authedFetch(`/live-monitor/${encodeURIComponent(liveSessionId)}/candidates?${q.toString()}`);
   if (!res.ok) throw new Error(`get candidates failed: ${res.status}`);
   const body = (await res.json()) as { items?: WebRtcCandidate[] };
   return body.items || [];
 }
 
 export async function closeLiveSession(liveSessionId: string): Promise<void> {
-  const res = await authedFetch(`/ai/stt/live/${encodeURIComponent(liveSessionId)}/close`, { method: "POST" });
+  const res = await authedFetch(`/live-monitor/${encodeURIComponent(liveSessionId)}/close`, { method: "POST" });
   if (!res.ok) throw new Error(`close live session failed: ${res.status}`);
 }
+

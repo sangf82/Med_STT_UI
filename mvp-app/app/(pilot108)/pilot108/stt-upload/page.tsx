@@ -1,8 +1,17 @@
 'use client';
 
 /**
- * Pilot 108 BDD capture: record audio, call P108 AI step1/step2, then create a checklist draft.
- * This page must not use legacy `/ai/stt/upload/stream/init` because that quota flow is outside P108 BDD.
+ * Pilot 108 BDD capture: record audio, ship the high-quality blob to admin, and (separately) expose
+ * a low-quality WebRTC live monitor so admin can confirm what's being heard.
+ *
+ * Two independent pipelines share ONE `getUserMedia` MediaStream but never cross afterwards:
+ *   1. Capture (chính, an toàn): MediaRecorder → Blob('audio/webm') → POST /internal/ai/p108/capture-upload
+ *      → backend stores in GCS → admin Step 1 (`step1-hear-from-capture`) reads from GCS.
+ *   2. Live monitor (chỉ để admin nghe confirm): RTCPeerConnection → /live-monitor/{init,offer,answer,candidate}
+ *      → ephemeral, lossy, NEVER used as STT input.
+ *
+ * Do NOT route live audio into capture-upload, and do NOT replace capture with live snapshots.
+ * Legacy `/ai/stt/upload/stream/init` is intentionally avoided here (its quota flow is outside P108 BDD).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -124,6 +133,8 @@ export default function Pilot108SttUploadPage() {
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
       });
       livePcRef.current = pc;
+      // Live monitor branch only: tracks here are sent to admin via WebRTC for confirmation listening.
+      // The same `stream` is also fed to MediaRecorder elsewhere — that branch is what gets persisted.
       stream.getAudioTracks().forEach((track) => pc.addTrack(track, stream));
       pc.onicecandidate = (event) => {
         if (!event.candidate) return;
@@ -190,6 +201,7 @@ export default function Pilot108SttUploadPage() {
         setLiveStatus(`Live không khả dụng: ${message}`);
         pushLog(`Live audio unavailable: ${message}`);
       });
+      // Capture branch (high-quality, persisted, used as STT input by admin Step 1).
       const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       mediaRecorderRef.current = mr;
       setStreamOn(true);
@@ -357,3 +369,4 @@ export default function Pilot108SttUploadPage() {
     </P108Shell>
   );
 }
+

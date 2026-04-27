@@ -14,7 +14,8 @@ Sources under `medmate-bdd/pilot_108/` (see `README.md` for named feature docs).
 | **Quick Edit** | Edit row text, delete row | `mock checklist rows: edit task text and remove row` (`?mockChecklist=1`). |
 | | Pen-backed checklist rows | `fill table from pen checklist QA matches design mock rows`. |
 | **STT / capture** | Navigate to capture surface | `STT upload stub visible from pilot flow`; pixel goldens for G1-G4, H1-H6, S1, E1-E4 in `pilot108-design.spec.ts` / `design-matrix.md`. |
-| **Admin / HITL-adjacent** | Admin live stream monitor + snapshot | `snapshot card after mocked live meta` (`/admin/stt-stream/...` + mocked `/ai/stt/live/**`). |
+| **Admin / HITL-adjacent** | Admin live stream monitor + snapshot | `snapshot card after mocked live meta` (`/admin/stt-stream/...` + mocked `/live-monitor/**`). |
 | **Multi-user** | `feature-[BDD] Team 108 Roles & Assigned Time Filter.md` | **N/A in mvp-app** — no dedicated team board route; matrix row only. Integrate when `/pilot108/…` multi-user UI exists. |
 
 Shared BDD strings: `lib/bdd/pilot108IndividualBdd.ts` (`PILOT108_INDIVIDUAL_BDD`), imported by the individual page and by Playwright for drift-free asserts.
+
