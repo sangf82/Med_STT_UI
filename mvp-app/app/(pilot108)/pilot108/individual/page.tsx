@@ -430,6 +430,7 @@ export default function Pilot108IndividualPage() {
     () => !draft && editableItems.every((item) => item.id.trim() && item.text.trim()),
     [draft, editableItems],
   );
+  const allowLocalAuthoring = bddHarness;
 
   const tickCross = (itemId: string, next: LocalTaskUi) => {
     setLocalTaskUi((prev) => ({ ...prev, [itemId]: next }));
@@ -611,7 +612,9 @@ export default function Pilot108IndividualPage() {
                           colSpan={3}
                           className="px-4 py-10 text-center text-xs text-[#64748B] [font-family:var(--font-p108-be),sans-serif]"
                         >
-                          Thêm dòng bên dưới, rồi tạo bản nháp trên máy chủ.
+                          {allowLocalAuthoring
+                            ? 'Thêm dòng bên dưới, rồi tạo bản nháp trên máy chủ.'
+                            : 'Chưa có danh sách. Chờ admin xử lý STT, duyệt checklist và publish cho bạn.'}
                         </td>
                       </tr>
                     ) : (
@@ -724,16 +727,18 @@ export default function Pilot108IndividualPage() {
                                       />
                                     </P108OrderRow>
                                   </div>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    className="shrink-0 text-muted-foreground hover:text-destructive"
-                                    aria-label="Xóa dòng"
-                                    onClick={() => setEditableItems((prev) => prev.filter((row) => row.id !== item.id))}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  {allowLocalAuthoring ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                                      aria-label="Xóa dòng"
+                                      onClick={() => setEditableItems((prev) => prev.filter((row) => row.id !== item.id))}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
                                 </div>
                               )}
                             </td>
@@ -770,7 +775,7 @@ export default function Pilot108IndividualPage() {
                 </table>
               </div>
 
-              {!isFinalized ? (
+              {!isFinalized && allowLocalAuthoring ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -794,7 +799,7 @@ export default function Pilot108IndividualPage() {
               ) : null}
 
               <div className="flex flex-wrap gap-2 pt-1">
-                {!draft ? (
+                {!draft && allowLocalAuthoring ? (
                   <Button
                     type="button"
                     variant="default"
@@ -805,6 +810,10 @@ export default function Pilot108IndividualPage() {
                     <Save className="h-4 w-4" />
                     Create draft
                   </Button>
+                ) : !draft ? (
+                  <p className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-xs text-[#64748B]">
+                    Danh sách việc cần làm được admin publish sau Step 2.
+                  </p>
                 ) : !isFinalized ? (
                   <>
                     <Button type="button" variant="outline" className={cn('h-10', be)} onClick={handlePatchDraft} disabled={saving}>
